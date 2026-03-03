@@ -18,10 +18,16 @@ public class ProjectMHW : ModuleRules
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"UMG",
-			"Slate"
+			"Slate",
+			"GameplayAbilities", 
+			"GameplayTags",
+			"GameplayTasks"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+
+		});
 
 		PublicIncludePaths.AddRange(new string[] {
 			"ProjectMHW",
