@@ -1,0 +1,18 @@
+#pragma once
+
+#include "NativeGameplayTags.h"
+
+namespace MHGameplayTags
+{
+	//Input Tags (입력 태그)
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Move) // 이동 입력
+	
+	//Element Tags (속성 태그)
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Element_Fire);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Element_Water);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Element_Thunder);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Element_Ice);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Element_Dragon);
+	
+
+}
