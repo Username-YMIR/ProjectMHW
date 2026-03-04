@@ -5,7 +5,7 @@
 #include "AbilitySystemInterface.h"
 #include "MHCharacterBase.generated.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogCharacterBase, Log, All)
+DECLARE_LOG_CATEGORY_EXTERN(LogMHCharacterBase, Log, All)
 
 
 // ============= 전방 선언 =============
@@ -14,6 +14,7 @@ class UAttributeSet;
 class UGameplayAbility;
 class UGameplayEffect;
 class UDataAsset;
+class AController;
 // ====================================
 
 UCLASS()
@@ -29,17 +30,24 @@ public:
 protected:
     virtual void BeginPlay() override;
 
+    virtual void PossessedBy(AController* NewController) override;
+
+    virtual void OnRep_PlayerState() override;
+
+    // GAS 초기화
+    virtual void InitializeAbilitySystem();
+
 protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
-    TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
+    TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent; // ASC
     
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS" , meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UDataAsset> GASAsset;
+    TObjectPtr<UDataAsset> GASAsset; // 스타트업 데이터
     
     UPROPERTY()
-    TObjectPtr<UAttributeSet> EnemyAttributeSet;
+    TObjectPtr<UAttributeSet> AttributeSet; // 스탯
     
     UPROPERTY(BlueprintReadOnly)
-    bool bGASInitialized = false;
+    bool bGASInitialized = false; // 초기화 여부
     
 };
