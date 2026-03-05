@@ -9,10 +9,18 @@
   <component name="ChangeListManager">
     <list default="true" id="00d04211-6fdc-4f65-a540-2ae04f5f4d0e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProjectMHW.dir/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProjectMHW.dir/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/MHGameplayTags.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/MHGameplayTags.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/MHGameplayTags.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/MHGameplayTags.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Private/Character/MHCharacterBase.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Private/Character/MHCharacterBase.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Private/Character/Player/MHPlayerCharacter.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Private/Character/Player/MHPlayerCharacter.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Private/Components/Input/MHInputComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Private/Components/Input/MHInputComponent.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Private/DataAsset/Input/DataAsset_InputConfig.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Private/DataAsset/Input/DataAsset_InputConfig.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Private/Input/MHGameplayTags.cpp" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Public/Character/MHCharacterBase.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Public/Character/MHCharacterBase.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Public/Character/Player/MHPlayerCharacter.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Public/Character/Player/MHPlayerCharacter.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Public/Components/Input/MHInputComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Public/Components/Input/MHInputComponent.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Public/DataAsset/Input/DataAsset_InputConfig.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Public/DataAsset/Input/DataAsset_InputConfig.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Public/Input/MHGameplayTags.h" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -33,8 +41,8 @@
 }</component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/Username-YMIR/ProjectMHW.git&quot;,
-    &quot;accountId&quot;: &quot;5325178b-52d9-4b99-be04-c495b73f0241&quot;
+    &quot;url&quot;: &quot;https://github.com/Username-YMIR/ProjectMHW&quot;,
+    &quot;accountId&quot;: &quot;7c75cbb2-0a00-45a2-a992-0251dfc67a06&quot;
   }
 }</component>
   <component name="HighlightingSettingsPerFile">
@@ -72,8 +80,8 @@
         <option name="CONFIGURATION" value="DebugGame Editor" />
         <option name="PLATFORM" value="Win64" />
         <option name="CURRENT_LAUNCH_PROFILE" value="Local" />
-        <option name="EXECUTABLE_PATH" value="$PROJECT_DIR$/../Program Files/Epic Games/UE_5.6/Engine/Binaries/Win64/UnrealEditor-Win64-DebugGame.exe" />
-        <option name="MANDATORY_PROGRAM_PARAMETERS" value=" &quot;C:\ProjectMHW\ProjectMHW.uproject&quot;" />
+        <option name="EXECUTABLE_PATH" value="$PROJECT_DIR$/../../../../../Program Files/Epic Games/UE_5.6/Engine/Binaries/Win64/UnrealEditor-Win64-DebugGame.exe" />
+        <option name="MANDATORY_PROGRAM_PARAMETERS" value=" &quot;C:\Users\KGA\Documents\Unreal Projects\ProjectMHW\ProjectMHW.uproject&quot;" />
         <option name="CUSTOM_PROGRAM_PARAMETERS" value="" />
         <option name="WORKING_DIRECTORY" value="C:\Program Files\Epic Games\UE_5.6" />
         <option name="PASS_PARENT_ENVS" value="1" />
@@ -98,8 +106,8 @@
         <option name="CONFIGURATION" value="Development Editor" />
         <option name="PLATFORM" value="Win64" />
         <option name="CURRENT_LAUNCH_PROFILE" value="Local" />
-        <option name="EXECUTABLE_PATH" value="$PROJECT_DIR$/../Program Files/Epic Games/UE_5.6/Engine/Binaries/Win64/UnrealEditor.exe" />
-        <option name="MANDATORY_PROGRAM_PARAMETERS" value=" &quot;C:\ProjectMHW\ProjectMHW.uproject&quot;" />
+        <option name="EXECUTABLE_PATH" value="$PROJECT_DIR$/../../../../../Program Files/Epic Games/UE_5.6/Engine/Binaries/Win64/UnrealEditor.exe" />
+        <option name="MANDATORY_PROGRAM_PARAMETERS" value=" &quot;C:\Users\KGA\Documents\Unreal Projects\ProjectMHW\ProjectMHW.uproject&quot;" />
         <option name="CUSTOM_PROGRAM_PARAMETERS" value="" />
         <option name="WORKING_DIRECTORY" value="C:\Program Files\Epic Games\UE_5.6" />
         <option name="PASS_PARENT_ENVS" value="1" />
@@ -159,6 +167,8 @@
       <workItem from="1772616426576" duration="1880000" />
       <workItem from="1772638247038" duration="2374000" />
       <workItem from="1772648046073" duration="163000" />
+      <workItem from="1772672681833" duration="256000" />
+      <workItem from="1772672974231" duration="484000" />
     </task>
     <servers />
   </component>

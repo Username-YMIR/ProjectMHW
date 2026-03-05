@@ -10,7 +10,7 @@
 
 #include "Components/Input/MHInputComponent.h"
 #include "DataAsset/Input/DataAsset_InputConfig.h"
-#include "Input/MHGameplayTags.h"
+#include "MHGameplayTags.h"
 
 DEFINE_LOG_CATEGORY(LogMHPlayerCharacter)
 
@@ -80,8 +80,8 @@ void AMHPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
     }
 
     UMHInputComponent* MHInputComponent = CastChecked<UMHInputComponent>(PlayerInputComponent);
-    MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHWGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &AMHPlayerCharacter::Input_Move);
-    MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHWGameplayTags::InputTag_Look, ETriggerEvent::Triggered, this, &AMHPlayerCharacter::Input_Look);
+    MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_Move, ETriggerEvent::Triggered, this, &AMHPlayerCharacter::Input_Move);
+    MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_Look, ETriggerEvent::Triggered, this, &AMHPlayerCharacter::Input_Look);
 }
 
 void AMHPlayerCharacter::Input_Move(const FInputActionValue& InputActionValue)

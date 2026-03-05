@@ -4,6 +4,7 @@ namespace MHGameplayTags
 {
 	//Input Tags
 	UE_DEFINE_GAMEPLAY_TAG(Input_Move, "Input.Move");
+	UE_DEFINE_GAMEPLAY_TAG(Input_Look, "Input.Look");
 	
 	//Element Tags (속성 태그)
 	UE_DEFINE_GAMEPLAY_TAG(Element,        "Element");
