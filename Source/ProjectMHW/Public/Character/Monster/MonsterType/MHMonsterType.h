@@ -8,7 +8,7 @@
 USTRUCT(BlueprintType)
 struct FMonsterAbilityEntry
 {
-	GENERATED_BODY();
+	GENERATED_BODY()
 	
 	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly);
 	FGameplayTag AbilityTag;
@@ -26,10 +26,9 @@ struct FPhaseAbilitySet
 {
 	GENERATED_BODY()
 	
-	// TODO // 승우
-	// 보스 트리거용 가중치 
+	
 	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly);
-	float MaxWeight = 4.f;
+	float Weight = 1.f;
 	
 	UPROPERTY(EditDefaultsOnly , BlueprintReadOnly);
 	FGameplayTag PhaseTag;
