@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "Character/MHCharacterBase.h"
+#include "Type/MHPlayerStructType.h"
 #include "MHPlayerCharacter.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMHPlayerCharacter, Log, All)
@@ -10,6 +11,8 @@ DECLARE_LOG_CATEGORY_EXTERN(LogMHPlayerCharacter, Log, All)
 class USpringArmComponent;
 class UCameraComponent;
 class UDataAsset_InputConfig;
+class USkeletalMesh;
+class UAnimInstance;
 struct FInputActionValue;
 
 UCLASS()
@@ -22,6 +25,12 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+
+    // 플레이어 비주얼 적용
+    void ApplyPlayerVisuals();
+
+    // 이동 파라미터 적용
+    void ApplyMovementConfig();
 
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
@@ -51,14 +60,19 @@ protected:
 
     // ===== Movement =====
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement", meta = (AllowPrivateAccess = "true"))
-    float WalkSpeed = 220.0f; // 걷기 속도
+    FMHPlayerMovementConfig MovementConfig; // 이동 설정
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement", meta = (AllowPrivateAccess = "true"))
-    float RunSpeed = 420.0f; // 달리기 속도
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement", meta = (AllowPrivateAccess = "true"))
-    float SprintSpeed = 560.0f; // 질주 속도
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Movement", meta = (AllowPrivateAccess = "true"))
+    EMHPlayerLocomotionState LocomotionState = EMHPlayerLocomotionState::Idle; // 로코모션 상태
     // ===== End Movement =====
+
+    // ===== Visual =====
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visual", meta = (AllowPrivateAccess = "true"))
+    TSoftObjectPtr<USkeletalMesh> DefaultSkeletalMesh; // 기본 스켈레톤 메쉬
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visual", meta = (AllowPrivateAccess = "true"))
+    TSoftClassPtr<UAnimInstance> DefaultAnimClass; // 기본 애님 BP 클래스
+    // ===== End Visual =====
 
     // ===== Inputs =====
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))

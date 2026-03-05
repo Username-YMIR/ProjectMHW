@@ -1,6 +1,5 @@
 #include "Character/Player/MHPlayerCharacter.h"
 
-#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
@@ -11,6 +10,8 @@
 #include "Components/Input/MHInputComponent.h"
 #include "DataAsset/Input/DataAsset_InputConfig.h"
 #include "MHGameplayTags.h"
+
+#include "Animation/AnimInstance.h"
 
 DEFINE_LOG_CATEGORY(LogMHPlayerCharacter)
 
@@ -36,14 +37,7 @@ AMHPlayerCharacter::AMHPlayerCharacter()
     FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
     FollowCamera->bUsePawnControlRotation = false;
 
-    // 이동 세팅
-    if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
-    {
-        MoveComp->bOrientRotationToMovement = true;
-        MoveComp->RotationRate = FRotator(0.f, 520.f, 0.f);
-        MoveComp->MaxWalkSpeed = RunSpeed;
-        MoveComp->BrakingDecelerationWalking = 2200.0f;
-    }
+    ApplyMovementConfig();
 
     // 데칼 영향 제거
     if (USkeletalMeshComponent* MeshComp = GetMesh())
@@ -57,6 +51,47 @@ void AMHPlayerCharacter::BeginPlay()
     Super::BeginPlay();
 
     UE_LOG(LogMHPlayerCharacter, Log, TEXT("%s : BeginPlay"), *GetName());
+
+    ApplyPlayerVisuals();
+}
+
+void AMHPlayerCharacter::ApplyPlayerVisuals()
+{
+    USkeletalMeshComponent* MeshComp = GetMesh();
+    if (!MeshComp)
+    {
+        return;
+    }
+
+    if (DefaultSkeletalMesh.IsNull() == false)
+    {
+        if (USkeletalMesh* MeshAsset = DefaultSkeletalMesh.LoadSynchronous())
+        {
+            MeshComp->SetSkeletalMesh(MeshAsset);
+        }
+    }
+
+    if (DefaultAnimClass.IsNull() == false)
+    {
+        if (UClass* AnimClass = DefaultAnimClass.LoadSynchronous())
+        {
+            MeshComp->SetAnimInstanceClass(AnimClass);
+        }
+    }
+}
+
+void AMHPlayerCharacter::ApplyMovementConfig()
+{
+    UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+    if (!MoveComp)
+    {
+        return;
+    }
+
+    MoveComp->bOrientRotationToMovement = true;
+    MoveComp->RotationRate = FRotator(0.f, MovementConfig.RotationRateYaw, 0.f);
+    MoveComp->MaxWalkSpeed = MovementConfig.RunSpeed;
+    MoveComp->BrakingDecelerationWalking = MovementConfig.BrakingDecelWalking;
 }
 
 void AMHPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
