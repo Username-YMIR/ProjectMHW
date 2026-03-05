@@ -1,5 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
-
+// 제작자 : 이건주
+// 제작일 : 2026-03-05
+// 수정일 : 2026-03-05 
 #pragma once
 
 #include "CoreMinimal.h"
@@ -36,11 +38,15 @@ struct FMHAttackStats
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0", ClampMax="1.0", UIMin="0.0", UIMax="1.0"))
 	float Sharpness = 0.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0", ClampMax="1.0", UIMin="0.0", UIMax="1.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0", UIMin="0"))
 	float Affinity = 0.f;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(Categories="Element"))
+<<<<<<< Updated upstream
 	FGameplayTag ElementTag;
+=======
+	FGameplayTag AttackElementTag;
+>>>>>>> Stashed changes
 };
 
 // 전투 : 방어 스탯
@@ -50,9 +56,26 @@ struct FMHDefenseStats
 	GENERATED_BODY()
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0"))
-	float Defense = 0.f;
+	float DefensePower = 0.f;
 	
+<<<<<<< Updated upstream
 	// //속성 내성 키 :  EMHElementType 값 : float
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(Categories="Element"))
 	TMap<FGameplayTag, float> ResistByTag;
+=======
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0"))
+	float FireResist = 0.f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0"))
+	float WaterResist = 0.f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0"))
+	float ThunderResist = 0.f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0"))
+	float IceResist = 0.f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0"))
+	float DragonResist = 0.f;
+>>>>>>> Stashed changes
 };

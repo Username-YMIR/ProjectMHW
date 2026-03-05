@@ -1,3 +1,7 @@
+// 제작자 : 이건주
+// 제작일 : 2026-03-04
+// 수정일 : 2026-03-05
+
 #include "MHGameplayTags.h"
 
 namespace MHGameplayTags

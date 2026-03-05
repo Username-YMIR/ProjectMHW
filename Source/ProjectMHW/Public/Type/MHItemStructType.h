@@ -1,5 +1,7 @@
 #pragma once
-
+// 제작자 : 이건주
+// 제작일 : 2026-03-05
+// 수정일 : 2026-03-05 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
 #include "GameplayTagContainer.h"
@@ -8,6 +10,7 @@
 
 class UTexture2D;
 
+<<<<<<< Updated upstream
 /** 아이템 등급 */
 UENUM(BlueprintType)
 enum class EMHItemRarity : uint8
@@ -29,6 +32,51 @@ enum class EMHItemType : uint8
 	Weapon		UMETA(DisplayName="Weapon"),
 	Armor		UMETA(DisplayName="Armor"),
 };
+=======
+// /** 아이템 대분류 */
+// UENUM(BlueprintType)
+// enum class EMHItemType : uint8
+// {
+// 	None		UMETA(DisplayName="None"),
+// 	Consumable	UMETA(DisplayName="Consumable"),
+// 	Material	UMETA(DisplayName="Material"),
+// 	Weapon		UMETA(DisplayName="Weapon"),
+// 	Armor		UMETA(DisplayName="Armor"),
+// };
+//
+// /** 무기 종류(필요한 것만 확장) */
+// UENUM(BlueprintType)
+// enum class EMHWeaponType : uint8
+// {
+// 	None			UMETA(DisplayName="None"),
+// 	GreatSword		UMETA(DisplayName="Great Sword"),
+// 	LongSword		UMETA(DisplayName="Long Sword"),
+// 	SwordAndShield	UMETA(DisplayName="Sword & Shield"),
+// 	DualBlades		UMETA(DisplayName="Dual Blades"),
+// 	Hammer			UMETA(DisplayName="Hammer"),
+// 	HuntingHorn		UMETA(DisplayName="Hunting Horn"),
+// 	Lance			UMETA(DisplayName="Lance"),
+// 	Gunlance		UMETA(DisplayName="Gunlance"),
+// 	SwitchAxe		UMETA(DisplayName="Switch Axe"),
+// 	ChargeBlade		UMETA(DisplayName="Charge Blade"),
+// 	InsectGlaive	UMETA(DisplayName="Insect Glaive"),
+// 	LightBowgun		UMETA(DisplayName="Light Bowgun"),
+// 	HeavyBowgun		UMETA(DisplayName="Heavy Bowgun"),
+// 	Bow				UMETA(DisplayName="Bow"),
+// };
+//
+// /** 방어구 부위 */
+// UENUM(BlueprintType)
+// enum class EMHArmorType : uint8
+// {
+// 	None	UMETA(DisplayName="None"),
+// 	Head	UMETA(DisplayName="Head"),
+// 	Chest	UMETA(DisplayName="Chest"),
+// 	Arms	UMETA(DisplayName="Arms"),
+// 	Waist	UMETA(DisplayName="Waist"),
+// 	Legs	UMETA(DisplayName="Legs"),
+// };
+>>>>>>> Stashed changes
 
 /** 무기 종류(필요한 것만 확장) */
 UENUM(BlueprintType)
@@ -98,14 +146,9 @@ struct PROJECTMHW_API FMHArmorStatsData
 
 /** 아이템 공통(베이스) */
 USTRUCT(BlueprintType)
-struct PROJECTMHW_API FMHItemBaseData
+struct PROJECTMHW_API FItemBaseData
 {
 	GENERATED_BODY()
-
-	// DataTable RowName을 “아이템ID”로 쓸 거면 Name/ID는 별도 저장 안 해도 됨.
-	// 그래도 내부에서 안정적으로 참조하려면 ItemId를 두는 걸 추천.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FName ItemId;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	FText Name;
@@ -117,11 +160,21 @@ struct PROJECTMHW_API FMHItemBaseData
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(MultiLine="true"))
 	FText Description;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	EMHItemRarity Rarity = EMHItemRarity::Common;
+	// 희귀도 등급 1~12
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="1", ClampMax="12"))
+	int Rarity = 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0"))
 	int32 SellPrice = 0;
+<<<<<<< Updated upstream
+=======
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0"))
+	int32 BuyPrice = 0;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(Categories="Item"))
+	FGameplayTag ItemTag;
+>>>>>>> Stashed changes
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	EMHItemType ItemType = EMHItemType::None;
@@ -129,7 +182,7 @@ struct PROJECTMHW_API FMHItemBaseData
 
 /** 일반 아이템 공통 - (요구사항이 "보류"라 최소만) */
 USTRUCT(BlueprintType)
-struct PROJECTMHW_API FMHCommonItemData
+struct PROJECTMHW_API FCommonItemData
 {
 	GENERATED_BODY()
 
@@ -138,7 +191,7 @@ struct PROJECTMHW_API FMHCommonItemData
 
 /** 무기 아이템 공통 */
 USTRUCT(BlueprintType)
-struct PROJECTMHW_API FMHWeaponItemData
+struct PROJECTMHW_API FWeaponItemData
 {
 	GENERATED_BODY()
 
@@ -152,7 +205,7 @@ struct PROJECTMHW_API FMHWeaponItemData
 
 /** 방어구 공통 */
 USTRUCT(BlueprintType)
-struct PROJECTMHW_API FMHArmorItemData
+struct PROJECTMHW_API FArmorItemData
 {
 	GENERATED_BODY()
 
@@ -174,17 +227,17 @@ struct PROJECTMHW_API FMHItemDataRow : public FTableRowBase
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FMHItemBaseData Base;
+	FItemBaseData Base;
 
 	// 일반 아이템(보류지만 슬롯은 마련)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FMHCommonItemData Common;
+	FCommonItemData Common;
 
 	// 무기
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FMHWeaponItemData Weapon;
+	FWeaponItemData Weapon;
 
 	// 방어구
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FMHArmorItemData Armor;
+	FArmorItemData Armor;
 };
