@@ -4,10 +4,21 @@
 
 namespace MHGameplayTags
 {
-	//Input Tags (입력 태그)
-	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Move) // 이동 입력
-	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Look) // 
-	
+	// 이동 입력 태그
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Move);
+	// 시점 입력 태그
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Look);
+	// 스프린트 입력 태그
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Sprint);
+	// 회피 입력 태그
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Dodge);
+	// 상호작용 입력 태그
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Interact);
+	// 기본 공격 입력 태그
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_AttackPrimary);
+	// 보조 공격 입력 태그
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_AttackSecondary);
+
 	
 	//Element Tags (속성 태그)
 	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Element_Fire);
