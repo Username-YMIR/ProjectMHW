@@ -1,7 +1,7 @@
 // 제작자 : 손승우
 // 제작일 : 2026-03-04
 // 수정자 : 허혁
-// 수정일 : 2026-03-05
+// 수정일 : 2026-03-06
 
 #pragma once
 
@@ -45,6 +45,29 @@ protected:
     virtual void BeginPlay() override;
 
 protected:
+#pragma region Roar
+    // 플레이어 조우 
+    // 조우시 로어
+    
+    // 로어 인식 거리
+    UPROPERTY(EditDefaultsOnly , Category="Monster|Roar")
+    float RoarTriggerDistance = 1000.f;
+    
+    UPROPERTY(EditDefaultsOnly , Category="Monster|Roar")
+    TObjectPtr<UAnimMontage> RoarMontage;
+    
+    UPROPERTY()
+    bool bHasRoared = false;
+    
+    // tick 에서 매번 체크를 할수 없으니 타이머 이용
+    
+    FTimerHandle RoarCheckTimer;
+    
+    
+    void CheckRoar();
+#pragma endregion  
+    
+    
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Monster")
     bool bInCombat = false;
 
@@ -54,7 +77,8 @@ protected:
     UPROPERTY(VisibleAnywhere , BlueprintReadOnly , Category="GAS" , meta=(AllowPrivateAccess=true))
     TObjectPtr<UMHMonsterAttributeSet> MonsterAttributes;
     
-    
+    UPROPERTY(BlueprintReadOnly)
+    bool bMonsterGASInitialized = false; // 초기화 여부
     
     void InitMonsterGAS();
     void ApplyStartupLooseTags();

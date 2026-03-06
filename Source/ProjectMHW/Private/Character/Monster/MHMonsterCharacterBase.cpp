@@ -1,7 +1,7 @@
 // 제작자 : 손승우
 // 제작일 : 2026-03-04
 // 수정자 : 허혁
-// 수정일 : 2026-03-05
+// 수정일 : 2026-03-06
 
 
 #include "Character/Monster/MHMonsterCharacterBase.h"
@@ -9,7 +9,7 @@
 #include "GameplayEffect.h"
 #include "Character/Monster/Attribute/MHMonsterAttributeSet.h"
 #include "DataAsset/MHMonsterDataAsset.h"
-
+#include "Kismet/GameplayStatics.h"
 
 
 DEFINE_LOG_CATEGORY(MonsterCharacter)
@@ -25,9 +25,65 @@ void AMHMonsterCharacterBase::BeginPlay()
     Super::BeginPlay();
     
     InitMonsterGAS();
+    
+    GetWorldTimerManager().SetTimer(
+        RoarCheckTimer,
+        this,
+        &AMHMonsterCharacterBase::CheckRoar,
+        0.2f,
+        true
+    );
+    
 }
 
-
+void AMHMonsterCharacterBase::CheckRoar()
+{
+    //bCanRoar
+    if (bHasRoared)
+    {
+        UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter Base CheckRoar !bCanRoar"));
+        return;
+    }
+    //RoarMontage
+    if (!RoarMontage)
+    {
+        UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter Base CheckRoar !RoarMontage"));
+        return;
+    }
+    
+    ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(this , 0);
+    //PlayerCharacter
+    if (!PlayerCharacter)
+    {
+        UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter Base CheckRoar !PlayerCharacter"));
+        return;
+    }
+    
+    const float Dist = FVector::Dist(PlayerCharacter->GetActorLocation(),GetActorLocation());
+    if (Dist > RoarTriggerDistance)
+    {
+        /*UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter Base CheckRoar Dist>RoarTriggerDistance"));*/
+        return;
+    }
+    
+    // 몽타주 재생 
+    if (USkeletalMeshComponent* MeshComp = GetMesh())
+    {
+        if (UAnimInstance* Anim = MeshComp->GetAnimInstance())
+        {
+            // 중복체크
+            if (!Anim->Montage_IsPlaying(RoarMontage))
+            {
+                                // 몽타주 재생 몽타주종류 , 재생 속도
+                Anim->Montage_Play(RoarMontage , 1.0f);
+                bHasRoared = true;
+                GetWorldTimerManager().ClearTimer(RoarCheckTimer);
+            }
+            
+        }
+    }
+    
+}
 void AMHMonsterCharacterBase::SetCombatTarget(AActor* NewTarget)
 {
     CombatTarget = NewTarget;
@@ -48,9 +104,9 @@ void AMHMonsterCharacterBase::InitMonsterGAS()
 {
     // INIT GAS
     
-    if (bGASInitialized)
+    if (bMonsterGASInitialized)
     {
-        UE_LOG(MonsterCharacter , Warning , TEXT(": MonsterCharacter Base InitMonsterGAS bGASInitialized"));
+        UE_LOG(MonsterCharacter , Warning , TEXT(": MonsterCharacter Base InitMonsterGAS bMonsterGASInitialized"));
         return;
     }
     
@@ -64,9 +120,26 @@ void AMHMonsterCharacterBase::InitMonsterGAS()
     
     ApplyStartupLooseTags();
     GrantStartupAbilities();
+    
+    
+    
     ApplyStartupEffects();
     
-    bGASInitialized = true;
+    bMonsterGASInitialized = true;
+    if (MonsterAttributes)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[MonsterGAS] %s HP=%f/%f  Poise=%f/%f  Atk=%f Def=%f"),
+            *GetName(),
+            MonsterAttributes->GetHealth(), MonsterAttributes->GetMaxHealth(),
+            MonsterAttributes->GetPoise(), MonsterAttributes->GetMaxPoise(),
+            MonsterAttributes->GetAttackPower(), MonsterAttributes->GetDefense()
+        );
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[MonsterGAS] %s MonsterAttributes is NULL"), *GetName());
+    }
+    
 }
 
 void AMHMonsterCharacterBase::ApplyStartupLooseTags()
@@ -74,7 +147,7 @@ void AMHMonsterCharacterBase::ApplyStartupLooseTags()
     UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
     if (!MonsterDataAsset || !AbilitySystemComponent)
     {
-        UE_LOG(MonsterCharacter , Warning , TEXT(": MonsterCharacter ApplyStartup "))
+        UE_LOG(MonsterCharacter , Warning , TEXT(": MonsterCharacter ApplyStartup "));
         return;
     }
     
@@ -91,7 +164,7 @@ void AMHMonsterCharacterBase::GrantStartupAbilities()
     UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
     if (!MonsterDataAsset || !AbilitySystemComponent)
     {
-        UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter GrantStartupAbilities "))
+        UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter GrantStartupAbilities "));
         return;
     }
     
@@ -99,7 +172,7 @@ void AMHMonsterCharacterBase::GrantStartupAbilities()
     {
         if (!AbilityClass )
         {
-            UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter GrantStartupAbilities2 "))
+            UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter GrantStartupAbilities2 "));
         }
         AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
         
@@ -112,7 +185,7 @@ void AMHMonsterCharacterBase::ApplyStartupEffects()
     UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
     if (!MonsterDataAsset || !AbilitySystemComponent)
     {
-        UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter ApplyStartupEffects "))
+        UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter ApplyStartupEffects "));
         return;
     }
     
@@ -127,7 +200,7 @@ void AMHMonsterCharacterBase::ApplyStartupEffects()
         
         if (SpecHandle.IsValid())
         {
-            UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter SpecHandle "))
+            UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter SpecHandle "));
             
             AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
             

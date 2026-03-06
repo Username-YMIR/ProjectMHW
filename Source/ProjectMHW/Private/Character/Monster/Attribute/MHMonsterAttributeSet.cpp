@@ -22,15 +22,18 @@ void UMHMonsterAttributeSet::PreAttributeChange(const FGameplayAttribute& Attrib
 	
 	if (Attribute == GetHealthAttribute())
 	{
-		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxHealth());
+		const float MaxHP = FMath::Max(1.f, GetMaxHealth());
+		NewValue = FMath::Clamp(NewValue, 0.f, MaxHP);
 	}
 	else if (Attribute == GetPoiseAttribute())
 	{
-		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxPoise());
+		const float MaxP = FMath::Max(1.f, GetMaxPoise());
+		NewValue = FMath::Clamp(NewValue, 0.f, MaxP);
 	}
 	else if (Attribute == GetWeightAttribute())
 	{
-		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxWeight());
+		const float MaxW = FMath::Max(1.f, GetMaxWeight());
+		NewValue = FMath::Clamp(NewValue, 0.f, MaxW);
 	}
 	
 }
@@ -38,18 +41,50 @@ void UMHMonsterAttributeSet::PreAttributeChange(const FGameplayAttribute& Attrib
 void UMHMonsterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
 {
 	Super::PostGameplayEffectExecute(Data);
-	
+
 	if (Data.EvaluatedData.Attribute == GetHealthAttribute())
 	{
 		SetHealth(FMath::Clamp(GetHealth(), 0.f, GetMaxHealth()));
+	}
+	else if (Data.EvaluatedData.Attribute == GetMaxHealthAttribute())
+	{
+		if (GetHealth() <= 0.f)
+		{
+			SetHealth(GetMaxHealth());
+		}
+		else
+		{
+			SetHealth(FMath::Clamp(GetHealth(), 0.f, GetMaxHealth()));
+		}
 	}
 	else if (Data.EvaluatedData.Attribute == GetPoiseAttribute())
 	{
 		SetPoise(FMath::Clamp(GetPoise(), 0.f, GetMaxPoise()));
 	}
+	else if (Data.EvaluatedData.Attribute == GetMaxPoiseAttribute())
+	{
+		if (GetPoise() <= 0.f)
+		{
+			SetPoise(GetMaxPoise());
+		}
+		else
+		{
+			SetPoise(FMath::Clamp(GetPoise(), 0.f, GetMaxPoise()));
+		}
+	}
 	else if (Data.EvaluatedData.Attribute == GetWeightAttribute())
 	{
 		SetWeight(FMath::Clamp(GetWeight(), 0.f, GetMaxWeight()));
 	}
-	
+	else if (Data.EvaluatedData.Attribute == GetMaxWeightAttribute())
+	{
+		if (GetWeight() <= 0.f)
+		{
+			SetWeight(GetMaxWeight());
+		}
+		else
+		{
+			SetWeight(FMath::Clamp(GetWeight(), 0.f, GetMaxWeight()));
+		}
+	}
 }
