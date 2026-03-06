@@ -58,4 +58,5 @@ void AMHCharacterBase::InitializeAbilitySystem()
     bGASInitialized = true;
 
     UE_LOG(LogMHCharacterBase, Log, TEXT("%s : GAS Initialized"), *GetName());
+    
 }

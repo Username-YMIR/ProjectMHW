@@ -13,7 +13,7 @@ DECLARE_LOG_CATEGORY_EXTERN(MonsterCharacter, Log, All)
 #include "MHMonsterCharacterBase.generated.h"
 
 class UAbilitySystemComponent;
-
+l
 UCLASS()
 class PROJECTMHW_API AMHMonsterCharacterBase : public AMHCharacterBase
 {
@@ -61,5 +61,5 @@ protected:
     void GrantStartupAbilities();
     void ApplyStartupEffects();
     
-    bool bGASInitialized = false;
+
 };
