@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "MHItemInstanceBase.h"
+#include "GameplayAbilitySpecHandle.h"
+
 #include "MHEquipItemInstance.generated.h"
 
 
@@ -16,5 +18,13 @@ class PROJECTMHW_API AMHEquipItemInstance : public AMHItemInstanceBase
 public:
 	// Sets default values for this actor's properties
 	AMHEquipItemInstance();
-	
+
+public:		
+	UFUNCTION(BlueprintCallable)
+	void AssignGrantedAbilitySpecHandles(const TArray<FGameplayAbilitySpecHandle>& SpecHandles);
+		
+	TArray<FGameplayAbilitySpecHandle> GetGrantedAbilitySpecHandles() const;
+		
+private:
+	TArray<FGameplayAbilitySpecHandle> GrantedAbilitySpecHandles;
 };

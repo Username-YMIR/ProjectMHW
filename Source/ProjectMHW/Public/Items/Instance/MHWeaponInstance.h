@@ -20,19 +20,8 @@ public:
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon")
 	USkeletalMeshComponent* WeaponMesh;
-	
-public:
-	//TODO: 프로젝트용 구조체로 변경하기 _ 이건주
-		// UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="WeaponData")
-		// FHeroWeaponData HeroWeaponData;
-		
-		UFUNCTION(BlueprintCallable)
-		void AssignGrantedAbilitySpecHandles(const TArray<FGameplayAbilitySpecHandle>& SpecHandles);
-		
-		UFUNCTION(BlueprintPure)
-		TArray<FGameplayAbilitySpecHandle> GetGrantedAbilitySpecHandles() const;
-		
-	private:
-		TArray<FGameplayAbilitySpecHandle> GrantedAbilitySpecHandles;
 
+	//TODO: 프로젝트용 구조체로 변경하기 _ 이건주 
+	// UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="WeaponData")
+	// FHeroWeaponData HeroWeaponData;
 };

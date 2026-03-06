@@ -35,5 +35,39 @@ public:
 	UFUNCTION()
 	virtual void OnCollisionBoxEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 	
-
+public:
+	//TODO: 프로젝트용 구조체로 변경하기 _ 이건주 _ 손승우
+	// UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="WeaponData")
+	// FMeleeWeaponData WeaponData;
+	
+	// USTRUCT(BlueprintType)
+	// struct FHeroAbilitySet
+	// {
+	// 	GENERATED_BODY()
+	//
+	// 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, meta=(Categories="InputTag"))
+	// 	FGameplayTag InputTag;
+	//
+	// 	//부여가능한 능력
+	// 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	// 	TSubclassOf<UBaseGameplayAbility> AbilityToGrant;
+	//
+	// 	bool IsValid() const;
+	// };
+	//
+	// USTRUCT(BlueprintType)
+	// struct FHeroWeaponData
+	// {
+	// 	GENERATED_BODY()
+	//
+	// 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	// 	TSubclassOf<UHeroLinkedAnimLayer> WeaponAnimLayerToLink;
+	//
+	// 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	// 	UInputMappingContext* WeaponInputMappingContext;
+	//
+	// 	//무기능력
+	// 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, meta=(TitleProperty = "InputTag"))
+	// 	TArray<FHeroAbilitySet> WeaponAbilities;
+	// };
 };
