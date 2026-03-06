@@ -10,73 +10,6 @@
 
 class UTexture2D;
 
-<<<<<<< Updated upstream
-/** 아이템 등급 */
-UENUM(BlueprintType)
-enum class EMHItemRarity : uint8
-{
-	Common		UMETA(DisplayName="Common"),
-	Uncommon	UMETA(DisplayName="Uncommon"),
-	Rare		UMETA(DisplayName="Rare"),
-	Epic		UMETA(DisplayName="Epic"),
-	Legendary	UMETA(DisplayName="Legendary"),
-};
-
-/** 아이템 대분류 */
-UENUM(BlueprintType)
-enum class EMHItemType : uint8
-{
-	None		UMETA(DisplayName="None"),
-	Consumable	UMETA(DisplayName="Consumable"),
-	Material	UMETA(DisplayName="Material"),
-	Weapon		UMETA(DisplayName="Weapon"),
-	Armor		UMETA(DisplayName="Armor"),
-};
-=======
-// /** 아이템 대분류 */
-// UENUM(BlueprintType)
-// enum class EMHItemType : uint8
-// {
-// 	None		UMETA(DisplayName="None"),
-// 	Consumable	UMETA(DisplayName="Consumable"),
-// 	Material	UMETA(DisplayName="Material"),
-// 	Weapon		UMETA(DisplayName="Weapon"),
-// 	Armor		UMETA(DisplayName="Armor"),
-// };
-//
-// /** 무기 종류(필요한 것만 확장) */
-// UENUM(BlueprintType)
-// enum class EMHWeaponType : uint8
-// {
-// 	None			UMETA(DisplayName="None"),
-// 	GreatSword		UMETA(DisplayName="Great Sword"),
-// 	LongSword		UMETA(DisplayName="Long Sword"),
-// 	SwordAndShield	UMETA(DisplayName="Sword & Shield"),
-// 	DualBlades		UMETA(DisplayName="Dual Blades"),
-// 	Hammer			UMETA(DisplayName="Hammer"),
-// 	HuntingHorn		UMETA(DisplayName="Hunting Horn"),
-// 	Lance			UMETA(DisplayName="Lance"),
-// 	Gunlance		UMETA(DisplayName="Gunlance"),
-// 	SwitchAxe		UMETA(DisplayName="Switch Axe"),
-// 	ChargeBlade		UMETA(DisplayName="Charge Blade"),
-// 	InsectGlaive	UMETA(DisplayName="Insect Glaive"),
-// 	LightBowgun		UMETA(DisplayName="Light Bowgun"),
-// 	HeavyBowgun		UMETA(DisplayName="Heavy Bowgun"),
-// 	Bow				UMETA(DisplayName="Bow"),
-// };
-//
-// /** 방어구 부위 */
-// UENUM(BlueprintType)
-// enum class EMHArmorType : uint8
-// {
-// 	None	UMETA(DisplayName="None"),
-// 	Head	UMETA(DisplayName="Head"),
-// 	Chest	UMETA(DisplayName="Chest"),
-// 	Arms	UMETA(DisplayName="Arms"),
-// 	Waist	UMETA(DisplayName="Waist"),
-// 	Legs	UMETA(DisplayName="Legs"),
-// };
->>>>>>> Stashed changes
 
 /** 무기 종류(필요한 것만 확장) */
 UENUM(BlueprintType)
@@ -111,38 +44,6 @@ enum class EMHArmorType : uint8
 	Legs	UMETA(DisplayName="Legs"),
 };
 
-/**
- * 방어구 "데이터"용 스탯
- * - 런타임은 AttributeSet + GE로 적용할 거라, DT에는 단순 수치만 둠.
- */
-USTRUCT(BlueprintType)
-struct PROJECTMHW_API FMHArmorStatsData
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0"))
-	float DefenseAdd = 0.f;
-
-	// 속성 내성(고정 5종 권장)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	float Resist_Fire_Add = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	float Resist_Water_Add = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	float Resist_Thunder_Add = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	float Resist_Ice_Add = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	float Resist_Dragon_Add = 0.f;
-
-	// 확장 여지(상태이상/특수 내성 등)를 태그로 추가하고 싶으면 여기에 옵션으로:
-	// UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(Categories="Resist"))
-	// TMap<FGameplayTag, float> ExtraResistByTag;
-};
 
 /** 아이템 공통(베이스) */
 USTRUCT(BlueprintType)
@@ -166,18 +67,12 @@ struct PROJECTMHW_API FItemBaseData
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0"))
 	int32 SellPrice = 0;
-<<<<<<< Updated upstream
-=======
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0"))
 	int32 BuyPrice = 0;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(Categories="Item"))
 	FGameplayTag ItemTag;
->>>>>>> Stashed changes
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	EMHItemType ItemType = EMHItemType::None;
 };
 
 /** 일반 아이템 공통 - (요구사항이 "보류"라 최소만) */
@@ -213,7 +108,7 @@ struct PROJECTMHW_API FArmorItemData
 	EMHArmorType ArmorType = EMHArmorType::None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FMHArmorStatsData ArmorStats;
+	FMHDefenseStats ArmorStats;
 };
 
 /**
