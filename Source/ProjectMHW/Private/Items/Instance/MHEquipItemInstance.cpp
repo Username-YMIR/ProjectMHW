@@ -9,3 +9,14 @@ AMHEquipItemInstance::AMHEquipItemInstance()
 {
 
 }
+
+void AMHEquipItemInstance::AssignGrantedAbilitySpecHandles(const TArray<FGameplayAbilitySpecHandle>& SpecHandles)
+{
+	GrantedAbilitySpecHandles = SpecHandles;
+}
+
+
+TArray<FGameplayAbilitySpecHandle> AMHEquipItemInstance::GetGrantedAbilitySpecHandles() const
+{
+	return GrantedAbilitySpecHandles;
+}

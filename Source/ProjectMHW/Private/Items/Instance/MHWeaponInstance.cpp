@@ -11,14 +11,5 @@ AMHWeaponInstance::AMHWeaponInstance()
 	RootComponent = WeaponMesh;
 }
 
-void AMHWeaponInstance::AssignGrantedAbilitySpecHandles(const TArray<FGameplayAbilitySpecHandle>& SpecHandles)
-{
-	GrantedAbilitySpecHandles = SpecHandles;
-}
-
-TArray<FGameplayAbilitySpecHandle> AMHWeaponInstance::GetGrantedAbilitySpecHandles() const
-{
-	return GrantedAbilitySpecHandles;
-}
 
 
