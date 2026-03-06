@@ -42,11 +42,7 @@ struct FMHAttackStats
 	float Affinity = 0.f;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(Categories="Element"))
-<<<<<<< Updated upstream
-	FGameplayTag ElementTag;
-=======
 	FGameplayTag AttackElementTag;
->>>>>>> Stashed changes
 };
 
 // 전투 : 방어 스탯
@@ -58,11 +54,6 @@ struct FMHDefenseStats
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0"))
 	float DefensePower = 0.f;
 	
-<<<<<<< Updated upstream
-	// //속성 내성 키 :  EMHElementType 값 : float
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(Categories="Element"))
-	TMap<FGameplayTag, float> ResistByTag;
-=======
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0"))
 	float FireResist = 0.f;
 	
@@ -77,5 +68,4 @@ struct FMHDefenseStats
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0"))
 	float DragonResist = 0.f;
->>>>>>> Stashed changes
 };
