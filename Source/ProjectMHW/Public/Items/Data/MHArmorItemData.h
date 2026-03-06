@@ -14,21 +14,21 @@ class PROJECTMHW_API UMHArmorItemData : public UMHEquipItemData
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Armor")
 	float DefensePower = 0.f;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Armor")
 	float FireResist = 0.f;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Armor")
 	float WaterResist = 0.f;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Armor")
 	float ThunderResist = 0.f;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Armor")
 	float IceResist = 0.f;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Armor")
 	float DragonResist = 0.f;
 };

@@ -22,6 +22,42 @@
 // 	Dragon	UMETA(DisplayName="Dragon"),
 // };
 
+UENUM(BlueprintType)
+enum class EMHSharpnessColor : uint8
+{
+	Red,
+	Orange,
+	Yellow,
+	Green,
+	Blue,
+	White,
+};
+
+USTRUCT(BlueprintType)
+struct FMHSharpnessData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Sharpness", meta=(ClampMin="0", UIMin="0"))
+	float Red = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Sharpness", meta=(ClampMin="0", UIMin="0"))
+	float Orange = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Sharpness", meta=(ClampMin="0", UIMin="0"))
+	float Yellow = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Sharpness", meta=(ClampMin="0", UIMin="0"))
+	float Green = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Sharpness", meta=(ClampMin="0", UIMin="0"))
+	float Blue = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Sharpness", meta=(ClampMin="0", UIMin="0"))
+	float White = 0.f;
+};
+
+
 // 전투 : 공격 스탯
 // 공격력 : float
 // 예리도 : float

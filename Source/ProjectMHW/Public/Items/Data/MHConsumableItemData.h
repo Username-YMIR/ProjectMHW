@@ -13,4 +13,6 @@ UCLASS()
 class PROJECTMHW_API UMHConsumableItemData : public UMHCommonItemData
 {
 	GENERATED_BODY()
+public:
+	UMHConsumableItemData();
 };

@@ -2,3 +2,10 @@
 
 
 #include "Items/Data/MHConsumableItemData.h"
+
+#include "MHGameplayTags.h"
+
+UMHConsumableItemData::UMHConsumableItemData()
+{
+	ItemTag=MHGameplayTags::Item_Common_Consumable;
+}

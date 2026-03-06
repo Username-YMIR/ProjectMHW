@@ -32,19 +32,19 @@ namespace MHGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Common_Material);
 
 	// Weapon Types
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Weapon_GreatSword);
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Weapon_LongSword);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Equipment_Weapon_GreatSword);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Equipment_Weapon_LongSword);
 
 	// Armor Slots
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Armor_Head);
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Armor_Chest);
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Armor_Arms);
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Armor_Waist);
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Armor_Legs);
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Armor_Charm);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Equipment_Armor_Head);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Equipment_Armor_Chest);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Equipment_Armor_Arms);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Equipment_Armor_Waist);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Equipment_Armor_Legs);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Equipment_Armor_Charm);
 
 	// Consumables
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Consumable_Recovery);
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Consumable_Buff);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Common_Consumable_Recovery);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Common_Consumable_Buff);
 #pragma endregion
 }
