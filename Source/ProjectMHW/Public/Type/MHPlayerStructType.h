@@ -27,6 +27,16 @@ enum class EMHPlayerMoveProfile : uint8
     Sprint  UMETA(DisplayName = "Sprint"),
 };
 
+// 무기 납도/발도 상태
+UENUM(BlueprintType)
+enum class EMHWeaponSheathState : uint8
+{
+    Sheathed     UMETA(DisplayName = "Sheathed"),     // 납도(등에 있음)
+    Unsheathing  UMETA(DisplayName = "Unsheathing"),  // 발도 진행 중
+    Unsheathed   UMETA(DisplayName = "Unsheathed"),   // 발도(손에 있음)
+    Sheathing    UMETA(DisplayName = "Sheathing"),    // 납도 진행 중
+};
+
 // 플레이어 스태미나 설정
 USTRUCT(BlueprintType)
 struct PROJECTMHW_API FMHPlayerStaminaConfig
@@ -69,4 +79,17 @@ struct PROJECTMHW_API FMHPlayerMovementConfig
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
     float BrakingDecelerationWalking = 2200.0f; // 감속
+};
+
+// 무기 소켓 설정
+USTRUCT(BlueprintType)
+struct PROJECTMHW_API FMHWeaponSocketConfig
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
+    FName BackSocketName = TEXT("Weapon_Back"); // 등에 붙는 소켓
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
+    FName HandSocketName = TEXT("Weapon_Hand"); // 손에 붙는 소켓
 };

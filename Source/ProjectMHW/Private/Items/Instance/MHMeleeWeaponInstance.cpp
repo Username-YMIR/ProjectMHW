@@ -12,7 +12,7 @@ AMHMeleeWeaponInstance::AMHMeleeWeaponInstance()
 
 	//WeaponCollisionBox
 	WeaponCollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("WeaponCollisionBox"));
-	WeaponCollisionBox->SetupAttachment(RootComponent);
+	WeaponCollisionBox->SetupAttachment(WeaponMesh); // 손승우 수정
 	WeaponCollisionBox->SetBoxExtent(FVector(20.0f));
 	WeaponCollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	

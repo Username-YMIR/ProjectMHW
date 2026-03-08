@@ -18,6 +18,12 @@ namespace MHGameplayTags
 	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_AttackPrimary);
 	// 보조 공격 입력 태그
 	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_AttackSecondary);
+	// 무기 특수 입력 태그 (MB5)
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_WeaponSpecial); // 손승우 추가
+	// 동시 입력 태그 (MB4)
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_AttackSimultaneous); // 손승우 추가
+	// 조준/홀드 입력 태그 (C 홀드)
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_AimHold); // 손승우 추가
 
 	
 	//Element Tags (속성 태그)
