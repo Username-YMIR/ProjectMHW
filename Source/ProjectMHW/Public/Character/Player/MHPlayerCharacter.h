@@ -87,7 +87,9 @@ public:
     // 노티파이: 콤보 입력 윈도우 종료
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_EndComboChainWindow();
-
+    
+    // 현재 장착 중인 무기 인스턴스 반환
+    AMHWeaponInstance* GetEquippedWeapon() const { return EquippedWeapon; }
 protected:
 // 동일 카테고리 오브젝트가 3개 이상이면 region으로 구분
 #pragma region Components
