@@ -29,7 +29,7 @@ public:
 
 	// 희귀도 등급 1~12
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item", meta=(ClampMin="1", ClampMax="12"))
-	int Rarity = 1;
+	int32 Rarity = 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item", meta=(ClampMin="0"))
 	int32 SellPrice = 0;

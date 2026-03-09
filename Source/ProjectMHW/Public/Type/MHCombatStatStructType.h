@@ -3,7 +3,9 @@
 // 제작일 : 2026-03-05
 // 수정일 : 2026-03-05 
 #pragma once
-
+// 제작자 : 이건주
+// 제작일 : 2026-03-09
+// 수정일 : 2026-03-09 
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "MHCombatStatStructType.generated.h"
@@ -104,4 +106,37 @@ struct FMHDefenseStats
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0"))
 	float DragonResist = 0.f;
+};
+
+//---------------------
+//대미지 전달 구조체_이건주
+//---------------------
+USTRUCT(BlueprintType)
+struct FMHDamageContext
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite)
+	TWeakObjectPtr<AActor> SourceActor = nullptr;
+
+	UPROPERTY(BlueprintReadWrite)
+	TWeakObjectPtr<AActor> TargetActor = nullptr;
+
+	UPROPERTY(BlueprintReadWrite)
+	TWeakObjectPtr<AActor> CauserActor = nullptr;
+
+	UPROPERTY(BlueprintReadWrite)
+	float BaseDamage = 0.f;
+
+	UPROPERTY(BlueprintReadWrite)
+	int32 ComboIndex = INDEX_NONE;
+
+	UPROPERTY(BlueprintReadWrite)
+	FName HitBoneName = NAME_None;
+
+	UPROPERTY(BlueprintReadWrite)
+	FVector HitLocation = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite)
+	FGameplayTag DamageTypeTag;
 };

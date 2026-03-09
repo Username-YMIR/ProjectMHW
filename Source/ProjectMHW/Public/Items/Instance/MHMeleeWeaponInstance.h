@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
+DECLARE_LOG_CATEGORY_EXTERN(LogMeleeWeaponInstance, Log, All)
 
 #include "CoreMinimal.h"
 #include "MHWeaponInstance.h"
@@ -9,6 +10,7 @@
 DECLARE_DELEGATE_OneParam(FOnTargetInteractedDelegate, AActor*)
 
 class UBoxComponent;
+struct FMHDamageContext;
 
 UCLASS()
 class PROJECTMHW_API AMHMeleeWeaponInstance : public AMHWeaponInstance
@@ -23,8 +25,25 @@ public:
 	FOnTargetInteractedDelegate OnWeaponPulledFromTarget;
 
 protected:
+	// 근접무기 히트 판정 콜리전 박스 _이건주
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon")
 	UBoxComponent* WeaponCollisionBox;
+	
+	// 이번 콤보에서 이미 맞은 액터 목록_이건주
+	UPROPERTY()
+	TArray<TObjectPtr<AActor>> OverlappedActorsThisCombo;
+
+	// 소유자 캐릭터 또는 공격자_이건주
+	UPROPERTY()
+	TWeakObjectPtr<AActor> CachedOwnerActor;
+
+	// 테스트용 값_이건주
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Damage")
+	float TestBaseDamage = 10.f;
+
+	// 테스트용 콤보 번호_이건주
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Damage")
+	int32 CurrentComboIndex = 0;
 	
 public:
 	FORCEINLINE UBoxComponent* GetWeaponCollisionBox() const{return WeaponCollisionBox;}
@@ -35,39 +54,6 @@ public:
 	UFUNCTION()
 	virtual void OnCollisionBoxEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 	
-public:
-	//TODO: 프로젝트용 구조체로 변경하기 _ 이건주 _ 손승우
-	// UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="WeaponData")
-	// FMeleeWeaponData WeaponData;
+	FMHDamageContext BuildDamageContext(AActor* TargetActor, const FHitResult& HitResult) const;
 	
-	// USTRUCT(BlueprintType)
-	// struct FHeroAbilitySet
-	// {
-	// 	GENERATED_BODY()
-	//
-	// 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, meta=(Categories="InputTag"))
-	// 	FGameplayTag InputTag;
-	//
-	// 	//부여가능한 능력
-	// 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	// 	TSubclassOf<UBaseGameplayAbility> AbilityToGrant;
-	//
-	// 	bool IsValid() const;
-	// };
-	//
-	// USTRUCT(BlueprintType)
-	// struct FHeroWeaponData
-	// {
-	// 	GENERATED_BODY()
-	//
-	// 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	// 	TSubclassOf<UHeroLinkedAnimLayer> WeaponAnimLayerToLink;
-	//
-	// 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	// 	UInputMappingContext* WeaponInputMappingContext;
-	//
-	// 	//무기능력
-	// 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, meta=(TitleProperty = "InputTag"))
-	// 	TArray<FHeroAbilitySet> WeaponAbilities;
-	// };
 };

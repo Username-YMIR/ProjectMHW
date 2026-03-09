@@ -4,7 +4,9 @@
 #include "Items/Instance/MHMeleeWeaponInstance.h"
 
 #include "Components/BoxComponent.h"
+#include "Interfaces/MHDamageableInterface.h"
 
+DEFINE_LOG_CATEGORY(LogMeleeWeaponInstance);
 
 // Sets default values
 AMHMeleeWeaponInstance::AMHMeleeWeaponInstance()
@@ -28,20 +30,60 @@ void AMHMeleeWeaponInstance::OnCollisionBoxBeginOverlap(
 		int32					OtherBodyIndex, 
 		bool					bFromSweep, 
 		const FHitResult&		SweepResult)
-{
-	//GetInstigator 이벤트를 발생시킨 포인터 누가 대미지를 입혔는가 T 클래스 반환 (주체대상)
-	//무기의 주체(Hero)
-	APawn* WeaponOwningPawn = GetInstigator<APawn>();
+{	
+	UE_LOG(LogMeleeWeaponInstance, Log, TEXT("[Weapon] Overlap Begin - Self: %s, Other: %s"),
+		*GetNameSafe(this),
+		*GetNameSafe(OtherActor));
 
-	checkf(WeaponOwningPawn, TEXT("Forget to Assign an instigator as the owning pawn of the weapon: %s"), *GetName());
-
-	if (APawn* HitPawn = Cast<APawn>(OtherActor))
+	// 검사 단계
+	if (!OtherActor)
 	{
-		if (WeaponOwningPawn != HitPawn)
-		{
-			OnWeaponHitTarget.ExecuteIfBound(OtherActor);
-		}
+		UE_LOG(LogMeleeWeaponInstance, Warning, TEXT("[Weapon] OtherActor is nullptr"));
+		return;
 	}
+
+	if (OtherActor == this)
+	{
+		UE_LOG(LogMeleeWeaponInstance, Warning, TEXT("[Weapon] Ignore self overlap"));
+		return;
+	}
+
+	if (OtherActor == CachedOwnerActor.Get())
+	{
+		UE_LOG(LogMeleeWeaponInstance, Warning, TEXT("[Weapon] Ignore owner overlap"));
+		return;
+	}
+
+	if (!OtherActor->GetClass()->ImplementsInterface(UMHDamageableInterface::StaticClass()))
+	{
+		UE_LOG(LogMeleeWeaponInstance, Warning, TEXT("[Weapon] %s does not implement DamageableInterface"), *GetNameSafe(OtherActor));
+		return;
+	}
+	
+	// 이번 콤보 액터 리스트 체크
+	bool HasAlreadyHitActor = OverlappedActorsThisCombo.Contains(OtherActor);
+	if (HasAlreadyHitActor)
+	{
+		UE_LOG(LogMeleeWeaponInstance, Log, TEXT("[Weapon] Already hit in this combo: %s"), *GetNameSafe(OtherActor));
+		return;
+	}
+
+	// 이번 콤보 오버랩 액터 리스트에 추가
+	OverlappedActorsThisCombo.Add(OtherActor);
+
+	UE_LOG(LogTemp, Log, TEXT("[Weapon] Register hit actor: %s"), *GetNameSafe(OtherActor));
+	
+	// 전달용 대미지 컨텍스트 생성
+	const FMHDamageContext DamageContext = BuildDamageContext(OtherActor, SweepResult);
+
+	UE_LOG(LogTemp, Log, TEXT("[Weapon] Send DamageContext -> Target: %s, Damage: %.1f, ComboIndex: %d, Bone: %s"),
+		*GetNameSafe(OtherActor),
+		DamageContext.BaseDamage,
+		DamageContext.ComboIndex,
+		*DamageContext.HitBoneName.ToString());
+
+	// 대미지 전달
+	IMHDamageableInterface::Execute_ApplyDamageContext(OtherActor, DamageContext);
 }
 
 void AMHMeleeWeaponInstance::OnCollisionBoxEndOverlap(
@@ -50,17 +92,19 @@ void AMHMeleeWeaponInstance::OnCollisionBoxEndOverlap(
 		UPrimitiveComponent*	OtherComp, 
 		int32					OtherBodyIndex)
 {
-	//GetInstigator 이벤트를 발생시킨 포인터 누가 대미지를 입혔는가 T 클래스 반환 (주체대상)
-	APawn* WeaponOwningPawn = GetInstigator<APawn>();
 
-	checkf(WeaponOwningPawn, TEXT("Forget to Assign an instigator as the owning pawn of the weapon: %s"), *GetName());
-
-	if (APawn* HitPawn = Cast<APawn>(OtherActor))
-	{
-		if (WeaponOwningPawn != HitPawn)
-		{
-			OnWeaponPulledFromTarget.ExecuteIfBound(OtherActor);
-		}
-	}
 }
 
+FMHDamageContext AMHMeleeWeaponInstance::BuildDamageContext(AActor* TargetActor, const FHitResult& HitResult) const
+{
+	FMHDamageContext Context;
+	Context.SourceActor = CachedOwnerActor;
+	Context.TargetActor = TargetActor;
+	Context.CauserActor = const_cast<AMHMeleeWeaponInstance*>(this);
+	Context.BaseDamage = TestBaseDamage;
+	Context.ComboIndex = CurrentComboIndex;
+	Context.HitBoneName = HitResult.BoneName;
+	Context.HitLocation = HitResult.ImpactPoint;
+
+	return Context;
+}
