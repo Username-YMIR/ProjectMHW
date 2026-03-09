@@ -36,7 +36,7 @@ AMHPlayerCharacter::AMHPlayerCharacter()
     CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
     CameraBoom->SetupAttachment(GetRootComponent());
     CameraBoom->TargetArmLength = 260.0f;
-    CameraBoom->SocketOffset = FVector(0.f, 55.f, 65.f);
+    CameraBoom->SocketOffset = FVector(0.f, 0.f, 65.f);
     CameraBoom->bUsePawnControlRotation = true;
 
     // 카메라

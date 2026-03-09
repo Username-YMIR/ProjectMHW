@@ -14,27 +14,27 @@ struct FMHLongSwordComboNode
     GENERATED_BODY()
 
     // 모션 태그
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo")
     FGameplayTag MoveTag;
 
     // 재생 몽타주
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo")
     TSoftObjectPtr<UAnimMontage> Montage;
 
     // 몽타주 섹션(없으면 None)
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo")
     FName SectionName = NAME_None;
 
     // 기본 입력 다음 후보(우선순위 순)
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo|Next")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Next")
     TArray<FGameplayTag> PrimaryNextMoves;
 
     // 보조 입력 다음 후보(우선순위 순)
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo|Next")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Next")
     TArray<FGameplayTag> SecondaryNextMoves;
 
     // 특수 입력 다음 후보(우선순위 순)
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo|Next")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Next")
     TArray<FGameplayTag> SpecialNextMoves;
 };
 
@@ -46,19 +46,19 @@ class PROJECTMHW_API UMHLongSwordComboGraph : public UDataAsset
 
 public:
     // 시작 모션 후보(우선순위 순)
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo|Entry")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Entry")
     TArray<FGameplayTag> EntryMoves_Primary;
 
     // 시작 모션 후보(우선순위 순)
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo|Entry")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Entry")
     TArray<FGameplayTag> EntryMoves_Secondary;
 
     // 시작 모션 후보(우선순위 순)
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo|Entry")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Entry")
     TArray<FGameplayTag> EntryMoves_Special;
 
     // 전체 노드 목록
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo")
     TArray<FMHLongSwordComboNode> Nodes;
 
 public:
@@ -70,4 +70,8 @@ public:
 
     // 입력 타입에 따른 시작 후보 배열 반환
     const TArray<FGameplayTag>& GetEntryList(EMHComboInputType InputType) const;
+
+    // 에디터에서 기본 콤보 데이터 자동 채우기
+    UFUNCTION(CallInEditor, Category = "Combo|Tools")
+    void PopulateDefaults_LongSword();
 };
