@@ -1,7 +1,7 @@
 // 제작자 : 손승우
 // 제작일 : 2026-03-04
 // 수정자 : 허혁
-// 수정일 : 2026-03-06
+// 수정일 : 2026-03-09
 
 
 #include "Character/Monster/MHMonsterCharacterBase.h"
@@ -35,6 +35,118 @@ void AMHMonsterCharacterBase::BeginPlay()
 
     // 시작부터 Roar 체크하는 게 아니라 "시야 감지"만 시작
     StartSightDetection();
+}
+
+// 디버그용 함수 TODO: 추후 삭제 
+void AMHMonsterCharacterBase::DrawSightConeDebug(const FVector& SocketLocation, const FRotator& SocketRotation,
+    const FVector& TargetLocation, bool bCanSee) const
+{
+    if (!GetWorld())
+    {
+        return;
+    }
+
+    const FColor MainColor   = bCanSee ? FColor::Green : FColor::Red;
+    const FColor YawColor    = FColor::Yellow;
+    const FColor PitchColor  = FColor::Cyan;
+    const FColor TargetColor = FColor::Magenta;
+
+    const FVector Forward = SocketRotation.Vector();
+    const FVector Right   = FRotationMatrix(SocketRotation).GetUnitAxis(EAxis::Y);
+    const FVector Up      = FRotationMatrix(SocketRotation).GetUnitAxis(EAxis::Z);
+
+    // 소켓 위치
+    DrawDebugSphere(GetWorld(), SocketLocation, 8.f, 8, MainColor, false, 0.12f, 0, 1.2f);
+
+    // 정면 방향
+    DrawDebugLine(
+        GetWorld(),
+        SocketLocation,
+        SocketLocation + Forward * SightDetectRange,
+        MainColor,
+        false,
+        0.12f,
+        0,
+        2.0f
+    );
+
+    // 플레이어 방향
+    DrawDebugLine(
+        GetWorld(),
+        SocketLocation,
+        TargetLocation,
+        TargetColor,
+        false,
+        0.12f,
+        0,
+        1.5f
+    );
+
+    DrawDebugSphere(GetWorld(), TargetLocation, 10.f, 8, TargetColor, false, 0.12f, 0, 1.0f);
+
+    // 좌우 부채꼴
+    const int32 YawSteps = 16;
+    for (int32 i = 0; i <= YawSteps; ++i)
+    {
+        const float Alpha = (float)i / (float)YawSteps;
+        const float YawAngle = FMath::Lerp(-SightHorizontalHalfAngleDeg, SightHorizontalHalfAngleDeg, Alpha);
+
+        const FVector Dir = FRotator(0.f, YawAngle, 0.f).RotateVector(Forward);
+
+        DrawDebugLine(
+            GetWorld(),
+            SocketLocation,
+            SocketLocation + Dir * SightDetectRange,
+            YawColor,
+            false,
+            0.12f,
+            0,
+            0.8f
+        );
+    }
+
+    // 위아래 경계선
+    const FVector PitchUpDir =
+        FRotationMatrix(SocketRotation + FRotator(SightVerticalHalfAngleDeg, 0.f, 0.f)).GetUnitAxis(EAxis::X);
+
+    const FVector PitchDownDir =
+        FRotationMatrix(SocketRotation + FRotator(-SightVerticalHalfAngleDeg, 0.f, 0.f)).GetUnitAxis(EAxis::X);
+
+    DrawDebugLine(
+        GetWorld(),
+        SocketLocation,
+        SocketLocation + PitchUpDir * SightDetectRange,
+        PitchColor,
+        false,
+        0.12f,
+        0,
+        1.2f
+    );
+
+    DrawDebugLine(
+        GetWorld(),
+        SocketLocation,
+        SocketLocation + PitchDownDir * SightDetectRange,
+        PitchColor,
+        false,
+        0.12f,
+        0,
+        1.2f
+    );
+
+    // 인식 거리 구체
+    DrawDebugSphere(
+        GetWorld(),
+        SocketLocation,
+        SightDetectRange,
+        24,
+        FColor::Silver,
+        false,
+        0.12f,
+        0,
+        0.8f
+    );
+    
 }
 
 void AMHMonsterCharacterBase::SetCombatTarget(AActor* NewTarget)
@@ -119,7 +231,18 @@ bool AMHMonsterCharacterBase::CanSeeTargetFromHead(AActor* Target) const
     const FVector SocketForward = SocketRotation.Vector();
 
     FVector TargetLocation = Target->GetActorLocation();
-
+    // 디버그용 
+    /*DrawDebugLine(
+            GetWorld(),
+            SocketLocation,
+            SocketLocation + SocketForward * 200.f,
+            FColor::Green,
+            false,
+            0.1f,
+            0,
+            2.f
+                );*/
+    DrawSightConeDebug(SocketLocation, SocketRotation, TargetLocation, true);
     if (const ACharacter* TargetCharacter = Cast<ACharacter>(Target))
     {
         if (const UCapsuleComponent* Capsule = TargetCharacter->GetCapsuleComponent())
@@ -185,31 +308,35 @@ bool AMHMonsterCharacterBase::CanSeeTargetFromHead(AActor* Target) const
 
     if (bSightRequireLineOfSight)
     {
+        const FVector TraceStart = SocketLocation + SocketForward * 20.f;
+        const FVector TraceEnd = TargetLocation;
+
         FHitResult HitResult;
         FCollisionQueryParams Params(SCENE_QUERY_STAT(MonsterSightLOS), false, this);
         Params.AddIgnoredActor(this);
+        Params.AddIgnoredActor(Target);
 
-        const bool bHit = GetWorld()->LineTraceSingleByChannel(
+        FCollisionObjectQueryParams ObjParams;
+        ObjParams.AddObjectTypesToQuery(ECC_WorldStatic);
+        ObjParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+
+        const bool bBlocked = GetWorld()->LineTraceSingleByObjectType(
             HitResult,
-            SocketLocation + SocketForward * 20.f,
-            TargetLocation,
-            ECC_Visibility,
+            TraceStart,
+            TraceEnd,
+            ObjParams,
             Params
         );
 
-        if (!bHit)
+        if (bBlocked)
         {
-            // 플레이어가 Visibility를 막지 않으면 no hit가 날 수 있음
-            // 여기선 "장애물 확인" 용이 아니라 "타겟 직접 적중" 방식
-            UE_LOG(MonsterCharacter, Warning, TEXT("Sight Fail | LOS no hit"));
+            UE_LOG(MonsterCharacter, Warning,
+                TEXT("Sight Fail | LOS blocked by %s"),
+                *GetNameSafe(HitResult.GetActor()));
             return false;
         }
 
-        if (HitResult.GetActor() != Target)
-        {
-            UE_LOG(MonsterCharacter, Warning, TEXT("Sight Fail | LOS blocked by %s"), *GetNameSafe(HitResult.GetActor()));
-            return false;
-        }
+        UE_LOG(MonsterCharacter, Warning, TEXT("Sight LOS Success | no obstacle"));
     }
 
     UE_LOG(MonsterCharacter, Warning, TEXT("Sight Success"));

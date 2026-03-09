@@ -1,7 +1,7 @@
 // 제작자 : 손승우
 // 제작일 : 2026-03-04
 // 수정자 : 허혁
-// 수정일 : 2026-03-06
+// 수정일 : 2026-03-09
 #pragma once
 
 #include "CoreMinimal.h"
@@ -40,36 +40,55 @@ protected:
     FTimerHandle SightDetectTimer;
 
 protected:
+#pragma region Roar
     // =========================
     // Sight / Roar Config
     // =========================
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
     float SightDetectInterval = 0.2f;
 
+    // 인식 거리 
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
     float SightDetectRange = 1000.f;
 
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
     FName HeadLookSocketName = TEXT("HeadLookSocket");
 
+    // 좌우 시야 반각
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
-    float SightHorizontalHalfAngleDeg = 60.f;
+    float SightHorizontalHalfAngleDeg = 85.f;
 
+    //위아래 시야 반각
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
-    float SightVerticalHalfAngleDeg = 100.f;
+    float SightVerticalHalfAngleDeg = 110.f;
 
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
     bool bSightRequireLineOfSight = true;
 
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
     float SightTargetHeightOffset = 60.f;
-
+    
+    // 너무 가까울때 인식 범위
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
-    float AutoPassCloseRange = 250.f;
+    float AutoPassCloseRange = 180.f;
 
     UPROPERTY(EditDefaultsOnly, Category="Monster|Roar")
     TObjectPtr<UAnimMontage> RoarMontage = nullptr;
+    
+    /*UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Sight|Debug")
+    bool bDrawSightDebug = true;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Sight|Debug")
+    float SightDebugLineLength = 250.f;*/
+    
+    void DrawSightConeDebug(
+    const FVector& SocketLocation,
+    const FRotator& SocketRotation,
+    const FVector& TargetLocation,
+    bool bCanSee
+) const;
+    
+#pragma endregion 
 protected:
     // =========================
     // GAS / Attribute
@@ -108,13 +127,15 @@ protected:
     void HandleSightDetected(AActor* Target);
     void HandleDamagedFromUnaware(AActor* InstigatorActor);
 
-protected:
+public:
     // =========================
     // Roar
     // =========================
     void StartRoar();
     UFUNCTION(BlueprintCallable, Category="Monster|Roar")
     void OnRoarFinished();
+    
+    
 
 protected:
     // =========================
