@@ -20,6 +20,8 @@ AMHLongSwordInstance::AMHLongSwordInstance()
 	// 검집은 비주얼 전용
 	SayaMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SayaMesh->SetGenerateOverlapEvents(false); // 손승우 추가
+
+	ComboComponent = CreateDefaultSubobject<UMHLongSwordComboComponent>(TEXT("ComboComponent")); // 손승우 수정
 }
 
 

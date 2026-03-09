@@ -1,11 +1,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameFramework/Character.h"
 #include "GameplayTagContainer.h"
 #include "Character/MHCharacterBase.h"
 #include "Type/MHPlayerStructType.h"
 #include "Type/MHItemStructType.h"
 #include "Type/MHWeaponAnimStructType.h"
+#include "Weapons/Common/MHWeaponComboTypes.h" //손승우 추가
 #include "MHPlayerCharacter.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMHPlayerCharacter, Log, All);
@@ -31,6 +33,10 @@ public:
 protected:
     virtual void BeginPlay() override;
 
+    void InitializeCapsuleSettings();
+    
+    void InitializeMeshCollisionSettings();
+    
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
     // 종료 처리
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -63,6 +69,18 @@ protected:
     // 보조 공격 입력
     void Input_AttackSecondary(const FInputActionValue& InputActionValue);
 
+    // 무기 특수 입력
+    void Input_WeaponSpecial(const FInputActionValue& InputActionValue); //손승우 추가
+
+    // 동시 공격 입력
+    void Input_AttackSimultaneous(const FInputActionValue& InputActionValue); //손승우 추가
+
+    // 조준/홀드 시작
+    void Input_AimHoldStarted(const FInputActionValue& InputActionValue); //손승우 추가
+
+    // 조준/홀드 종료
+    void Input_AimHoldCompleted(const FInputActionValue& InputActionValue); //손승우 추가
+
 public:
     // 상호작용
     UFUNCTION(BlueprintCallable, Category = "Player")
@@ -71,6 +89,9 @@ public:
     // 기본 공격
     UFUNCTION(BlueprintCallable, Category = "Player")
     virtual void UsePrimaryAction();
+
+    // 콤보 몽타주 종료 시 납도/발도 상태 확정
+    void HandleComboMontageStateTransition(bool bInterrupted); //손승우 추가
 
     // 노티파이: 무기 손 소켓으로 이동
     UFUNCTION(BlueprintCallable, Category = "Weapon")
@@ -153,7 +174,7 @@ protected:
     TSoftClassPtr<UAnimInstance> DefaultAnimClass; // 기본 AnimBP
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visual", meta = (AllowPrivateAccess = "true"))
-    FVector DefaultMeshRelativeLocation = FVector(0.f, 0.f, -90.f); // 메쉬 위치 보정
+    FVector DefaultMeshRelativeLocation = FVector(0.f, 0.f, -7.f); // 메쉬 위치 보정
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visual", meta = (AllowPrivateAccess = "true"))
     FRotator DefaultMeshRelativeRotation = FRotator(0.f, -90.f, 0.f); // 메쉬 회전 보정
@@ -165,6 +186,12 @@ private:
 
     // 현재 스프린트 상태 여부
     bool bIsSprinting = false;
+
+    // 조준 홀드 상태
+    bool bAimHeld = false; //손승우 추가
+
+    // 납도 상태 특수 진입 후 첫 몽타주 종료 대기 여부
+    bool bPendingUnsheatheFromComboEntry = false; //손승우 추가
 
     // 비주얼 적용
     void ApplyPlayerVisuals();
@@ -209,14 +236,11 @@ private:
     // 무기 발도 상태로 부착
     void AttachWeaponToHand();
 
-    // 발도 공격 시작 가능 여부
-    bool CanStartDrawAttack() const;
+    // 납도 상태 특수 진입 가능 여부
+    bool CanStartSpecialEntryFromSheathed() const; //손승우 추가
 
-    // 발도 공격 몽타주 재생
-    void StartDrawAttack();
-
-    // 몽타주 종료 처리
-    void HandleDrawMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+    // 현재 입력을 태도 콤보 입력으로 처리
+    bool TryHandleWeaponComboInput(EMHComboInputType InputType); //손승우 추가
 
     // 납도 시작 가능 여부
     bool CanStartSheathe() const;

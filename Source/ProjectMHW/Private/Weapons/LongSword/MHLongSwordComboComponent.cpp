@@ -13,26 +13,40 @@ void UMHLongSwordComboComponent::SetComboGraph(UMHLongSwordComboGraph* InGraph)
     ResetCombo();
 }
 
-void UMHLongSwordComboComponent::BufferInput(EMHComboInputType InputType)
+bool UMHLongSwordComboComponent::BufferInput(EMHComboInputType InputType)
 {
     if (InputType == EMHComboInputType::None)
     {
-        return;
+        return false;
+    }
+
+    // 콤보 중에는 체인 윈도우 안에서만 다음 입력을 승인한다. //손승우 추가
+    if (bComboActive && !bChainWindowOpen)
+    {
+        return false;
     }
 
     BufferedInput = InputType;
+    bBufferedInputAccepted = true;
+    return true;
 }
 
 EMHComboInputType UMHLongSwordComboComponent::ConsumeBufferedInput()
 {
     const EMHComboInputType Result = BufferedInput;
     BufferedInput = EMHComboInputType::None;
+    bBufferedInputAccepted = false;
     return Result;
 }
 
 bool UMHLongSwordComboComponent::HasBufferedInput() const
 {
     return BufferedInput != EMHComboInputType::None;
+}
+
+bool UMHLongSwordComboComponent::HasAcceptedBufferedInput() const
+{
+    return HasBufferedInput() && bBufferedInputAccepted;
 }
 
 void UMHLongSwordComboComponent::SetChainWindowOpen(bool bOpen)
@@ -95,14 +109,17 @@ void UMHLongSwordComboComponent::CommitMove(const FMHLongSwordComboNode& Node)
     CurrentMoveTag = Node.MoveTag;
     bComboActive = true;
 
-    // 노티파이 기반 사용 시, 기본은 닫힘으로 시작(노티파이로 열기)
-    bChainWindowOpen = true;
+    // 새 모션 진입 시 다음 입력은 노티파이가 열어줄 때까지 닫아둔다. //손승우 수정
+    bChainWindowOpen = false;
+    bBufferedInputAccepted = false;
+    BufferedInput = EMHComboInputType::None;
 }
 
 void UMHLongSwordComboComponent::ResetCombo()
 {
     CurrentMoveTag = FGameplayTag();
     bComboActive = false;
-    bChainWindowOpen = true;
+    bChainWindowOpen = false;
+    bBufferedInputAccepted = false;
     BufferedInput = EMHComboInputType::None;
 }

@@ -26,13 +26,16 @@ public:
     const UMHLongSwordComboGraph* GetComboGraph() const { return ComboGraph; }
 
     // 입력 버퍼 저장
-    void BufferInput(EMHComboInputType InputType);
+    bool BufferInput(EMHComboInputType InputType); //손승우 수정
 
     // 버퍼 입력 소비
     EMHComboInputType ConsumeBufferedInput();
 
     // 버퍼 입력 존재 여부
     bool HasBufferedInput() const;
+
+    // 체인 윈도우 안에서 승인된 입력 여부
+    bool HasAcceptedBufferedInput() const; //손승우 추가
 
     // 콤보 입력 윈도우 설정
     void SetChainWindowOpen(bool bOpen);
@@ -70,7 +73,10 @@ private:
     bool bComboActive = false; // 콤보 활성
 
     UPROPERTY(Transient)
-    bool bChainWindowOpen = true; // 입력 윈도우
+    bool bChainWindowOpen = false; //손승우 수정
+
+    UPROPERTY(Transient)
+    bool bBufferedInputAccepted = false; //손승우 추가
 
     UPROPERTY(Transient)
     EMHComboInputType BufferedInput = EMHComboInputType::None; // 입력 버퍼

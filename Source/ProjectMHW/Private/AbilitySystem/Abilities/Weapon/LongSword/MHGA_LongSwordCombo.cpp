@@ -49,6 +49,7 @@ void UMHGA_LongSwordCombo::ActivateAbility(const FGameplayAbilitySpecHandle Hand
     const EMHComboInputType InputType = ComboComp->ConsumeBufferedInput();
     if (!PlayNextMove(Player, Weapon, ComboComp, InputType == EMHComboInputType::None ? EMHComboInputType::Primary : InputType))
     {
+        Player->HandleComboMontageStateTransition(true); //손승우 추가
         ComboComp->ResetCombo();
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
@@ -113,7 +114,9 @@ void UMHGA_LongSwordCombo::OnMontageCompleted()
         return;
     }
 
-    if (CachedComboComponent->HasBufferedInput())
+    CachedPlayer->HandleComboMontageStateTransition(false); //손승우 추가
+
+    if (CachedComboComponent->HasAcceptedBufferedInput())
     {
         const EMHComboInputType InputType = CachedComboComponent->ConsumeBufferedInput();
         const EMHComboInputType UseInput = InputType == EMHComboInputType::None ? EMHComboInputType::Primary : InputType;
@@ -130,6 +133,11 @@ void UMHGA_LongSwordCombo::OnMontageCompleted()
 
 void UMHGA_LongSwordCombo::OnMontageInterrupted()
 {
+    if (CachedPlayer)
+    {
+        CachedPlayer->HandleComboMontageStateTransition(true); //손승우 추가
+    }
+
     if (CachedComboComponent)
     {
         CachedComboComponent->ResetCombo();
