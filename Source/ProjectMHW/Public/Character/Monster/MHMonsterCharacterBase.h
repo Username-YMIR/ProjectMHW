@@ -77,6 +77,7 @@ protected:
     UPROPERTY(VisibleAnywhere , BlueprintReadOnly , Category="GAS" , meta=(AllowPrivateAccess=true))
     TObjectPtr<UMHMonsterAttributeSet> MonsterAttributes;
     
+
     UPROPERTY(BlueprintReadOnly)
     bool bMonsterGASInitialized = false; // 초기화 여부
     
@@ -85,5 +86,5 @@ protected:
     void GrantStartupAbilities();
     void ApplyStartupEffects();
     
-
+    bool bGASInitialized = false;
 };

@@ -11,7 +11,6 @@
 #include "DataAsset/MHMonsterDataAsset.h"
 #include "Kismet/GameplayStatics.h"
 
-
 DEFINE_LOG_CATEGORY(MonsterCharacter)
 
 AMHMonsterCharacterBase::AMHMonsterCharacterBase()
@@ -25,6 +24,7 @@ void AMHMonsterCharacterBase::BeginPlay()
     Super::BeginPlay();
     
     InitMonsterGAS();
+
     
     GetWorldTimerManager().SetTimer(
         RoarCheckTimer,
@@ -84,6 +84,11 @@ void AMHMonsterCharacterBase::CheckRoar()
     }
     
 }
+
+
+
+
+
 void AMHMonsterCharacterBase::SetCombatTarget(AActor* NewTarget)
 {
     CombatTarget = NewTarget;
@@ -104,110 +109,112 @@ void AMHMonsterCharacterBase::InitMonsterGAS()
 {
     // INIT GAS
     
+
     if (bMonsterGASInitialized)
     {
         UE_LOG(MonsterCharacter , Warning , TEXT(": MonsterCharacter Base InitMonsterGAS bMonsterGASInitialized"));
-        return;
-    }
-    
-    if (!AbilitySystemComponent)
-    {
-        UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter Base InitMonsterGAS AbilitySystemComponent"));
-        return; 
-    }
-    
-    AbilitySystemComponent->InitAbilityActorInfo(this , this);
-    
-    ApplyStartupLooseTags();
-    GrantStartupAbilities();
-    
-    
-    
-    ApplyStartupEffects();
-    
-    bMonsterGASInitialized = true;
-    if (MonsterAttributes)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[MonsterGAS] %s HP=%f/%f  Poise=%f/%f  Atk=%f Def=%f"),
-            *GetName(),
-            MonsterAttributes->GetHealth(), MonsterAttributes->GetMaxHealth(),
-            MonsterAttributes->GetPoise(), MonsterAttributes->GetMaxPoise(),
-            MonsterAttributes->GetAttackPower(), MonsterAttributes->GetDefense()
-        );
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("[MonsterGAS] %s MonsterAttributes is NULL"), *GetName());
-    }
-    
-}
 
-void AMHMonsterCharacterBase::ApplyStartupLooseTags()
-{
-    UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
-    if (!MonsterDataAsset || !AbilitySystemComponent)
-    {
-        UE_LOG(MonsterCharacter , Warning , TEXT(": MonsterCharacter ApplyStartup "));
-        return;
-    }
+   
     
-    for (const FGameplayTag& Tag : MonsterDataAsset->MonsterTags)
-    {
-        AbilitySystemComponent->AddLooseGameplayTag(Tag);
-    }
-    
-    
-}
-
-void AMHMonsterCharacterBase::GrantStartupAbilities()
-{
-    UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
-    if (!MonsterDataAsset || !AbilitySystemComponent)
-    {
-        UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter GrantStartupAbilities "));
-        return;
-    }
-    
-    for (const TSubclassOf<UGameplayAbility>& AbilityClass : MonsterDataAsset->StartupAbilities)
-    {
-        if (!AbilityClass )
+        if (!AbilitySystemComponent)
         {
-            UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter GrantStartupAbilities2 "));
+            UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter Base InitMonsterGAS AbilitySystemComponent"));
+            return; 
         }
-        AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
-        
-    }
     
-}
-
-void AMHMonsterCharacterBase::ApplyStartupEffects()
-{
-    UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
-    if (!MonsterDataAsset || !AbilitySystemComponent)
-    {
-        UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter ApplyStartupEffects "));
-        return;
-    }
+        AbilitySystemComponent->InitAbilityActorInfo(this , this);
     
-    for (const TSubclassOf<UGameplayEffect>& EffectClass : MonsterDataAsset->StartupEffects)
-    {
-        if (!EffectClass ) continue;
-        
-        FGameplayEffectContextHandle ContextHandle = AbilitySystemComponent->MakeEffectContext();
-        ContextHandle.AddSourceObject(this);
-        
-        FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(EffectClass , 1.f , ContextHandle );
-        
-        if (SpecHandle.IsValid())
+        ApplyStartupLooseTags();
+        GrantStartupAbilities();
+        ApplyStartupEffects();
+    
+        bMonsterGASInitialized = true;
+        if (MonsterAttributes)
         {
-            UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter SpecHandle "));
-            
-            AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-            
+            UE_LOG(LogTemp, Warning, TEXT("[MonsterGAS] %s HP=%f/%f  Poise=%f/%f  Atk=%f Def=%f"),
+                *GetName(),
+                MonsterAttributes->GetHealth(), MonsterAttributes->GetMaxHealth(),
+                MonsterAttributes->GetPoise(), MonsterAttributes->GetMaxPoise(),
+                MonsterAttributes->GetAttackPower(), MonsterAttributes->GetDefense()
+            );
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("[MonsterGAS] %s MonsterAttributes is NULL"), *GetName());
         }
         
-        
+        ApplyStartupEffects();
+    
+        bGASInitialized = true;
     }
-    
-    
 }
+
+    void AMHMonsterCharacterBase::ApplyStartupLooseTags()
+    {
+        UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
+        if (!MonsterDataAsset || !AbilitySystemComponent)
+        {
+            UE_LOG(MonsterCharacter , Warning , TEXT(": MonsterCharacter ApplyStartup "));
+            return;
+        }
+    
+        for (const FGameplayTag& Tag : MonsterDataAsset->MonsterTags)
+        {
+            AbilitySystemComponent->AddLooseGameplayTag(Tag);
+        }
+    
+    
+    }
+
+    void AMHMonsterCharacterBase::GrantStartupAbilities()
+    {
+        UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
+        if (!MonsterDataAsset || !AbilitySystemComponent)
+        {
+            UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter GrantStartupAbilities "));
+
+            return;
+        }
+    
+        for (const TSubclassOf<UGameplayAbility>& AbilityClass : MonsterDataAsset->StartupAbilities)
+        {
+            if (!AbilityClass )
+            {
+                UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter GrantStartupAbilities2 "));
+            }
+            AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
+        
+        }
+    
+    }
+
+    void AMHMonsterCharacterBase::ApplyStartupEffects()
+    {
+        UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
+        if (!MonsterDataAsset || !AbilitySystemComponent)
+        {
+            UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter ApplyStartupEffects "));
+            return;
+        }
+    
+        for (const TSubclassOf<UGameplayEffect>& EffectClass : MonsterDataAsset->StartupEffects)
+        {
+            if (!EffectClass ) continue;
+        
+            FGameplayEffectContextHandle ContextHandle = AbilitySystemComponent->MakeEffectContext();
+            ContextHandle.AddSourceObject(this);
+        
+            FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(EffectClass , 1.f , ContextHandle );
+        
+            if (SpecHandle.IsValid())
+            {
+                UE_LOG(MonsterCharacter , Warning , TEXT(" : MonsterCharacter SpecHandle "));
+            
+                AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            
+            }
+        
+        
+        }
+    }
+

@@ -10,18 +10,10 @@
   <component name="ChangeListManager">
     <list default="true" id="00d04211-6fdc-4f65-a540-2ae04f5f4d0e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProjectMHW.dir/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProjectMHW.dir/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/MHGameplayTags.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/MHGameplayTags.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/MHGameplayTags.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/MHGameplayTags.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Private/Character/MHCharacterBase.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Private/Character/MHCharacterBase.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Private/Character/Player/MHPlayerCharacter.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Private/Character/Player/MHPlayerCharacter.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Private/Components/Input/MHInputComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Private/Components/Input/MHInputComponent.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Private/DataAsset/Input/DataAsset_InputConfig.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Private/DataAsset/Input/DataAsset_InputConfig.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Private/Input/MHGameplayTags.cpp" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Public/Character/MHCharacterBase.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Public/Character/MHCharacterBase.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Public/Character/Player/MHPlayerCharacter.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Public/Character/Player/MHPlayerCharacter.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Public/Components/Input/MHInputComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Public/Components/Input/MHInputComponent.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Public/DataAsset/Input/DataAsset_InputConfig.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Public/DataAsset/Input/DataAsset_InputConfig.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Public/Input/MHGameplayTags.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Config/DefaultEditor.ini" beforeDir="false" afterPath="$PROJECT_DIR$/Config/DefaultEditor.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProjectMHW.uproject" beforeDir="false" afterPath="$PROJECT_DIR$/ProjectMHW.uproject" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Public/Character/Monster/MHMonsterCharacterBase.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Public/Character/Monster/MHMonsterCharacterBase.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProjectMHW/Public/Character/Monster/MonsterType/MHMonsterType.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProjectMHW/Public/Character/Monster/MonsterType/MHMonsterType.h" afterDir="false" />
     </list>
 =======
   <component name="ChangeListManager">
@@ -51,13 +43,20 @@
 >>>>>>> Stashed changes
   }
 }</component>
+<<<<<<< Updated upstream
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
 <<<<<<< Updated upstream
     &quot;url&quot;: &quot;https://github.com/Username-YMIR/ProjectMHW&quot;,
     &quot;accountId&quot;: &quot;7c75cbb2-0a00-45a2-a992-0251dfc67a06&quot;
+=======
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/Username-YMIR/ProjectMHW.git",
+    "accountId": "5325178b-52d9-4b99-be04-c495b73f0241"
+>>>>>>> Stashed changes
   }
-}</component>
+}]]></component>
   <component name="HighlightingSettingsPerFile">
     <setting file="file://$PROJECT_DIR$/Source/ProjectMHW/ProjectMHW.Build.cs" root0="FORCE_HIGHLIGHTING" />
   </component>
@@ -80,6 +79,7 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
+<<<<<<< Updated upstream
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
     &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
@@ -101,8 +101,26 @@
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
 >>>>>>> Stashed changes
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+=======
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "Uproject.ProjectMHW.executor": "Debug",
+    "git-widget-placeholder": "main",
+    "ignore.virus.scanning.warn.message": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "CodeLensConfigurable",
+    "vue.rearranger.settings.migration": "true"
+>>>>>>> Stashed changes
   }
-}</component>
+}]]></component>
   <component name="RunManager">
     <configuration name="ProjectMHW" type="Uproject" factoryName="rider.uproject">
       <configuration_1 setup="1">
@@ -199,6 +217,7 @@
       <workItem from="1772648046073" duration="163000" />
       <workItem from="1772672681833" duration="256000" />
       <workItem from="1772672974231" duration="484000" />
+<<<<<<< Updated upstream
 =======
     <task active="true" id="Default" summary="디폴트 작업">
       <changelist id="2d21ccf4-f44d-4296-8150-c084f7831bcc" name="변경" comment="" />
@@ -208,6 +227,9 @@
       <updated>1772701133596</updated>
       <workItem from="1772701133597" duration="189000" />
       <workItem from="1772701374486" duration="54000" />
+>>>>>>> Stashed changes
+=======
+      <workItem from="1772673892642" duration="6188000" />
 >>>>>>> Stashed changes
     </task>
     <servers />

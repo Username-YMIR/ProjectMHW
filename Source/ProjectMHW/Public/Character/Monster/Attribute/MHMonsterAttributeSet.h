@@ -36,6 +36,7 @@ public:
 	// 체력 
 	//=====
 	
+
 	UPROPERTY(BlueprintReadOnly, Category="Status")
 	FGameplayAttributeData Health;
 	ATTRIBUTE_ACCESSORS(UMHMonsterAttributeSet, Health)

@@ -26,7 +26,6 @@ struct FPhaseAbilitySet
 {
 	GENERATED_BODY()
 	
-	
 	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly)
 	float Weight = 1.f;
 	
