@@ -10,6 +10,9 @@ namespace MHGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Input_Interact, "Input.Interact");
 	UE_DEFINE_GAMEPLAY_TAG(Input_AttackPrimary, "Input.Attack.Primary");
 	UE_DEFINE_GAMEPLAY_TAG(Input_AttackSecondary, "Input.Attack.Secondary");
+	UE_DEFINE_GAMEPLAY_TAG(Input_WeaponSpecial, "Input.Weapon.Special"); // 손승우 추가
+	UE_DEFINE_GAMEPLAY_TAG(Input_AttackSimultaneous, "Input.Attack.Simultaneous"); // 손승우 추가
+	UE_DEFINE_GAMEPLAY_TAG(Input_AimHold, "Input.Aim.Hold"); // 손승우 추가
 
 	
 	//Element Tags (속성 태그)

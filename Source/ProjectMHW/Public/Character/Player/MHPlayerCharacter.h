@@ -4,15 +4,20 @@
 #include "GameplayTagContainer.h"
 #include "Character/MHCharacterBase.h"
 #include "Type/MHPlayerStructType.h"
+#include "Type/MHItemStructType.h"
+#include "Type/MHWeaponAnimStructType.h"
 #include "MHPlayerCharacter.generated.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogMHPlayerCharacter, Log, All)
+DECLARE_LOG_CATEGORY_EXTERN(LogMHPlayerCharacter, Log, All);
 
 class USpringArmComponent;
 class UCameraComponent;
 class UDataAsset_InputConfig;
+class USkeletalMeshComponent;
 class USkeletalMesh;
 class UAnimInstance;
+class UAnimMontage;
+class AMHWeaponInstance;
 struct FInputActionValue;
 
 UCLASS()
@@ -67,14 +72,31 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Player")
     virtual void UsePrimaryAction();
 
+    // 노티파이: 무기 손 소켓으로 이동
+    UFUNCTION(BlueprintCallable, Category = "Weapon")
+    void Notify_AttachWeaponToHand();
+
+    // 노티파이: 무기 등 소켓으로 이동
+    UFUNCTION(BlueprintCallable, Category = "Weapon")
+    void Notify_AttachWeaponToBack();
+
+    // 노티파이: 콤보 입력 윈도우 시작
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_BeginComboChainWindow();
+
+    // 노티파이: 콤보 입력 윈도우 종료
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_EndComboChainWindow();
+
 protected:
-    // ===== Camera =====
+// 동일 카테고리 오브젝트가 3개 이상이면 region으로 구분
+#pragma region Components
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<USpringArmComponent> CameraBoom; // 스프링암
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UCameraComponent> FollowCamera; // 카메라
-    // ===== End Camera =====
+#pragma endregion
 
     // ===== Movement =====
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement", meta = (AllowPrivateAccess = "true"))
@@ -100,6 +122,24 @@ protected:
     // ===== Weapon =====
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
     FGameplayTag CurrentWeaponTag; // 무기 타입 태그
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
+    FMHWeaponSocketConfig WeaponSocketConfig; // 무기 소켓 설정
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
+    EMHWeaponSheathState WeaponSheathState = EMHWeaponSheathState::Sheathed; // 무기 납도/발도 상태
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
+    EMHWeaponType CurrentWeaponType = EMHWeaponType::None; // 무기 타입
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
+    TSubclassOf<AMHWeaponInstance> DefaultWeaponClass; // 기본 무기 BP
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<AMHWeaponInstance> EquippedWeapon; // 장착 무기
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
+    TSoftObjectPtr<UAnimMontage> SheathedRollMontage; // 납도 구르기 몽타주(루트모션)
     // ===== End Weapon =====
 
 // 동일 카테고리 오브젝트가 3개 이상이면 region으로 구분
@@ -148,4 +188,46 @@ private:
     bool TryJumpOffLedge();
     void HandleLandingState();
     // ===== End Terrain Hooks =====
+
+    // 무기 메쉬 적용
+    void SpawnAndEquipDefaultWeapon();
+
+    // 무기 액터를 등 소켓에 부착
+    void AttachWeaponActorToBack();
+
+    // 무기 칼 메쉬 반환
+    USkeletalMeshComponent* GetWeaponBladeMesh() const;
+
+    // 무기 애니 설정 반환
+    const FMHWeaponAnimConfig* GetEquippedWeaponAnimConfig() const;
+
+    // 무기 납도 상태로 부착
+    void AttachWeaponToBack();
+
+    // 무기 발도 상태로 부착
+    void AttachWeaponToHand();
+
+    // 발도 공격 시작 가능 여부
+    bool CanStartDrawAttack() const;
+
+    // 발도 공격 몽타주 재생
+    void StartDrawAttack();
+
+    // 몽타주 종료 처리
+    void HandleDrawMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+    // 납도 시작 가능 여부
+    bool CanStartSheathe() const;
+
+    // 납도 몽타주 재생
+    void StartSheathe();
+
+    // 납도 몽타주 종료 처리
+    void HandleSheatheMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+    // 구르기 몽타주 종료 처리
+    void HandleRollMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+    // 납도/발도 상태에 따른 AnimBP 적용
+    void UpdateAnimClassByWeaponState();
 };
