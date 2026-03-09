@@ -33,7 +33,6 @@ namespace MHGameplayTags
 	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Element_Ice);
 	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Element_Dragon);
 	
-
 	
 #pragma region ItemTags
 	// Root
@@ -63,5 +62,18 @@ namespace MHGameplayTags
 	// Consumables
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Common_Consumable_Recovery);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Common_Consumable_Buff);
+#pragma endregion
+	
+#pragma region Monster
+	// State
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Unaware);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Alert);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Roaring);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Combat);
+	
+	// Event
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Monster_DetectedBySight);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Monster_AttackedFromUnaware);
+	
 #pragma endregion
 }

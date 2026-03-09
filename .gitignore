@@ -77,3 +77,4 @@ DerivedDataCache/*
 /Source/ProjectMHW/Private/Test
 /Content/_BP/Test
 /.idea/.idea.ProjectMHW/.idea/workspace.xml
+Content/ThirdPerson/Blueprints/BP_ThirdPersonGameMode.uasset

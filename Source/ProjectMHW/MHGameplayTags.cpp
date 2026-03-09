@@ -57,4 +57,15 @@ namespace MHGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Item_Consumable_Recovery, "Item.Common.Consumable.Recovery");
 	UE_DEFINE_GAMEPLAY_TAG(Item_Consumable_Buff, "Item.Common.Consumable.Buff");
 #pragma endregion
+	
+#pragma region Monster
+	UE_DEFINE_GAMEPLAY_TAG(State_Monster_Unaware, "State.Monster.Unaware");
+	UE_DEFINE_GAMEPLAY_TAG(State_Monster_Alert, "State.Monster.Alert");
+	UE_DEFINE_GAMEPLAY_TAG(State_Monster_Roaring, "State.Monster.Roaring");
+	UE_DEFINE_GAMEPLAY_TAG(State_Monster_Combat, "State.Monster.Combat");
+
+	UE_DEFINE_GAMEPLAY_TAG(Event_Monster_DetectedBySight, "Event.Monster.DetectedBySight");
+	UE_DEFINE_GAMEPLAY_TAG(Event_Monster_AttackedFromUnaware, "Event.Monster.AttackedFromUnaware");
+	
+#pragma endregion
 }

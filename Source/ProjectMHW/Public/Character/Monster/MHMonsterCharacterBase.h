@@ -2,17 +2,16 @@
 // 제작일 : 2026-03-04
 // 수정자 : 허혁
 // 수정일 : 2026-03-06
-
 #pragma once
-
-DECLARE_LOG_CATEGORY_EXTERN(MonsterCharacter, Log, All)
 
 #include "CoreMinimal.h"
 #include "Character/MHCharacterBase.h"
-#include "Character/Monster/Attribute/MHMonsterAttributeSet.h"
 #include "MHMonsterCharacterBase.generated.h"
 
-class UAbilitySystemComponent;
+class UMHMonsterAttributeSet;
+class UAnimMontage;
+
+DECLARE_LOG_CATEGORY_EXTERN(MonsterCharacter, Log, All);
 
 UCLASS()
 class PROJECTMHW_API AMHMonsterCharacterBase : public AMHCharacterBase
@@ -22,69 +21,114 @@ class PROJECTMHW_API AMHMonsterCharacterBase : public AMHCharacterBase
 public:
     AMHMonsterCharacterBase();
 
-    UFUNCTION(BlueprintCallable, Category = "Monster")
-    virtual void SetCombatTarget(AActor* NewTarget);
-
-    UFUNCTION(BlueprintCallable, Category = "Monster")
-    virtual void EnterCombat();
-
-    UFUNCTION(BlueprintCallable, Category = "Monster")
-    virtual void ExitCombat();
-
-    UFUNCTION(BlueprintPure, Category = "Monster")
-    bool IsInCombat() const { return bInCombat; }
-
-    UFUNCTION(BlueprintPure, Category = "Monster")
-    AActor* GetCombatTarget() const { return CombatTarget; }
-
-    virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override
-    {return AbilitySystemComponent; }
-    
-    
 protected:
     virtual void BeginPlay() override;
 
 protected:
-#pragma region Roar
-    // 플레이어 조우 
-    // 조우시 로어
-    
-    // 로어 인식 거리
-    UPROPERTY(EditDefaultsOnly , Category="Monster|Roar")
-    float RoarTriggerDistance = 1000.f;
-    
-    UPROPERTY(EditDefaultsOnly , Category="Monster|Roar")
-    TObjectPtr<UAnimMontage> RoarMontage;
-    
-    UPROPERTY()
-    bool bHasRoared = false;
-    
-    // tick 에서 매번 체크를 할수 없으니 타이머 이용
-    
-    FTimerHandle RoarCheckTimer;
-    
-    
-    void CheckRoar();
-#pragma endregion  
-    
-    
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Monster")
+    // =========================
+    // Monster State
+    // =========================
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|State")
     bool bInCombat = false;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Monster")
-    TObjectPtr<AActor> CombatTarget = nullptr;
-    
-    UPROPERTY(VisibleAnywhere , BlueprintReadOnly , Category="GAS" , meta=(AllowPrivateAccess=true))
-    TObjectPtr<UMHMonsterAttributeSet> MonsterAttributes;
-    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|State")
+    bool bHasRoared = false;
 
-    UPROPERTY(BlueprintReadOnly)
-    bool bMonsterGASInitialized = false; // 초기화 여부
-    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|State")
+    TObjectPtr<AActor> CombatTarget = nullptr;
+
+    FTimerHandle SightDetectTimer;
+
+protected:
+    // =========================
+    // Sight / Roar Config
+    // =========================
+    UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
+    float SightDetectInterval = 0.2f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
+    float SightDetectRange = 1000.f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
+    FName HeadLookSocketName = TEXT("HeadLookSocket");
+
+    UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
+    float SightHorizontalHalfAngleDeg = 60.f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
+    float SightVerticalHalfAngleDeg = 100.f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
+    bool bSightRequireLineOfSight = true;
+
+    UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
+    float SightTargetHeightOffset = 60.f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
+    float AutoPassCloseRange = 250.f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Monster|Roar")
+    TObjectPtr<UAnimMontage> RoarMontage = nullptr;
+
+protected:
+    // =========================
+    // GAS / Attribute
+    // =========================
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Attribute")
+    TObjectPtr<UMHMonsterAttributeSet> MonsterAttributes;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|GAS")
+    bool bMonsterGASInitialized = false;
+
+protected:
+    // =========================
+    // Combat Entry
+    // =========================
+    void SetCombatTarget(AActor* NewTarget);
+
+    void EnterCombat();          // 기존 함수 유지
+    void ExitCombat();           // 기존 함수 유지
+    void EnterCombatPhase();     // 공통 전투 진입
+    bool IsUnaware() const;
+
+protected:
+    // =========================
+    // Sight Detection
+    // =========================
+    void StartSightDetection();
+    void StopSightDetection();
+    void CheckSightDetection();
+
+    bool CanSeeTargetFromHead(AActor* Target) const;
+
+protected:
+    // =========================
+    // Event Handlers
+    // =========================
+    void HandleSightDetected(AActor* Target);
+    void HandleDamagedFromUnaware(AActor* InstigatorActor);
+
+protected:
+    // =========================
+    // Roar
+    // =========================
+    void StartRoar();
+    UFUNCTION(BlueprintCallable, Category="Monster|Roar")
+    void OnRoarFinished();
+
+protected:
+    // =========================
+    // GAS Init
+    // =========================
     void InitMonsterGAS();
     void ApplyStartupLooseTags();
     void GrantStartupAbilities();
     void ApplyStartupEffects();
-    
-    bool bGASInitialized = false;
+
+public:
+    // =========================
+    // External Hook
+    // =========================
+    // 데미지 처리 지점에서 불러줄 함수
+    void NotifyDamagedFrom(AActor* InstigatorActor);
 };
