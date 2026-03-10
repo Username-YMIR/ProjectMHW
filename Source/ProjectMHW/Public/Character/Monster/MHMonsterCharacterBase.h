@@ -10,6 +10,7 @@
 
 class UMHMonsterAttributeSet;
 class UAnimMontage;
+class AMHMonsterAIController;
 
 DECLARE_LOG_CATEGORY_EXTERN(MonsterCharacter, Log, All);
 
@@ -38,7 +39,14 @@ protected:
     TObjectPtr<AActor> CombatTarget = nullptr;
 
     FTimerHandle SightDetectTimer;
+    
+    // =========================
+    // Monster Controller
+    // ========================= 
 
+   
+    AMHMonsterAIController* GetMonsterAIController() const;
+    
 protected:
 #pragma region Roar
     // =========================
@@ -56,7 +64,7 @@ protected:
 
     // 좌우 시야 반각
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
-    float SightHorizontalHalfAngleDeg = 85.f;
+    float SightHorizontalHalfAngleDeg = 60.f;
 
     //위아래 시야 반각
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")

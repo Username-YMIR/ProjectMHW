@@ -8,6 +8,7 @@
 #include "AbilitySystemComponent.h"
 #include "GameplayEffect.h"
 #include "MHGameplayTags.h"
+#include "Character/Monster/AI/MHMonsterAIController.h"
 #include "Character/Monster/Attribute/MHMonsterAttributeSet.h"
 #include "Components/CapsuleComponent.h"
 #include "DataAsset/MHMonsterDataAsset.h"
@@ -36,6 +37,12 @@ void AMHMonsterCharacterBase::BeginPlay()
     // 시작부터 Roar 체크하는 게 아니라 "시야 감지"만 시작
     StartSightDetection();
 }
+
+AMHMonsterAIController* AMHMonsterCharacterBase::GetMonsterAIController() const
+{
+    return Cast<AMHMonsterAIController>(GetController());
+}
+
 
 // 디버그용 함수 TODO: 추후 삭제 
 void AMHMonsterCharacterBase::DrawSightConeDebug(const FVector& SocketLocation, const FRotator& SocketRotation,
@@ -152,6 +159,20 @@ void AMHMonsterCharacterBase::DrawSightConeDebug(const FVector& SocketLocation, 
 void AMHMonsterCharacterBase::SetCombatTarget(AActor* NewTarget)
 {
     CombatTarget = NewTarget;
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        UE_LOG(MonsterCharacter, Warning, TEXT("SetCombatTarget | AI valid | Target=%s"), *GetNameSafe(NewTarget));
+        MonsterAI->SetCombatTarget(NewTarget);
+    }
+    else
+    {
+        //todo  추후 제거 로그 
+        UE_LOG(MonsterCharacter, Warning,
+       TEXT("BeginPlay | Controller=%s | Class=%s"),
+       *GetNameSafe(GetController()),
+       GetController() ? *GetController()->GetClass()->GetName() : TEXT("None"));
+
+    }
 }
 
 bool AMHMonsterCharacterBase::IsUnaware() const
@@ -397,6 +418,11 @@ void AMHMonsterCharacterBase::StartRoar()
 
     AbilitySystemComponent->AddLooseGameplayTag(MHGameplayTags::State_Monster_Roaring);
 
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        MonsterAI->SetIsRoaring(true);
+    }
+    
     if (!RoarMontage)
     {
         UE_LOG(MonsterCharacter, Warning, TEXT("StartRoar | RoarMontage null -> fallback combat"));
@@ -444,7 +470,22 @@ void AMHMonsterCharacterBase::StartRoar()
 void AMHMonsterCharacterBase::OnRoarFinished()
 {
     UE_LOG(MonsterCharacter, Warning, TEXT("OnRoarFinished | roar end -> combat phase"));
-
+    
+    //BT 용 BOOL 값
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        UE_LOG(MonsterCharacter, Warning, TEXT("OnRoarFinished | SetIsRoaring(false)"));
+        
+        MonsterAI->SetIsRoaring(false);
+    }
+    else
+    {
+        // todo 추후 제거 로그 
+        UE_LOG(MonsterCharacter, Error, TEXT("OnRoarFinished | MonsterAI is null"));
+        
+    }
+    
+    
     if (AbilitySystemComponent)
     {
         AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Roaring);
@@ -459,7 +500,17 @@ void AMHMonsterCharacterBase::EnterCombatPhase()
     {
         return;
     }
-
+    //BT 용 BOOL  값
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        UE_LOG(MonsterCharacter, Warning, TEXT("EnterCombatPhase | SetInCombat(true)"));
+        MonsterAI->SetInCombat(true);
+    }
+    else
+    {
+        UE_LOG(MonsterCharacter, Error, TEXT("EnterCombatPhase | MonsterAI is null"));
+    }
+    
     bInCombat = true;
 
     if (AbilitySystemComponent)
@@ -477,14 +528,22 @@ void AMHMonsterCharacterBase::EnterCombatPhase()
 
 void AMHMonsterCharacterBase::EnterCombat()
 {
-    UE_LOG(MonsterCharacter, Warning, TEXT("EnterCombat | base combat entered"));
+    
 }
 
 void AMHMonsterCharacterBase::ExitCombat()
 {
     bInCombat = false;
     CombatTarget = nullptr;
-
+    
+    // 종룔시 BT 값 수정 
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        MonsterAI->SetInCombat(false);
+        MonsterAI->SetIsRoaring(false);
+        MonsterAI->SetCombatTarget(nullptr);
+    }
+    
     if (AbilitySystemComponent)
     {
         AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Alert);
