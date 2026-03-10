@@ -277,10 +277,10 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
     }
 
     // 구르기 중 이동 입력 차단
-    if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+    /*if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
     {
         MoveComp->DisableMovement();
-    }
+    }*/
 
     LocomotionState = EMHPlayerLocomotionState::Roll;
 

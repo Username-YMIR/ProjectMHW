@@ -59,8 +59,8 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 	// 시작기(발도 상태 시작공격)
 	EntryMoves_Primary =
 	{
-		MHLongSwordGameplayTags::Move_LS_FallingSlash,
-		MHLongSwordGameplayTags::Move_LS_StepSlash,
+		MHLongSwordGameplayTags::Move_LS_DownwardSlash,
+		MHLongSwordGameplayTags::Move_LS_AdvancingSlash,
 		MHLongSwordGameplayTags::Move_LS_Thrust,
 		MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
 	};
@@ -69,7 +69,7 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 	EntryMoves_Special =
 	{
 		MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
-		MHLongSwordGameplayTags::Move_LS_StepSlash,
+		MHLongSwordGameplayTags::Move_LS_AdvancingSlash,
 	};
 
 	EntryMoves_Secondary.Reset();
@@ -77,7 +77,7 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 	Nodes.Reset();
 
 	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_StepSlash,
+		MHLongSwordGameplayTags::Move_LS_AdvancingSlash,
 		{
 			MHLongSwordGameplayTags::Move_LS_VerticalSlash,
 			MHLongSwordGameplayTags::Move_LS_Thrust,
@@ -91,7 +91,7 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 		MHLongSwordGameplayTags::Move_LS_VerticalSlash,
 		{
 			MHLongSwordGameplayTags::Move_LS_Thrust,
-			MHLongSwordGameplayTags::Move_LS_FallingSlash,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
 			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
 			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
 			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
@@ -101,7 +101,7 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 	Nodes.Add(MakeNode(
 		MHLongSwordGameplayTags::Move_LS_Thrust,
 		{
-			MHLongSwordGameplayTags::Move_LS_FallingSlash,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
 			MHLongSwordGameplayTags::Move_LS_RisingSlash,
 			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
 			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
@@ -113,7 +113,7 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 		MHLongSwordGameplayTags::Move_LS_RisingSlash,
 		{
 			MHLongSwordGameplayTags::Move_LS_VerticalSlash,
-			MHLongSwordGameplayTags::Move_LS_FallingSlash,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
 			MHLongSwordGameplayTags::Move_LS_Thrust,
 			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
 			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
@@ -121,10 +121,10 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 		}));
 
 	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_FallingSlash,
+		MHLongSwordGameplayTags::Move_LS_DownwardSlash,
 		{
 			MHLongSwordGameplayTags::Move_LS_Thrust,
-			MHLongSwordGameplayTags::Move_LS_SpiritStepSlash,
+			MHLongSwordGameplayTags::Move_LS_SpiritAdvancingSlash,
 			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
 			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
 			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
@@ -134,7 +134,7 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 		MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
 		{
 			MHLongSwordGameplayTags::Move_LS_Thrust,
-			MHLongSwordGameplayTags::Move_LS_FallingSlash,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
 			MHLongSwordGameplayTags::Move_LS_SpiritSlash2,
 			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
 			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
@@ -145,7 +145,7 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 		MHLongSwordGameplayTags::Move_LS_SpiritSlash2,
 		{
 			MHLongSwordGameplayTags::Move_LS_RisingSlash,
-			MHLongSwordGameplayTags::Move_LS_FallingSlash,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
 			MHLongSwordGameplayTags::Move_LS_SpiritSlash3,
 			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
 			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
@@ -155,7 +155,7 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 	Nodes.Add(MakeNode(
 		MHLongSwordGameplayTags::Move_LS_SpiritSlash3,
 		{
-			MHLongSwordGameplayTags::Move_LS_FallingSlash,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
 			MHLongSwordGameplayTags::Move_LS_SpiritRoundslash,
 			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
 			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
@@ -169,10 +169,10 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 		}));
 
 	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_SpiritStepSlash,
+		MHLongSwordGameplayTags::Move_LS_SpiritAdvancingSlash,
 		{
 			MHLongSwordGameplayTags::Move_LS_RisingSlash,
-			MHLongSwordGameplayTags::Move_LS_FallingSlash,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
 			MHLongSwordGameplayTags::Move_LS_SpiritSlash3,
 			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
 			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
@@ -181,11 +181,11 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 	Nodes.Add(MakeNode(
 		MHLongSwordGameplayTags::Move_LS_SpiritThrust,
 		{
-			MHLongSwordGameplayTags::Move_LS_HelmBreaker,
+			MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker,
 		}));
 
 	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_HelmBreaker,
+		MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker,
 		{
 			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
 		}));
@@ -202,7 +202,7 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 		{
 			MHLongSwordGameplayTags::Move_LS_VerticalSlash,
 			MHLongSwordGameplayTags::Move_LS_Thrust,
-			MHLongSwordGameplayTags::Move_LS_FallingSlash,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
 			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
 			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
 			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
@@ -217,8 +217,8 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 	Nodes.Add(MakeNode(
 		MHLongSwordGameplayTags::Move_LS_ForesightSlash,
 		{
-			MHLongSwordGameplayTags::Move_LS_StepSlash,
-			MHLongSwordGameplayTags::Move_LS_FallingSlash,
+			MHLongSwordGameplayTags::Move_LS_AdvancingSlash,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
 			MHLongSwordGameplayTags::Move_LS_Thrust,
 			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
 			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
