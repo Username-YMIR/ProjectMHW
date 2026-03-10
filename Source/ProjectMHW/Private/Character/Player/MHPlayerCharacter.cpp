@@ -19,6 +19,10 @@
 #include "Components/Input/MHInputComponent.h"
 #include "DataAsset/Input/DataAsset_InputConfig.h"
 #include "MHGameplayTags.h"
+#include "Combat/Attributes/MHCombatAttributeSet.h"
+#include "Combat/Attributes/MHHealthAttributeSet.h"
+#include "Combat/Attributes/MHPlayerAttributeSet.h"
+#include "Combat/Attributes/MHResistanceAttributeSet.h"
 
 DEFINE_LOG_CATEGORY(LogMHPlayerCharacter);
 
@@ -74,6 +78,12 @@ AMHPlayerCharacter::AMHPlayerCharacter()
     {
         MeshComp->bReceivesDecals = false;
     }
+    
+    // GAS - AttributeSet 
+    HealthAttributeSet = CreateDefaultSubobject<UMHHealthAttributeSet>(TEXT("HealthAttributeSet"));
+    CombatAttributeSet = CreateDefaultSubobject<UMHCombatAttributeSet>(TEXT("CombatAttributeSet"));
+    ResistanceAttributeSet = CreateDefaultSubobject<UMHResistanceAttributeSet>(TEXT("ResistanceAttributeSet"));
+    PlayerAttributeSet = CreateDefaultSubobject<UMHPlayerAttributeSet>(TEXT("PlayerAttributeSet"));
 }
 
 void AMHPlayerCharacter::BeginPlay()

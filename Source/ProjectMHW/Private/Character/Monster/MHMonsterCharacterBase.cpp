@@ -17,8 +17,7 @@ DEFINE_LOG_CATEGORY(MonsterCharacter)
 
 AMHMonsterCharacterBase::AMHMonsterCharacterBase()
 {
-    MonsterAttributes = CreateDefaultSubobject<UMHMonsterAttributeSet>(TEXT("MonsterAttributeSet"));
-    AttributeSet = MonsterAttributes;
+    MonsterAttributes = CreateDefaultSubobject<UMHMonsterAttributeSet>(TEXT("MonsterAttributeSet"));    
 }
 
 void AMHMonsterCharacterBase::BeginPlay()
@@ -540,12 +539,12 @@ void AMHMonsterCharacterBase::InitMonsterGAS()
 
     if (MonsterAttributes)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[MonsterGAS] %s HP=%f/%f Poise=%f/%f Atk=%f Def=%f"),
-            *GetName(),
-            MonsterAttributes->GetHealth(), MonsterAttributes->GetMaxHealth(),
-            MonsterAttributes->GetPoise(), MonsterAttributes->GetMaxPoise(),
-            MonsterAttributes->GetAttackPower(), MonsterAttributes->GetDefense()
-        );
+        // UE_LOG(LogTemp, Warning, TEXT("[MonsterGAS] %s HP=%f/%f Poise=%f/%f Atk=%f Def=%f"),
+        //     *GetName(),
+        //     MonsterAttributes->GetHealth(), MonsterAttributes->GetMaxHealth(),
+        //     MonsterAttributes->GetPoise(), MonsterAttributes->GetMaxPoise(),
+        //     MonsterAttributes->GetAttackPower(), MonsterAttributes->GetDefense()
+        // );
     }
     else
     {

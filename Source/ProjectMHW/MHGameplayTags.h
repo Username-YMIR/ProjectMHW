@@ -76,4 +76,17 @@ namespace MHGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Monster_AttackedFromUnaware);
 	
 #pragma endregion
+	
+#pragma region Data
+	// Damage SetByCaller
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Damage_Physical);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Damage_Fire);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Damage_Water);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Damage_Thunder);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Damage_Ice);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Damage_Dragon);
+#pragma endregion
+	
+	
+	
 }

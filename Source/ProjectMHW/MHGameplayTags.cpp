@@ -68,4 +68,18 @@ namespace MHGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Event_Monster_AttackedFromUnaware, "Event.Monster.AttackedFromUnaware");
 	
 #pragma endregion
+	
+	
+#pragma region Data
+	// Damage SetByCaller
+	UE_DEFINE_GAMEPLAY_TAG(Data_Damage_Physical, "Data.Damage.Physical");
+	UE_DEFINE_GAMEPLAY_TAG(Data_Damage_Fire,     "Data.Damage.Fire");
+	UE_DEFINE_GAMEPLAY_TAG(Data_Damage_Water,    "Data.Damage.Water");
+	UE_DEFINE_GAMEPLAY_TAG(Data_Damage_Thunder,  "Data.Damage.Thunder");
+	UE_DEFINE_GAMEPLAY_TAG(Data_Damage_Ice,      "Data.Damage.Ice");
+	UE_DEFINE_GAMEPLAY_TAG(Data_Damage_Dragon,   "Data.Damage.Dragon");
+#pragma endregion
+
+	
+	
 }
