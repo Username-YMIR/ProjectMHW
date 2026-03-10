@@ -31,7 +31,7 @@ protected:
 
 private:
     // 다음 모션 재생
-    bool PlayNextMove(AMHPlayerCharacter* Player, AMHLongSwordInstance* Weapon, UMHLongSwordComboComponent* ComboComp, EMHComboInputType InputType);
+    bool PlayNextMove(AMHPlayerCharacter* Player, AMHLongSwordInstance* Weapon, UMHLongSwordComboComponent* ComboComp, EMHComboInputType InputType, const FGameplayTag& RequestedMoveTag = FGameplayTag());
 
     // 몽타주 종료 처리
     UFUNCTION()

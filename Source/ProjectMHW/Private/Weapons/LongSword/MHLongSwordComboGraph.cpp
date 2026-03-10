@@ -54,6 +54,19 @@ static FMHLongSwordComboNode MakeNode(const FGameplayTag& InTag, const TArray<FG
 	return Node;
 }
 
+static TArray<FGameplayTag> MakeCommonNext()
+{
+	return
+	{
+		MHLongSwordGameplayTags::Move_LS_Thrust,
+		MHLongSwordGameplayTags::Move_LS_DownwardSlash,
+		MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
+		MHLongSwordGameplayTags::Move_LS_SpiritThrust,
+		MHLongSwordGameplayTags::Move_LS_ForesightSlash,
+		MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
+	};
+}
+
 void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 {
 	// 시작기(발도 상태 시작공격)
@@ -221,6 +234,62 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
 			MHLongSwordGameplayTags::Move_LS_Thrust,
 			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
+			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
+		}));
+
+
+	Nodes.Add(MakeNode(
+		MHLongSwordGameplayTags::Move_LS_DrawOnly,
+		{
+			MHLongSwordGameplayTags::Move_LS_Thrust,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
+			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
+			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
+			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
+			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
+		}));
+
+	Nodes.Add(MakeNode(
+		MHLongSwordGameplayTags::Move_LS_DrawAdvancingSlash,
+		{
+			MHLongSwordGameplayTags::Move_LS_VerticalSlash,
+			MHLongSwordGameplayTags::Move_LS_Thrust,
+			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
+			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
+			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
+			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
+		}));
+
+	Nodes.Add(MakeNode(
+		MHLongSwordGameplayTags::Move_LS_DrawSpiritSlash1,
+		{
+			MHLongSwordGameplayTags::Move_LS_Thrust,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
+			MHLongSwordGameplayTags::Move_LS_SpiritSlash2,
+			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
+			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
+			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
+		}));
+
+	Nodes.Add(MakeNode(
+		MHLongSwordGameplayTags::Move_LS_FadeSlash,
+		{
+			MHLongSwordGameplayTags::Move_LS_Thrust,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
+			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
+			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
+			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
+			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
+		}));
+
+	Nodes.Add(MakeNode(
+		MHLongSwordGameplayTags::Move_LS_LateralFadeSlash,
+		{
+			MHLongSwordGameplayTags::Move_LS_Thrust,
+			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
+			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
+			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
+			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
 			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
 		}));
 

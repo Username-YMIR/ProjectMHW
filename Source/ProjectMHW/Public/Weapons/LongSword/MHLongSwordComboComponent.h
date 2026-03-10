@@ -28,11 +28,20 @@ public:
     // 입력 버퍼 저장
     bool BufferInput(EMHComboInputType InputType); //손승우 수정
 
+    // 직접 지정한 모션 태그 버퍼 저장
+    bool BufferRequestedMove(const FGameplayTag& RequestedMoveTag); //손승우 추가
+
     // 버퍼 입력 소비
     EMHComboInputType ConsumeBufferedInput();
 
+    // 직접 지정한 모션 태그 버퍼 소비
+    FGameplayTag ConsumeBufferedRequestedMove(); //손승우 추가
+
     // 버퍼 입력 존재 여부
     bool HasBufferedInput() const;
+
+    // 직접 지정한 모션 태그 버퍼 존재 여부
+    bool HasBufferedRequestedMove() const; //손승우 추가
 
     // 체인 윈도우 안에서 승인된 입력 여부
     bool HasAcceptedBufferedInput() const; //손승우 추가
@@ -80,4 +89,7 @@ private:
 
     UPROPERTY(Transient)
     EMHComboInputType BufferedInput = EMHComboInputType::None; // 입력 버퍼
+
+    UPROPERTY(Transient)
+    FGameplayTag BufferedRequestedMoveTag; //손승우 추가
 };

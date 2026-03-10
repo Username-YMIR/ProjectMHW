@@ -11,6 +11,12 @@
 #include "Items/Instance/MHWeaponInstance.h"
 #include "Items/Instance/MHLongSwordInstance.h"
 #include "Weapons/LongSword/MHLongSwordComboComponent.h"
+#include "Weapons/LongSword/MHLongSwordComboGraph.h"
+#include "GameplayTags/MHCombatStateGameplayTags.h"
+#include "GameplayTags/MHInputPatternGameplayTags.h"
+#include "GameplayTags/MHLongSwordGameplayTags.h"
+#include "Combat/Input/DataAsset_LSInputPatternSet.h"
+#include "Combat/Input/MHInputPatternResolver.h"
 #include "AbilitySystemComponent.h"
 
 #include "EnhancedInputSubsystems.h"
@@ -84,6 +90,11 @@ void AMHPlayerCharacter::BeginPlay()
 
     ApplyPlayerVisuals();
 
+    if (!InputPatternResolver)
+    {
+        InputPatternResolver = NewObject<UMHInputPatternResolver>(this);
+    }
+
     SpawnAndEquipDefaultWeapon();
 
     // 무브먼트 업데이트 델리게이트 바인딩
@@ -135,6 +146,7 @@ void AMHPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
     if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_Dodge))
     {
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_Dodge, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_Dodge);
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_Dodge, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_DodgeCompleted);
     }
 
     if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_Interact))
@@ -145,21 +157,25 @@ void AMHPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
     if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_AttackPrimary))
     {
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AttackPrimary, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_AttackPrimary);
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AttackPrimary, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_AttackPrimaryCompleted);
     }
 
     if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_AttackSecondary))
     {
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AttackSecondary, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_AttackSecondary);
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AttackSecondary, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_AttackSecondaryCompleted);
     }
 
     if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_WeaponSpecial))
     {
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_WeaponSpecial, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_WeaponSpecial); //손승우 추가
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_WeaponSpecial, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_WeaponSpecialCompleted); //손승우 추가
     }
 
     if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_AttackSimultaneous))
     {
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AttackSimultaneous, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_AttackSimultaneous); //손승우 추가
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AttackSimultaneous, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_AttackSimultaneousCompleted); //손승우 추가
     }
 
     if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_AimHold))
@@ -181,6 +197,11 @@ void AMHPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
     if (EquippedWeapon && AbilitySystemComponent)
     {
         EquippedWeapon->ClearWeaponAbilities(AbilitySystemComponent);
+    }
+
+    if (InputPatternResolver)
+    {
+        InputPatternResolver->ResetResolver();
     }
 
     Super::EndPlay(EndPlayReason);
@@ -233,12 +254,8 @@ void AMHPlayerCharacter::Input_Look(const FInputActionValue& InputActionValue)
 
 void AMHPlayerCharacter::Input_SprintStarted(const FInputActionValue& InputActionValue)
 {
-    // 가만히 선 발도 상태에서는 Shift 입력을 납도로 사용한다. //손승우 수정
-    if (CanStartSheathe())
-    {
-        StartSheathe();
-        return;
-    }
+    HandleCombatButtonPressed(EMHCombatInputButton::Shift);
+    ShiftPressedTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 
     bSprintHeld = true;
     EvaluateSprintState();
@@ -246,12 +263,36 @@ void AMHPlayerCharacter::Input_SprintStarted(const FInputActionValue& InputActio
 
 void AMHPlayerCharacter::Input_SprintCompleted(const FInputActionValue& InputActionValue)
 {
+    const float ReleasedTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : ShiftPressedTimeSeconds;
+    const float HeldDuration = (ShiftPressedTimeSeconds >= 0.0f) ? (ReleasedTimeSeconds - ShiftPressedTimeSeconds) : BIG_NUMBER;
+
+    HandleCombatButtonReleased(EMHCombatInputButton::Shift);
+
     bSprintHeld = false;
     EvaluateSprintState();
+    ShiftPressedTimeSeconds = -1.0f;
+
+    const bool bIsShortTap = HeldDuration <= ShiftTapThresholdSeconds;
+    const bool bCanRequestSheathe = (CurrentWeaponType == EMHWeaponType::LongSword) &&
+        (WeaponSheathState == EMHWeaponSheathState::Unsheathed) &&
+        bIsShortTap &&
+        CanStartSheathe();
+
+    if (bCanRequestSheathe)
+    {
+        StartSheathe();
+    }
 }
 
 void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
 {
+    HandleCombatButtonPressed(EMHCombatInputButton::Space);
+
+    if (TryResolveAndHandleLongSwordPattern())
+    {
+        return;
+    }
+
     UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
     if (!AnimInstance)
     {
@@ -276,12 +317,6 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
         return;
     }
 
-    // 구르기 중 이동 입력 차단
-    /*if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
-    {
-        MoveComp->DisableMovement();
-    }*/
-
     LocomotionState = EMHPlayerLocomotionState::Roll;
 
     const float PlayedLen = AnimInstance->Montage_Play(RollMontage);
@@ -300,6 +335,11 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
     AnimInstance->Montage_SetEndDelegate(EndDelegate, RollMontage);
 }
 
+void AMHPlayerCharacter::Input_DodgeCompleted(const FInputActionValue& InputActionValue)
+{
+    HandleCombatButtonReleased(EMHCombatInputButton::Space);
+}
+
 void AMHPlayerCharacter::Input_Interact(const FInputActionValue& InputActionValue)
 {
     Interact();
@@ -307,33 +347,76 @@ void AMHPlayerCharacter::Input_Interact(const FInputActionValue& InputActionValu
 
 void AMHPlayerCharacter::Input_AttackPrimary(const FInputActionValue& InputActionValue)
 {
-    UsePrimaryAction(); //손승우 수정
+    HandleCombatButtonPressed(EMHCombatInputButton::LMB);
+
+    if (TryResolveAndHandleLongSwordPattern())
+    {
+        return;
+    }
+
+    UsePrimaryAction();
+}
+
+void AMHPlayerCharacter::Input_AttackPrimaryCompleted(const FInputActionValue& InputActionValue)
+{
+    HandleCombatButtonReleased(EMHCombatInputButton::LMB);
 }
 
 void AMHPlayerCharacter::Input_AttackSecondary(const FInputActionValue& InputActionValue)
 {
-    TryHandleWeaponComboInput(EMHComboInputType::Secondary); //손승우 수정
+    HandleCombatButtonPressed(EMHCombatInputButton::Mouse4);
+
+    if (TryResolveAndHandleLongSwordPattern())
+    {
+        return;
+    }
+
+    TryHandleWeaponComboInput(EMHComboInputType::Secondary);
+}
+
+void AMHPlayerCharacter::Input_AttackSecondaryCompleted(const FInputActionValue& InputActionValue)
+{
+    HandleCombatButtonReleased(EMHCombatInputButton::Mouse4);
 }
 
 void AMHPlayerCharacter::Input_WeaponSpecial(const FInputActionValue& InputActionValue)
 {
-    TryHandleWeaponComboInput(EMHComboInputType::Special); //손승우 추가
+    HandleCombatButtonPressed(EMHCombatInputButton::RMB);
+
+    if (TryResolveAndHandleLongSwordPattern())
+    {
+        return;
+    }
+
+    TryHandleWeaponComboInput(EMHComboInputType::Special);
+}
+
+void AMHPlayerCharacter::Input_WeaponSpecialCompleted(const FInputActionValue& InputActionValue)
+{
+    HandleCombatButtonReleased(EMHCombatInputButton::RMB);
 }
 
 void AMHPlayerCharacter::Input_AttackSimultaneous(const FInputActionValue& InputActionValue)
 {
-    // 현재 단계에서는 동시 입력을 특수 입력과 동일한 진입으로 사용한다. //손승우 추가
-    TryHandleWeaponComboInput(EMHComboInputType::Special); //손승우 추가
+    HandleCombatButtonPressed(EMHCombatInputButton::Mouse5);
+    TryResolveAndHandleLongSwordPattern();
+}
+
+void AMHPlayerCharacter::Input_AttackSimultaneousCompleted(const FInputActionValue& InputActionValue)
+{
+    HandleCombatButtonReleased(EMHCombatInputButton::Mouse5);
 }
 
 void AMHPlayerCharacter::Input_AimHoldStarted(const FInputActionValue& InputActionValue)
 {
-    bAimHeld = true; //손승우 추가
+    bAimHeld = true;
+    HandleCombatButtonPressed(EMHCombatInputButton::C);
 }
 
 void AMHPlayerCharacter::Input_AimHoldCompleted(const FInputActionValue& InputActionValue)
 {
-    bAimHeld = false; //손승우 추가
+    bAimHeld = false;
+    HandleCombatButtonReleased(EMHCombatInputButton::C);
 }
 
 void AMHPlayerCharacter::Interact()
@@ -397,6 +480,28 @@ void AMHPlayerCharacter::Notify_EndComboChainWindow()
             ComboComp->SetChainWindowOpen(false);
         }
     }
+}
+
+void AMHPlayerCharacter::Notify_LongSwordForesightCounterSuccess()
+{
+    const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon);
+    if (!LongSword)
+    {
+        return;
+    }
+
+    const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent();
+    if (!ComboComp)
+    {
+        return;
+    }
+
+    if (ComboComp->GetCurrentMoveTag() != MHLongSwordGameplayTags::Move_LS_ForesightSlash)
+    {
+        return;
+    }
+
+    bLongSwordForesightCounterSuccess = true;
 }
 
 void AMHPlayerCharacter::SpawnAndEquipDefaultWeapon()
@@ -490,13 +595,297 @@ void AMHPlayerCharacter::AttachWeaponToHand()
 
 bool AMHPlayerCharacter::CanStartSpecialEntryFromSheathed() const
 {
-    if (WeaponSheathState != EMHWeaponSheathState::Sheathed)
+    return CanStartComboEntryFromSheathed();
+}
+
+void AMHPlayerCharacter::HandleCombatButtonPressed(EMHCombatInputButton InButton)
+{
+    if (!InputPatternResolver)
+    {
+        return;
+    }
+
+    const float CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+    InputPatternResolver->NotifyButtonPressed(InButton, CurrentTimeSeconds);
+}
+
+void AMHPlayerCharacter::HandleCombatButtonReleased(EMHCombatInputButton InButton)
+{
+    if (!InputPatternResolver)
+    {
+        return;
+    }
+
+    InputPatternResolver->NotifyButtonReleased(InButton);
+}
+
+bool AMHPlayerCharacter::TryResolveAndHandleLongSwordPattern()
+{
+    if (CurrentWeaponType != EMHWeaponType::LongSword || !LongSwordInputPatternSet || !InputPatternResolver)
     {
         return false;
     }
 
-    const float Speed2D = GetVelocity().Size2D();
-    if (Speed2D > 3.0f)
+    FMHResolvedInputPattern ResolvedPattern;
+    const float CurrentTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+    const bool bIsStandingStill = GetVelocity().Size2D() <= 3.0f;
+    const bool bHasMoveInput = GetLastMovementInputVector().Size2D() > KINDA_SMALL_NUMBER;
+
+    if (!InputPatternResolver->ResolveBestPattern(
+            LongSwordInputPatternSet,
+            CurrentTimeSeconds,
+            GetCurrentWeaponTypeStateTag(),
+            GetCurrentWeaponSheathStateTag(),
+            GetCurrentCombatStateTag(),
+            bIsStandingStill,
+            bHasMoveInput,
+            ResolvedPattern))
+    {
+        return false;
+    }
+
+    return TryHandleResolvedLongSwordPattern(ResolvedPattern);
+}
+
+bool AMHPlayerCharacter::TryHandleResolvedLongSwordPattern(const FMHResolvedInputPattern& InResolvedPattern)
+{
+    if (!InResolvedPattern.IsValid())
+    {
+        return false;
+    }
+
+    FGameplayTag RequestedMoveTag;
+    const bool bHasRequestedMove = TryMapPatternToRequestedMove(InResolvedPattern.PatternTag, RequestedMoveTag);
+    if (bHasRequestedMove && RequestedMoveTag.IsValid())
+    {
+        const bool bUseForesightCounterRoundslash =
+            (InResolvedPattern.PatternTag == MHInputPatternGameplayTags::InputPattern_LS_Spirit) &&
+            bLongSwordForesightCounterSuccess &&
+            (RequestedMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritRoundslash);
+
+        if (TryHandleWeaponMoveRequest(RequestedMoveTag))
+        {
+            if (bUseForesightCounterRoundslash)
+            {
+                bLongSwordForesightCounterSuccess = false;
+            }
+
+            return true;
+        }
+    }
+
+    EMHComboInputType LegacyInputType = EMHComboInputType::None;
+    if (TryMapPatternToLegacyInputType(InResolvedPattern.PatternTag, LegacyInputType))
+    {
+        return TryHandleWeaponComboInput(LegacyInputType);
+    }
+
+    return false;
+}
+
+bool AMHPlayerCharacter::TryMapPatternToRequestedMove(const FGameplayTag& PatternTag, FGameplayTag& OutRequestedMoveTag) const
+{
+    OutRequestedMoveTag = FGameplayTag::EmptyTag;
+
+    if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_DrawOnly)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_DrawOnly;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_DrawAdvancingSlash)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_DrawAdvancingSlash;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_DrawSpiritSlash1)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_DrawSpiritSlash1;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_Basic)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_DownwardSlash;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_Thrust)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_Thrust;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_Spirit)
+    {
+        const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon);
+        const UMHLongSwordComboComponent* ComboComp = LongSword ? LongSword->GetComboComponent() : nullptr;
+        const FGameplayTag CurrentMoveTag = ComboComp ? ComboComp->GetCurrentMoveTag() : FGameplayTag::EmptyTag;
+
+        if (WeaponSheathState == EMHWeaponSheathState::Sheathed)
+        {
+            OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_DrawSpiritSlash1;
+        }
+        else if (CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_ForesightSlash && bLongSwordForesightCounterSuccess)
+        {
+            OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_SpiritRoundslash;
+        }
+        else if (CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritSlash1)
+        {
+            OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_SpiritSlash2;
+        }
+        else if (CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritSlash2)
+        {
+            OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_SpiritSlash3;
+        }
+        else if (CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritSlash3)
+        {
+            OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_SpiritRoundslash;
+        }
+        else
+        {
+            OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_SpiritSlash1;
+        }
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_FadeSlash)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_FadeSlash;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_LateralFadeSlash)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_LateralFadeSlash;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_SpiritThrust)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_SpiritThrust;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_ForesightSlash)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_ForesightSlash;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_SpecialSheathe)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_SpecialSheathe;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_IaiSlash)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_IaiSlash;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_IaiSpiritSlash)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_IaiSpiritSlash;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_Helmbreaker)
+    {
+        OutRequestedMoveTag = MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker;
+    }
+
+    return OutRequestedMoveTag.IsValid();
+}
+
+bool AMHPlayerCharacter::TryMapPatternToLegacyInputType(const FGameplayTag& PatternTag, EMHComboInputType& OutInputType) const
+{
+    OutInputType = EMHComboInputType::None;
+
+    if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_DrawOnly ||
+        PatternTag == MHInputPatternGameplayTags::InputPattern_LS_Basic)
+    {
+        OutInputType = EMHComboInputType::Primary;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_DrawAdvancingSlash ||
+             PatternTag == MHInputPatternGameplayTags::InputPattern_LS_DrawSpiritSlash1 ||
+             PatternTag == MHInputPatternGameplayTags::InputPattern_LS_Spirit)
+    {
+        OutInputType = EMHComboInputType::Special;
+    }
+    else if (PatternTag == MHInputPatternGameplayTags::InputPattern_LS_Thrust)
+    {
+        OutInputType = EMHComboInputType::Secondary;
+    }
+
+    return OutInputType != EMHComboInputType::None;
+}
+
+FGameplayTag AMHPlayerCharacter::GetCurrentWeaponTypeStateTag() const
+{
+    switch (CurrentWeaponType)
+    {
+    case EMHWeaponType::LongSword:
+        return MHCombatStateGameplayTags::WeaponType_LongSword;
+    case EMHWeaponType::ChargeBlade:
+        return MHCombatStateGameplayTags::WeaponType_ChargeBlade;
+    default:
+        return FGameplayTag::EmptyTag;
+    }
+}
+
+FGameplayTag AMHPlayerCharacter::GetCurrentWeaponSheathStateTag() const
+{
+    switch (WeaponSheathState)
+    {
+    case EMHWeaponSheathState::Sheathed:
+        return MHCombatStateGameplayTags::WeaponSheath_Sheathed;
+    case EMHWeaponSheathState::Unsheathing:
+        return MHCombatStateGameplayTags::WeaponSheath_Unsheathing;
+    case EMHWeaponSheathState::Unsheathed:
+        return MHCombatStateGameplayTags::WeaponSheath_Unsheathed;
+    case EMHWeaponSheathState::Sheathing:
+        return MHCombatStateGameplayTags::WeaponSheath_Sheathing;
+    default:
+        return FGameplayTag::EmptyTag;
+    }
+}
+
+FGameplayTag AMHPlayerCharacter::GetCurrentCombatStateTag() const
+{
+    if (WeaponSheathState == EMHWeaponSheathState::Sheathing)
+    {
+        return MHCombatStateGameplayTags::CombatState_Sheathe;
+    }
+
+    if (WeaponSheathState == EMHWeaponSheathState::Sheathed)
+    {
+        return MHCombatStateGameplayTags::CombatState_None;
+    }
+
+    if (LocomotionState == EMHPlayerLocomotionState::Roll)
+    {
+        return MHCombatStateGameplayTags::CombatState_Dodge;
+    }
+
+    if (const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
+    {
+        if (const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
+        {
+            if (ComboComp->IsComboActive())
+            {
+                const FGameplayTag& CurrentMoveTag = ComboComp->GetCurrentMoveTag();
+
+                if (CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpecialSheathe)
+                {
+                    return MHCombatStateGameplayTags::CombatState_SpecialSheathe;
+                }
+                if (CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_ForesightSlash)
+                {
+                    return MHCombatStateGameplayTags::CombatState_Counter;
+                }
+                if (CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker)
+                {
+                    return MHCombatStateGameplayTags::CombatState_Helmbreaker;
+                }
+                if (CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritSlash1 ||
+                    CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritSlash2 ||
+                    CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritSlash3 ||
+                    CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritRoundslash ||
+                    CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritAdvancingSlash ||
+                    CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritThrust ||
+                    CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_IaiSpiritSlash)
+                {
+                    return MHCombatStateGameplayTags::CombatState_SpiritAttack;
+                }
+
+                return MHCombatStateGameplayTags::CombatState_Attack;
+            }
+        }
+    }
+
+    return MHCombatStateGameplayTags::CombatState_None;
+}
+
+bool AMHPlayerCharacter::CanStartComboEntryFromSheathed() const
+{
+    if (WeaponSheathState != EMHWeaponSheathState::Sheathed)
     {
         return false;
     }
@@ -510,6 +899,88 @@ bool AMHPlayerCharacter::CanStartSpecialEntryFromSheathed() const
     }
 
     return true;
+}
+
+bool AMHPlayerCharacter::TryHandleWeaponMoveRequest(const FGameplayTag& RequestedMoveTag)
+{
+    if (!RequestedMoveTag.IsValid() || !EquippedWeapon)
+    {
+        return false;
+    }
+
+    if (WeaponSheathState == EMHWeaponSheathState::Unsheathing || WeaponSheathState == EMHWeaponSheathState::Sheathing)
+    {
+        return false;
+    }
+
+    AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon);
+    if (!LongSword)
+    {
+        return false;
+    }
+
+    UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent();
+    if (!ComboComp || !ComboComp->GetComboGraph() || ComboComp->GetComboGraph()->FindNode(RequestedMoveTag) == nullptr)
+    {
+        return false;
+    }
+
+    const bool bComboActive = ComboComp->IsComboActive();
+    const bool bEntryFromSheathed = !bComboActive && WeaponSheathState == EMHWeaponSheathState::Sheathed && CanStartComboEntryFromSheathed();
+
+    if (!bEntryFromSheathed && WeaponSheathState != EMHWeaponSheathState::Unsheathed)
+    {
+        return false;
+    }
+
+    if (!ComboComp->BufferRequestedMove(RequestedMoveTag))
+    {
+        return false;
+    }
+
+    if (!AbilitySystemComponent)
+    {
+        if (bEntryFromSheathed)
+        {
+            HandleComboMontageStateTransition(true);
+        }
+        ComboComp->ResetCombo();
+        return false;
+    }
+
+    const TSubclassOf<UGameplayAbility> AbilityClass = EquippedWeapon->GetPrimaryAttackAbilityClass();
+    if (!AbilityClass)
+    {
+        if (bEntryFromSheathed)
+        {
+            HandleComboMontageStateTransition(true);
+        }
+        ComboComp->ResetCombo();
+        return false;
+    }
+
+    if (FGameplayAbilitySpec* Spec = AbilitySystemComponent->FindAbilitySpecFromClass(AbilityClass))
+    {
+        if (Spec->IsActive())
+        {
+            return true;
+        }
+    }
+
+    if (bEntryFromSheathed)
+    {
+        WeaponSheathState = EMHWeaponSheathState::Unsheathing;
+        bPendingUnsheatheFromComboEntry = true;
+    }
+
+    const bool bActivated = AbilitySystemComponent->TryActivateAbilityByClass(AbilityClass);
+    if (!bActivated)
+    {
+        HandleComboMontageStateTransition(true);
+        ComboComp->ResetCombo();
+    }
+
+    return bActivated;
 }
 
 bool AMHPlayerCharacter::TryHandleWeaponComboInput(EMHComboInputType InputType)
@@ -603,15 +1074,25 @@ bool AMHPlayerCharacter::TryHandleWeaponComboInput(EMHComboInputType InputType)
     return bActivated;
 }
 
-bool AMHPlayerCharacter::CanStartSheathe() const
+bool AMHPlayerCharacter::TryStartAutoSheatheAfterLongSwordMove(const FGameplayTag& CompletedMoveTag)
 {
-    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
+    if (CompletedMoveTag != MHLongSwordGameplayTags::Move_LS_SpiritRoundslash)
     {
         return false;
     }
 
-    const float Speed2D = GetVelocity().Size2D();
-    if (Speed2D > 3.0f)
+    if (!CanStartSheathe())
+    {
+        return false;
+    }
+
+    StartSheathe();
+    return true;
+}
+
+bool AMHPlayerCharacter::CanStartSheathe() const
+{
+    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
     {
         return false;
     }
@@ -846,6 +1327,11 @@ void AMHPlayerCharacter::EvaluateSprintState()
 
 bool AMHPlayerCharacter::CanStartSprint() const
 {
+    if (CurrentWeaponType == EMHWeaponType::LongSword && WeaponSheathState != EMHWeaponSheathState::Sheathed)
+    {
+        return false;
+    }
+
     return CurrentStamina > StaminaConfig.LowStaminaThreshold;
 }
 

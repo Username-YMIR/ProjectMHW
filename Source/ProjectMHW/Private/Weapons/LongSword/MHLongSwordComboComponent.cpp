@@ -35,6 +35,30 @@ EMHComboInputType UMHLongSwordComboComponent::ConsumeBufferedInput()
 {
     const EMHComboInputType Result = BufferedInput;
     BufferedInput = EMHComboInputType::None;
+    return Result;
+}
+
+bool UMHLongSwordComboComponent::BufferRequestedMove(const FGameplayTag& RequestedMoveTag)
+{
+    if (!RequestedMoveTag.IsValid())
+    {
+        return false;
+    }
+
+    if (bComboActive && !bChainWindowOpen)
+    {
+        return false;
+    }
+
+    BufferedRequestedMoveTag = RequestedMoveTag;
+    bBufferedInputAccepted = true;
+    return true;
+}
+
+FGameplayTag UMHLongSwordComboComponent::ConsumeBufferedRequestedMove()
+{
+    const FGameplayTag Result = BufferedRequestedMoveTag;
+    BufferedRequestedMoveTag = FGameplayTag::EmptyTag;
     bBufferedInputAccepted = false;
     return Result;
 }
@@ -44,9 +68,14 @@ bool UMHLongSwordComboComponent::HasBufferedInput() const
     return BufferedInput != EMHComboInputType::None;
 }
 
+bool UMHLongSwordComboComponent::HasBufferedRequestedMove() const
+{
+    return BufferedRequestedMoveTag.IsValid();
+}
+
 bool UMHLongSwordComboComponent::HasAcceptedBufferedInput() const
 {
-    return HasBufferedInput() && bBufferedInputAccepted;
+    return (HasBufferedInput() || HasBufferedRequestedMove()) && bBufferedInputAccepted;
 }
 
 void UMHLongSwordComboComponent::SetChainWindowOpen(bool bOpen)
@@ -113,6 +142,7 @@ void UMHLongSwordComboComponent::CommitMove(const FMHLongSwordComboNode& Node)
     bChainWindowOpen = false;
     bBufferedInputAccepted = false;
     BufferedInput = EMHComboInputType::None;
+    BufferedRequestedMoveTag = FGameplayTag::EmptyTag;
 }
 
 void UMHLongSwordComboComponent::ResetCombo()
@@ -122,4 +152,5 @@ void UMHLongSwordComboComponent::ResetCombo()
     bChainWindowOpen = false;
     bBufferedInputAccepted = false;
     BufferedInput = EMHComboInputType::None;
+    BufferedRequestedMoveTag = FGameplayTag::EmptyTag;
 }

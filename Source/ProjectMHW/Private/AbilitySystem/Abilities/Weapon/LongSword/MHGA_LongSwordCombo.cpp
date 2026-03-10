@@ -46,8 +46,9 @@ void UMHGA_LongSwordCombo::ActivateAbility(const FGameplayAbilitySpecHandle Hand
     CachedWeapon = Weapon;
     CachedComboComponent = ComboComp;
 
+    const FGameplayTag RequestedMoveTag = ComboComp->ConsumeBufferedRequestedMove();
     const EMHComboInputType InputType = ComboComp->ConsumeBufferedInput();
-    if (!PlayNextMove(Player, Weapon, ComboComp, InputType == EMHComboInputType::None ? EMHComboInputType::Primary : InputType))
+    if (!PlayNextMove(Player, Weapon, ComboComp, InputType == EMHComboInputType::None ? EMHComboInputType::Primary : InputType, RequestedMoveTag))
     {
         Player->HandleComboMontageStateTransition(true); //손승우 추가
         ComboComp->ResetCombo();
@@ -68,14 +69,14 @@ void UMHGA_LongSwordCombo::EndAbility(const FGameplayAbilitySpecHandle Handle, c
     Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
-bool UMHGA_LongSwordCombo::PlayNextMove(AMHPlayerCharacter* Player, AMHLongSwordInstance* Weapon, UMHLongSwordComboComponent* ComboComp, EMHComboInputType InputType)
+bool UMHGA_LongSwordCombo::PlayNextMove(AMHPlayerCharacter* Player, AMHLongSwordInstance* Weapon, UMHLongSwordComboComponent* ComboComp, EMHComboInputType InputType, const FGameplayTag& RequestedMoveTag)
 {
     if (!Player || !Weapon || !ComboComp)
     {
         return false;
     }
 
-    const FMHLongSwordComboNode* Node = ComboComp->SelectNextNode(InputType);
+    const FMHLongSwordComboNode* Node = RequestedMoveTag.IsValid() ? ComboComp->GetComboGraph()->FindNode(RequestedMoveTag) : ComboComp->SelectNextNode(InputType);
     if (!Node)
     {
         return false;
@@ -114,17 +115,26 @@ void UMHGA_LongSwordCombo::OnMontageCompleted()
         return;
     }
 
+    const FGameplayTag CompletedMoveTag = CachedComboComponent->GetCurrentMoveTag();
+
     CachedPlayer->HandleComboMontageStateTransition(false); //손승우 추가
 
     if (CachedComboComponent->HasAcceptedBufferedInput())
     {
+        const FGameplayTag RequestedMoveTag = CachedComboComponent->ConsumeBufferedRequestedMove();
         const EMHComboInputType InputType = CachedComboComponent->ConsumeBufferedInput();
         const EMHComboInputType UseInput = InputType == EMHComboInputType::None ? EMHComboInputType::Primary : InputType;
 
-        if (PlayNextMove(CachedPlayer, CachedWeapon, CachedComboComponent, UseInput))
+        if (PlayNextMove(CachedPlayer, CachedWeapon, CachedComboComponent, UseInput, RequestedMoveTag))
         {
             return;
         }
+    }
+    else if (CachedPlayer->TryStartAutoSheatheAfterLongSwordMove(CompletedMoveTag))
+    {
+        CachedComboComponent->ResetCombo();
+        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+        return;
     }
 
     CachedComboComponent->ResetCombo();
