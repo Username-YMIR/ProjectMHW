@@ -21,8 +21,7 @@ DEFINE_LOG_CATEGORY(MonsterCharacter)
 
 AMHMonsterCharacterBase::AMHMonsterCharacterBase()
 {
-    MonsterAttributes = CreateDefaultSubobject<UMHMonsterAttributeSet>(TEXT("MonsterAttributeSet"));
-    AttributeSet = MonsterAttributes;
+
     if (GetCharacterMovement())
     {
         GetCharacterMovement()->MaxWalkSpeed = 180.f;   //속도  테스트용
@@ -31,6 +30,8 @@ AMHMonsterCharacterBase::AMHMonsterCharacterBase()
     }
 
     bUseControllerRotationYaw = false;
+
+    MonsterAttributes = CreateDefaultSubobject<UMHMonsterAttributeSet>(TEXT("MonsterAttributeSet"));   
 }
 
 void AMHMonsterCharacterBase::BeginPlay()
@@ -789,12 +790,12 @@ void AMHMonsterCharacterBase::InitMonsterGAS()
 
     if (MonsterAttributes)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[MonsterGAS] %s HP=%f/%f Poise=%f/%f Atk=%f Def=%f"),
-            *GetName(),
-            MonsterAttributes->GetHealth(), MonsterAttributes->GetMaxHealth(),
-            MonsterAttributes->GetPoise(), MonsterAttributes->GetMaxPoise(),
-            MonsterAttributes->GetAttackPower(), MonsterAttributes->GetDefense()
-        );
+        // UE_LOG(LogTemp, Warning, TEXT("[MonsterGAS] %s HP=%f/%f Poise=%f/%f Atk=%f Def=%f"),
+        //     *GetName(),
+        //     MonsterAttributes->GetHealth(), MonsterAttributes->GetMaxHealth(),
+        //     MonsterAttributes->GetPoise(), MonsterAttributes->GetMaxPoise(),
+        //     MonsterAttributes->GetAttackPower(), MonsterAttributes->GetDefense()
+        // );
     }
     else
     {

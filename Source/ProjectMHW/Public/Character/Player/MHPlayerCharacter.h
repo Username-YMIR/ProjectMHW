@@ -12,6 +12,10 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMHPlayerCharacter, Log, All);
 
+class UMHHealthAttributeSet;
+class UMHCombatAttributeSet;
+class UMHResistanceAttributeSet;
+class UMHPlayerAttributeSet;
 class USpringArmComponent;
 class UCameraComponent;
 class UDataAsset_InputConfig;
@@ -184,7 +188,25 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
     TSoftObjectPtr<UAnimMontage> SheathedRollMontage; // 납도 구르기 몽타주(루트모션)
     // ===== End Weapon =====
+    
+    
+#pragma region GAS
+    // GAS
+    // 플레이어 어트리뷰트 셋 _이건주
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="GAS")
+    TObjectPtr<UMHHealthAttributeSet> HealthAttributeSet;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="GAS")
+    TObjectPtr<UMHCombatAttributeSet> CombatAttributeSet;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="GAS")
+    TObjectPtr<UMHResistanceAttributeSet> ResistanceAttributeSet;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="GAS")
+    TObjectPtr<UMHPlayerAttributeSet> PlayerAttributeSet;
+#pragma endregion 
+
+    
 // 동일 카테고리 오브젝트가 3개 이상이면 region으로 구분
 #pragma region Visual
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visual", meta = (AllowPrivateAccess = "true"))
