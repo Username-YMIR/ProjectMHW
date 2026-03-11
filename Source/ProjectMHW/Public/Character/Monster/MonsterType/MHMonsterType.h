@@ -16,7 +16,7 @@ struct FMonsterAbilityEntry
 	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly)
 	TSubclassOf<class UGameplayAbility> AbilityClass;
 	
-	UPROPERTY(EditDefaultsOnly , BlueprintReadOnly);
+	UPROPERTY(EditDefaultsOnly , BlueprintReadOnly)
 	TObjectPtr<class UAnimMontage> Montage = nullptr;
 	
 };

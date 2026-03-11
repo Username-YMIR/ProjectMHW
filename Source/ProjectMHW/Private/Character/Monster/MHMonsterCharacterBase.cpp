@@ -8,9 +8,13 @@
 #include "AbilitySystemComponent.h"
 #include "GameplayEffect.h"
 #include "MHGameplayTags.h"
+#include "NavigationSystem.h"
+#include "Character/Monster/AI/MHMonsterAIController.h"
+#include "Character/Monster/AI/MHMonsterBlackboardKeys.h"
 #include "Character/Monster/Attribute/MHMonsterAttributeSet.h"
 #include "Components/CapsuleComponent.h"
 #include "DataAsset/MHMonsterDataAsset.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 DEFINE_LOG_CATEGORY(MonsterCharacter)
@@ -19,6 +23,14 @@ AMHMonsterCharacterBase::AMHMonsterCharacterBase()
 {
     MonsterAttributes = CreateDefaultSubobject<UMHMonsterAttributeSet>(TEXT("MonsterAttributeSet"));
     AttributeSet = MonsterAttributes;
+    if (GetCharacterMovement())
+    {
+        GetCharacterMovement()->MaxWalkSpeed = 180.f;   //속도  테스트용
+        GetCharacterMovement()->bOrientRotationToMovement = true;
+        GetCharacterMovement()->RotationRate = FRotator(0.f, 360.f, 0.f);
+    }
+
+    bUseControllerRotationYaw = false;
 }
 
 void AMHMonsterCharacterBase::BeginPlay()
@@ -32,10 +44,188 @@ void AMHMonsterCharacterBase::BeginPlay()
     {
         AbilitySystemComponent->AddLooseGameplayTag(MHGameplayTags::State_Monster_Unaware);
     }
-
+    
+    //ambient 시작 
+    SetMonsterMoveSpeed(AmbientWalkSpeed);
+    StartAmbientBehavior();
     // 시작부터 Roar 체크하는 게 아니라 "시야 감지"만 시작
     StartSightDetection();
 }
+
+bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag AbilityTag)
+{
+    if (!AbilitySystemComponent)
+    {
+        UE_LOG(MonsterCharacter, Warning, TEXT("TryActivateMonsterAbilityByTag | ASC is null"));
+        return false;
+    }
+
+    if (!AbilityTag.IsValid())
+    {
+        UE_LOG(MonsterCharacter, Warning, TEXT("TryActivateMonsterAbilityByTag | AbilityTag invalid"));
+        return false;
+    }
+
+    FGameplayTagContainer TagContainer;
+    TagContainer.AddTag(AbilityTag);
+
+    const bool bActivated = AbilitySystemComponent->TryActivateAbilitiesByTag(TagContainer);
+
+    UE_LOG(MonsterCharacter, Warning,
+        TEXT("TryActivateMonsterAbilityByTag | Tag=%s Result=%s"),
+        *AbilityTag.ToString(),
+        bActivated ? TEXT("Success") : TEXT("Fail"));
+
+    return bActivated;
+}
+
+float AMHMonsterCharacterBase::GetDistanceToCombatTarget() const
+{
+    if (!CombatTarget)
+    {
+        return TNumericLimits<float>::Max();
+    }
+
+    return FVector::Dist(GetActorLocation(), CombatTarget->GetActorLocation());
+}
+
+bool AMHMonsterCharacterBase::IsCombatTargetInRange(float Range) const
+{
+    if (!CombatTarget)
+    {
+        return false;
+    }
+
+    return GetDistanceToCombatTarget() <= Range;
+}
+
+AMHMonsterAIController* AMHMonsterCharacterBase::GetMonsterAIController() const
+{
+    return Cast<AMHMonsterAIController>(GetController());
+}
+
+#pragma region Ambient
+
+
+// ambient 시작
+void AMHMonsterCharacterBase::StartAmbientBehavior()
+{
+    if (bInCombat || bHasRoared)
+    {
+        return;
+    }
+
+    SetMonsterMoveSpeed(AmbientWalkSpeed);
+    ScheduleNextAmbientDecision();
+    
+}
+// ambient 종료 
+void AMHMonsterCharacterBase::StopAmbientBehavior()
+{
+    GetWorldTimerManager().ClearTimer(AmbientBehaviorTimer);
+
+    if (AAIController* AICon = Cast<AAIController>(GetController()))
+    {
+        AICon->StopMovement();
+    }
+}
+// 다음 결정 예약 
+void AMHMonsterCharacterBase::ScheduleNextAmbientDecision()
+{
+    if (bInCombat || bHasRoared)
+    {
+        return;
+    }
+
+    const float NextDelay = FMath::FRandRange(AmbientDecisionIntervalMin, AmbientDecisionIntervalMax);
+
+    GetWorldTimerManager().SetTimer(
+        AmbientBehaviorTimer,
+        this,
+        &AMHMonsterCharacterBase::DecideNextAmbientAction,
+        NextDelay,
+        false
+    );
+}
+
+// 멈출지 걸을지 결정 
+void AMHMonsterCharacterBase::DecideNextAmbientAction()
+{
+    if (bInCombat || bHasRoared || CombatTarget)
+    {
+        return;
+    }
+
+    if (AAIController* AICon = Cast<AAIController>(GetController()))
+    {
+        AICon->StopMovement();
+    }
+
+    SetMonsterMoveSpeed(AmbientWalkSpeed);
+
+    const float RandValue = FMath::FRand();
+
+    if (RandValue < AmbientIdleChance)
+    {
+        UE_LOG(MonsterCharacter, Warning, TEXT("[Ambient] Look Around"));
+        ScheduleNextAmbientDecision();
+        return;
+    }
+
+    MoveToRandomAmbientLocation();
+    ScheduleNextAmbientDecision();
+}
+
+// 랜덤 이동 
+void AMHMonsterCharacterBase::MoveToRandomAmbientLocation()
+{
+    if (bInCombat || bHasRoared)
+    {
+        return;
+    }
+
+    AAIController* AICon = Cast<AAIController>(GetController());
+    if (!AICon)
+    {
+        return;
+    }
+
+    UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+    if (!NavSys)
+    {
+        return;
+    }
+
+    FNavLocation RandomLocation;
+    const bool bFound = NavSys->GetRandomReachablePointInRadius(
+        GetActorLocation(),
+        AmbientMoveRadius,
+        RandomLocation
+    );
+
+    if (!bFound)
+    {
+        UE_LOG(MonsterCharacter, Warning, TEXT("[Ambient] Random reachable point not found"));
+        return;
+    }
+
+    AICon->MoveToLocation(RandomLocation.Location, 20.f);
+
+    UE_LOG(MonsterCharacter, Warning, TEXT("[Ambient] Move To Random Location"));
+
+}
+
+// 이동속도 함수 
+void AMHMonsterCharacterBase::SetMonsterMoveSpeed(float NewSpeed)
+{
+    if (GetCharacterMovement())
+    {
+        GetCharacterMovement()->MaxWalkSpeed = NewSpeed;
+    }
+}
+#pragma endregion
+
+
 
 // 디버그용 함수 TODO: 추후 삭제 
 void AMHMonsterCharacterBase::DrawSightConeDebug(const FVector& SocketLocation, const FRotator& SocketRotation,
@@ -152,6 +342,15 @@ void AMHMonsterCharacterBase::DrawSightConeDebug(const FVector& SocketLocation, 
 void AMHMonsterCharacterBase::SetCombatTarget(AActor* NewTarget)
 {
     CombatTarget = NewTarget;
+
+    UE_LOG(MonsterCharacter, Warning,
+        TEXT("SetCombatTarget | NewTarget=%s"),
+        *GetNameSafe(NewTarget));
+
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        MonsterAI->SetCombatTarget(NewTarget);
+    }
 }
 
 bool AMHMonsterCharacterBase::IsUnaware() const
@@ -168,6 +367,8 @@ bool AMHMonsterCharacterBase::IsUnaware() const
 
 void AMHMonsterCharacterBase::StartSightDetection()
 {
+    
+    
     if (!GetWorldTimerManager().IsTimerActive(SightDetectTimer))
     {
         GetWorldTimerManager().SetTimer(
@@ -390,6 +591,14 @@ void AMHMonsterCharacterBase::HandleDamagedFromUnaware(AActor* InstigatorActor)
 
 void AMHMonsterCharacterBase::StartRoar()
 {
+    
+    // 앰비언트 종료 
+    StopAmbientBehavior();
+
+    if (AAIController* AICon = Cast<AAIController>(GetController()))
+    {
+        AICon->StopMovement();
+    }
     if (!AbilitySystemComponent)
     {
         return;
@@ -397,6 +606,11 @@ void AMHMonsterCharacterBase::StartRoar()
 
     AbilitySystemComponent->AddLooseGameplayTag(MHGameplayTags::State_Monster_Roaring);
 
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        MonsterAI->SetIsRoaring(true);
+    }
+    
     if (!RoarMontage)
     {
         UE_LOG(MonsterCharacter, Warning, TEXT("StartRoar | RoarMontage null -> fallback combat"));
@@ -444,7 +658,22 @@ void AMHMonsterCharacterBase::StartRoar()
 void AMHMonsterCharacterBase::OnRoarFinished()
 {
     UE_LOG(MonsterCharacter, Warning, TEXT("OnRoarFinished | roar end -> combat phase"));
-
+    
+    //BT 용 BOOL 값
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        UE_LOG(MonsterCharacter, Warning, TEXT("OnRoarFinished | SetIsRoaring(false)"));
+        
+        MonsterAI->SetIsRoaring(false);
+    }
+    else
+    {
+        // todo 추후 제거 로그 
+        UE_LOG(MonsterCharacter, Error, TEXT("OnRoarFinished | MonsterAI is null"));
+        
+    }
+    
+    
     if (AbilitySystemComponent)
     {
         AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Roaring);
@@ -455,11 +684,23 @@ void AMHMonsterCharacterBase::OnRoarFinished()
 
 void AMHMonsterCharacterBase::EnterCombatPhase()
 {
+    
+    SetMonsterMoveSpeed(CombatWalkSpeed);
     if (bInCombat)
     {
         return;
     }
-
+    //BT 용 BOOL  값
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        UE_LOG(MonsterCharacter, Warning, TEXT("EnterCombatPhase | SetInCombat(true)"));
+        MonsterAI->SetInCombat(true);
+    }
+    else
+    {
+        UE_LOG(MonsterCharacter, Error, TEXT("EnterCombatPhase | MonsterAI is null"));
+    }
+    
     bInCombat = true;
 
     if (AbilitySystemComponent)
@@ -477,14 +718,22 @@ void AMHMonsterCharacterBase::EnterCombatPhase()
 
 void AMHMonsterCharacterBase::EnterCombat()
 {
-    UE_LOG(MonsterCharacter, Warning, TEXT("EnterCombat | base combat entered"));
+    
 }
 
 void AMHMonsterCharacterBase::ExitCombat()
 {
     bInCombat = false;
     CombatTarget = nullptr;
-
+    
+    // 종룔시 BT 값 수정 
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        MonsterAI->SetInCombat(false);
+        MonsterAI->SetIsRoaring(false);
+        MonsterAI->SetCombatTarget(nullptr);
+    }
+    
     if (AbilitySystemComponent)
     {
         AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Alert);
