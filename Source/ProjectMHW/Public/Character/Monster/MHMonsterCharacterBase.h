@@ -6,6 +6,7 @@
 
 #include "CoreMinimal.h"
 #include "Character/MHCharacterBase.h"
+#include "GameplayTagContainer.h"
 #include "MHMonsterCharacterBase.generated.h"
 
 class UMHMonsterAttributeSet;
@@ -25,6 +26,25 @@ public:
 protected:
     virtual void BeginPlay() override;
 
+public:
+    UFUNCTION(BlueprintPure , Category="Monster|Combat")
+    AActor* GetCombatTarget() const {return CombatTarget;}
+    
+    UFUNCTION(BlueprintPure , Category="Monster|Combat")
+    bool IsInCombat() const { return bInCombat;}
+    
+    UFUNCTION(BlueprintPure , Category="Monster|Combat")
+    bool HasRoared() const { return bHasRoared;}
+    
+    UFUNCTION(BlueprintCallable, Category="Monster|Combat")
+    bool TryActivateMonsterAbilityByTag(FGameplayTag AbilityTag);
+    
+    UFUNCTION(BlueprintPure, Category="Monster|Combat")
+    float GetDistanceToCombatTarget() const;
+    
+    UFUNCTION(BlueprintPure, Category="Monster|Combat")
+    bool IsCombatTargetInRange(float Range) const;
+    
 protected:
     // =========================
     // Monster State
@@ -46,6 +66,47 @@ protected:
 
    
     AMHMonsterAIController* GetMonsterAIController() const;
+#pragma region Ambient
+    // =========================
+    //  Ambient 
+    // =========================
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Ambient")
+    float AmbientWalkSpeed = 120.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Ambient")
+    float CombatWalkSpeed = 260.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Ambient")
+    float AmbientMoveRadius = 500.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Ambient")
+    float AmbientDecisionIntervalMin = 2.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Ambient")
+    float AmbientDecisionIntervalMax = 4.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Ambient")
+    float AmbientIdleChance = 0.5f;
+    
+protected:
+    
+    FTimerHandle AmbientBehaviorTimer;
+
+    void StartAmbientBehavior();
+    void StopAmbientBehavior();
+    void ScheduleNextAmbientDecision();
+    void DecideNextAmbientAction();
+    void MoveToRandomAmbientLocation();
+
+    UFUNCTION(BlueprintCallable, Category="Monster|Movement")
+    void SetMonsterMoveSpeed(float NewSpeed);
+    
+    
+    
+#pragma endregion
+    
+    
+    
     
 protected:
 #pragma region Roar
@@ -64,7 +125,7 @@ protected:
 
     // 좌우 시야 반각
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
-    float SightHorizontalHalfAngleDeg = 60.f;
+    float SightHorizontalHalfAngleDeg = 30.f;
 
     //위아래 시야 반각
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")

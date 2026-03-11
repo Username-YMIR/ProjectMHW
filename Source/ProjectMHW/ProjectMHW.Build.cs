@@ -22,7 +22,9 @@ public class ProjectMHW : ModuleRules
 			"GameplayAbilities", 
 			"GameplayTags",
 			"GameplayTasks",
-			"Niagara"
+			"Niagara",
+			"AIModule",
+			"NavigationSystem"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]

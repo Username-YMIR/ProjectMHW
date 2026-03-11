@@ -2,7 +2,7 @@
 
 
 #include "Character/Monster/AI/MHMonsterAIController.h"
-
+#include "Character/Monster/AI/MHMonsterBlackboardKeys.h"
 #include "BehaviorTree/BlackboardComponent.h"
 
 AMHMonsterAIController::AMHMonsterAIController()
@@ -28,8 +28,8 @@ void AMHMonsterAIController::SetCombatTarget(AActor* NewTarget)
 {
 	if (UBlackboardComponent* BB = GetBlackboardComponent())
 	{
-		UE_LOG(LogTemp , Warning ,TEXT("AIController SetCombatTarget"))
-		BB->SetValueAsObject(TEXT("TargetActor"), NewTarget);
+		
+		BB->SetValueAsObject(MHMonsterBBKeys::TargetActor, NewTarget);
 	}
 }
 
@@ -37,8 +37,8 @@ void AMHMonsterAIController::SetInCombat(bool bNewInCombat)
 {
 	if (UBlackboardComponent* BB = GetBlackboardComponent())
 	{
-		UE_LOG(LogTemp , Warning ,TEXT("AIController SetInCombat"))
-		BB->SetValueAsBool(TEXT("bInCombat"), bNewInCombat);
+		
+		BB->SetValueAsBool(MHMonsterBBKeys::bInCombat, bNewInCombat);
 	}
 }
 
@@ -46,7 +46,7 @@ void AMHMonsterAIController::SetIsRoaring(bool bNewIsRoaring)
 {
 	if (UBlackboardComponent* BB = GetBlackboardComponent())
 	{
-		UE_LOG(LogTemp , Warning ,TEXT("AIController SetIsRoaring"))
-		BB->SetValueAsBool(TEXT("bIsRoaring"), bNewIsRoaring);
+		
+		BB->SetValueAsBool(MHMonsterBBKeys::bIsRoaring, bNewIsRoaring);
 	}
 }
