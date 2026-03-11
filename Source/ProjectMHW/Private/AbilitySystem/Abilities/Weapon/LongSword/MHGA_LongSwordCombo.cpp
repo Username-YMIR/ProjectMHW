@@ -4,6 +4,7 @@
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Animation/AnimMontage.h"
 #include "Character/Player/MHPlayerCharacter.h"
+#include "GameplayTags/MHLongSwordGameplayTags.h"
 #include "Items/Instance/MHLongSwordInstance.h"
 #include "Weapons/LongSword/MHLongSwordComboComponent.h"
 #include "Weapons/LongSword/MHLongSwordComboGraph.h"
@@ -27,8 +28,7 @@ void UMHGA_LongSwordCombo::ActivateAbility(const FGameplayAbilitySpecHandle Hand
         return;
     }
 
-    AMHWeaponInstance* WeaponBase = Player->GetEquippedWeapon();
-    AMHLongSwordInstance* Weapon = Cast<AMHLongSwordInstance>(WeaponBase);
+    AMHLongSwordInstance* Weapon = Cast<AMHLongSwordInstance>(Player->GetEquippedWeapon());
     if (!Weapon)
     {
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
@@ -46,14 +46,13 @@ void UMHGA_LongSwordCombo::ActivateAbility(const FGameplayAbilitySpecHandle Hand
     CachedWeapon = Weapon;
     CachedComboComponent = ComboComp;
 
-    const FGameplayTag RequestedMoveTag = ComboComp->ConsumeBufferedRequestedMove();
-    const EMHComboInputType InputType = ComboComp->ConsumeBufferedInput();
-    if (!PlayNextMove(Player, Weapon, ComboComp, InputType == EMHComboInputType::None ? EMHComboInputType::Primary : InputType, RequestedMoveTag))
+    const FGameplayTag PatternTag = ComboComp->ConsumeBufferedInputPattern();
+    if (!PatternTag.IsValid() || !PlayNextMove(Player, Weapon, ComboComp, PatternTag))
     {
-        Player->HandleComboMontageStateTransition(true); //손승우 추가
+        Player->HandleComboMontageStateTransition(true);
+        Player->ClearLongSwordForesightCounterSuccess();
         ComboComp->ResetCombo();
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-        return;
     }
 }
 
@@ -69,14 +68,21 @@ void UMHGA_LongSwordCombo::EndAbility(const FGameplayAbilitySpecHandle Handle, c
     Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
-bool UMHGA_LongSwordCombo::PlayNextMove(AMHPlayerCharacter* Player, AMHLongSwordInstance* Weapon, UMHLongSwordComboComponent* ComboComp, EMHComboInputType InputType, const FGameplayTag& RequestedMoveTag)
+bool UMHGA_LongSwordCombo::PlayNextMove(
+    AMHPlayerCharacter* Player,
+    AMHLongSwordInstance* Weapon,
+    UMHLongSwordComboComponent* ComboComp,
+    const FGameplayTag& InPatternTag)
 {
-    if (!Player || !Weapon || !ComboComp)
+    if (!Player || !Weapon || !ComboComp || !InPatternTag.IsValid())
     {
         return false;
     }
 
-    const FMHLongSwordComboNode* Node = RequestedMoveTag.IsValid() ? ComboComp->GetComboGraph()->FindNode(RequestedMoveTag) : ComboComp->SelectNextNode(InputType);
+    const FGameplayTag PreviousMoveTag = ComboComp->GetCurrentMoveTag();
+    const bool bCounterSuccess = Player->HasLongSwordForesightCounterSuccess();
+
+    const FMHLongSwordComboNode* Node = ComboComp->SelectNextNode(InPatternTag, bCounterSuccess);
     if (!Node)
     {
         return false;
@@ -90,6 +96,11 @@ bool UMHGA_LongSwordCombo::PlayNextMove(AMHPlayerCharacter* Player, AMHLongSword
     }
 
     ComboComp->CommitMove(*Node);
+
+    if (PreviousMoveTag == MHLongSwordGameplayTags::Move_LS_ForesightSlash)
+    {
+        Player->ClearLongSwordForesightCounterSuccess();
+    }
 
     ClearTask();
 
@@ -116,28 +127,20 @@ void UMHGA_LongSwordCombo::OnMontageCompleted()
     }
 
     const FGameplayTag CompletedMoveTag = CachedComboComponent->GetCurrentMoveTag();
+    CachedPlayer->HandleComboMontageStateTransition(false);
 
-    CachedPlayer->HandleComboMontageStateTransition(false); //손승우 추가
-
-    if (CachedComboComponent->HasAcceptedBufferedInput())
+    if (CachedComboComponent->HasAcceptedBufferedInputPattern())
     {
-        const FGameplayTag RequestedMoveTag = CachedComboComponent->ConsumeBufferedRequestedMove();
-        const EMHComboInputType InputType = CachedComboComponent->ConsumeBufferedInput();
-        const EMHComboInputType UseInput = InputType == EMHComboInputType::None ? EMHComboInputType::Primary : InputType;
-
-        if (PlayNextMove(CachedPlayer, CachedWeapon, CachedComboComponent, UseInput, RequestedMoveTag))
+        const FGameplayTag PatternTag = CachedComboComponent->ConsumeBufferedInputPattern();
+        if (PatternTag.IsValid() && PlayNextMove(CachedPlayer, CachedWeapon, CachedComboComponent, PatternTag))
         {
             return;
         }
     }
-    else if (CachedPlayer->TryStartAutoSheatheAfterLongSwordMove(CompletedMoveTag))
-    {
-        CachedComboComponent->ResetCombo();
-        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
-        return;
-    }
 
     CachedComboComponent->ResetCombo();
+    CachedPlayer->ClearLongSwordForesightCounterSuccess();
+    CachedPlayer->TryStartAutoSheatheAfterLongSwordMove(CompletedMoveTag);
     EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
 
@@ -145,7 +148,8 @@ void UMHGA_LongSwordCombo::OnMontageInterrupted()
 {
     if (CachedPlayer)
     {
-        CachedPlayer->HandleComboMontageStateTransition(true); //손승우 추가
+        CachedPlayer->HandleComboMontageStateTransition(true);
+        CachedPlayer->ClearLongSwordForesightCounterSuccess();
     }
 
     if (CachedComboComponent)

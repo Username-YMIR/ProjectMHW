@@ -1,6 +1,6 @@
 #include "Combat/Input/DataAsset_LSInputPatternSet.h"
 
-//손승우 수정: 롱소드 입력 패턴 데이터 조회 및 자동 교체 구현
+//손승우 추가: 롱소드 입력 패턴 데이터 조회 구현
 
 DEFINE_LOG_CATEGORY(LogLSInputPatternSet);
 
@@ -28,7 +28,8 @@ const FMHInputPatternDefinition* UDataAsset_LSInputPatternSet::FindPatternDefini
 	return nullptr;
 }
 
-void UDataAsset_LSInputPatternSet::ReplacePatternDefinitions(const TArray<FMHInputPatternDefinition>& InPatternDefinitions)
+void UDataAsset_LSInputPatternSet::ReplacePatternDefinitions(
+	const TArray<FMHInputPatternDefinition>& InPatternDefinitions)
 {
 	PatternDefinitions = InPatternDefinitions;
 }

@@ -13,34 +13,9 @@ void UMHLongSwordComboComponent::SetComboGraph(UMHLongSwordComboGraph* InGraph)
     ResetCombo();
 }
 
-bool UMHLongSwordComboComponent::BufferInput(EMHComboInputType InputType)
+bool UMHLongSwordComboComponent::BufferInputPattern(const FGameplayTag& InPatternTag)
 {
-    if (InputType == EMHComboInputType::None)
-    {
-        return false;
-    }
-
-    // 콤보 중에는 체인 윈도우 안에서만 다음 입력을 승인한다. //손승우 추가
-    if (bComboActive && !bChainWindowOpen)
-    {
-        return false;
-    }
-
-    BufferedInput = InputType;
-    bBufferedInputAccepted = true;
-    return true;
-}
-
-EMHComboInputType UMHLongSwordComboComponent::ConsumeBufferedInput()
-{
-    const EMHComboInputType Result = BufferedInput;
-    BufferedInput = EMHComboInputType::None;
-    return Result;
-}
-
-bool UMHLongSwordComboComponent::BufferRequestedMove(const FGameplayTag& RequestedMoveTag)
-{
-    if (!RequestedMoveTag.IsValid())
+    if (!InPatternTag.IsValid())
     {
         return false;
     }
@@ -50,32 +25,27 @@ bool UMHLongSwordComboComponent::BufferRequestedMove(const FGameplayTag& Request
         return false;
     }
 
-    BufferedRequestedMoveTag = RequestedMoveTag;
+    BufferedInputPatternTag = InPatternTag;
     bBufferedInputAccepted = true;
     return true;
 }
 
-FGameplayTag UMHLongSwordComboComponent::ConsumeBufferedRequestedMove()
+FGameplayTag UMHLongSwordComboComponent::ConsumeBufferedInputPattern()
 {
-    const FGameplayTag Result = BufferedRequestedMoveTag;
-    BufferedRequestedMoveTag = FGameplayTag::EmptyTag;
+    const FGameplayTag Result = BufferedInputPatternTag;
+    BufferedInputPatternTag = FGameplayTag::EmptyTag;
     bBufferedInputAccepted = false;
     return Result;
 }
 
-bool UMHLongSwordComboComponent::HasBufferedInput() const
+bool UMHLongSwordComboComponent::HasBufferedInputPattern() const
 {
-    return BufferedInput != EMHComboInputType::None;
+    return BufferedInputPatternTag.IsValid();
 }
 
-bool UMHLongSwordComboComponent::HasBufferedRequestedMove() const
+bool UMHLongSwordComboComponent::HasAcceptedBufferedInputPattern() const
 {
-    return BufferedRequestedMoveTag.IsValid();
-}
-
-bool UMHLongSwordComboComponent::HasAcceptedBufferedInput() const
-{
-    return (HasBufferedInput() || HasBufferedRequestedMove()) && bBufferedInputAccepted;
+    return HasBufferedInputPattern() && bBufferedInputAccepted;
 }
 
 void UMHLongSwordComboComponent::SetChainWindowOpen(bool bOpen)
@@ -83,74 +53,40 @@ void UMHLongSwordComboComponent::SetChainWindowOpen(bool bOpen)
     bChainWindowOpen = bOpen;
 }
 
-const FMHLongSwordComboNode* UMHLongSwordComboComponent::GetCurrentNode() const
+const FMHLongSwordComboNode* UMHLongSwordComboComponent::SelectEntryNode(const FGameplayTag& InPatternTag, bool bInCounterSuccess) const
 {
-    if (!ComboGraph || !bComboActive)
-    {
-        return nullptr;
-    }
-
-    return ComboGraph->FindNode(CurrentMoveTag);
+    return ComboGraph ? ComboGraph->FindBestEntryNode(InPatternTag, bInCounterSuccess) : nullptr;
 }
 
-const FMHLongSwordComboNode* UMHLongSwordComboComponent::SelectNextNode(EMHComboInputType InputType) const
+const FMHLongSwordComboNode* UMHLongSwordComboComponent::SelectNextNode(const FGameplayTag& InPatternTag, bool bInCounterSuccess) const
 {
     if (!ComboGraph)
     {
         return nullptr;
     }
 
-    // 콤보 시작
     if (!bComboActive)
     {
-        const TArray<FGameplayTag>& EntryList = ComboGraph->GetEntryList(InputType);
-        for (const FGameplayTag& Tag : EntryList)
-        {
-            if (const FMHLongSwordComboNode* Node = ComboGraph->FindNode(Tag))
-            {
-                return Node;
-            }
-        }
-        return nullptr;
+        return SelectEntryNode(InPatternTag, bInCounterSuccess);
     }
 
-    // 콤보 중
-    const FMHLongSwordComboNode* CurrentNode = GetCurrentNode();
-    if (!CurrentNode)
-    {
-        return nullptr;
-    }
-
-    const TArray<FGameplayTag>& NextList = UMHLongSwordComboGraph::GetNextList(*CurrentNode, InputType);
-    for (const FGameplayTag& Tag : NextList)
-    {
-        if (const FMHLongSwordComboNode* Node = ComboGraph->FindNode(Tag))
-        {
-            return Node;
-        }
-    }
-
-    return nullptr;
+    return ComboGraph->FindBestNextNode(CurrentMoveTag, InPatternTag, bInCounterSuccess);
 }
 
 void UMHLongSwordComboComponent::CommitMove(const FMHLongSwordComboNode& Node)
 {
     CurrentMoveTag = Node.MoveTag;
     bComboActive = true;
-
-    // 새 모션 진입 시 다음 입력은 노티파이가 열어줄 때까지 닫아둔다. //손승우 수정
     bChainWindowOpen = false;
     bBufferedInputAccepted = false;
-    BufferedInput = EMHComboInputType::None;
-    BufferedRequestedMoveTag = FGameplayTag::EmptyTag;
+    BufferedInputPatternTag = FGameplayTag::EmptyTag;
 }
 
 void UMHLongSwordComboComponent::ResetCombo()
 {
-    CurrentMoveTag = FGameplayTag();
+    CurrentMoveTag = FGameplayTag::EmptyTag;
     bComboActive = false;
     bChainWindowOpen = false;
     bBufferedInputAccepted = false;
-    BufferedInput = EMHComboInputType::None;
-    BufferedRequestedMoveTag = FGameplayTag::EmptyTag;
+    BufferedInputPatternTag = FGameplayTag::EmptyTag;
 }
