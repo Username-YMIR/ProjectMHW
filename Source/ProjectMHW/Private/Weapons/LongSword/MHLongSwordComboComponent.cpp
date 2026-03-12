@@ -2,6 +2,8 @@
 
 #include "Weapons/LongSword/MHLongSwordComboGraph.h"
 
+DEFINE_LOG_CATEGORY(LogMHLongSwordComboComponent);
+
 UMHLongSwordComboComponent::UMHLongSwordComboComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
@@ -17,16 +19,20 @@ bool UMHLongSwordComboComponent::BufferInputPattern(const FGameplayTag& InPatter
 {
     if (!InPatternTag.IsValid())
     {
+        UE_LOG(LogMHLongSwordComboComponent, Verbose, TEXT("유효하지 않은 입력 패턴은 버퍼에 저장하지 않습니다."));
         return false;
     }
 
+    // 이미 콤보가 진행 중이라면 체인 윈도우가 열려 있을 때만 다음 입력을 예약한다.
     if (bComboActive && !bChainWindowOpen)
     {
+        UE_LOG(LogMHLongSwordComboComponent, Verbose, TEXT("체인 윈도우가 닫힌 상태라 입력 패턴을 저장하지 않습니다. Pattern=%s"), *InPatternTag.ToString());
         return false;
     }
 
     BufferedInputPatternTag = InPatternTag;
     bBufferedInputAccepted = true;
+    UE_LOG(LogMHLongSwordComboComponent, Verbose, TEXT("입력 패턴을 버퍼에 저장했습니다. Pattern=%s"), *InPatternTag.ToString());
     return true;
 }
 
@@ -75,6 +81,7 @@ const FMHLongSwordComboNode* UMHLongSwordComboComponent::SelectNextNode(const FG
 
 void UMHLongSwordComboComponent::CommitMove(const FMHLongSwordComboNode& Node)
 {
+    // 새 기술이 실제로 커밋되면 기존 예약 입력은 비우고, 다음 윈도우가 열릴 때까지 입력 대기를 닫는다.
     CurrentMoveTag = Node.MoveTag;
     bComboActive = true;
     bChainWindowOpen = false;

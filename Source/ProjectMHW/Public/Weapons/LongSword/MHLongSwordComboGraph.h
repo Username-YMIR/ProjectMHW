@@ -39,6 +39,24 @@ struct FMHLongSwordComboNode
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo")
     FName SectionName = NAME_None;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Transition")
+    bool bAllowEarlyTransition = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Transition", meta = (ClampMin = "0.0"))
+    float EarlyTransitionLeadTime = 0.20f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Transition", meta = (ClampMin = "0.0"))
+    float TransitionBlendOutTime = 0.10f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Transition", meta = (ClampMin = "0.0"))
+    float TransitionBlendInTime = 0.10f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Transition", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float MinCommittedNormalizedTime = 0.50f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Transition")
+    bool bAllowDodgeCancel = false;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Next")
     TArray<FMHLongSwordComboBranch> Branches;
 };
@@ -54,13 +72,13 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo")
     TArray<FMHLongSwordComboNode> Nodes;
-
+ 
 public:
     const FMHLongSwordComboNode* FindNode(const FGameplayTag& InMoveTag) const;
     const FMHLongSwordComboNode* FindBestEntryNode(const FGameplayTag& InPatternTag, bool bInCounterSuccess) const;
     const FMHLongSwordComboNode* FindBestNextNode(const FGameplayTag& InCurrentMoveTag, const FGameplayTag& InPatternTag, bool bInCounterSuccess) const;
 
-    UFUNCTION(CallInEditor, Category = "Combo|Tools")
+    UFUNCTION(BlueprintCallable, CallInEditor, Category = "Combo|Tools")
     void PopulateDefaults_LongSword();
 
 private:

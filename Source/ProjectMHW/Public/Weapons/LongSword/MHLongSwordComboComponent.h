@@ -8,6 +8,8 @@
 class UMHLongSwordComboGraph;
 struct FMHLongSwordComboNode;
 
+DECLARE_LOG_CATEGORY_EXTERN(LogMHLongSwordComboComponent, Log, All);
+
 UCLASS(ClassGroup = (Weapon), meta = (BlueprintSpawnableComponent))
 class PROJECTMHW_API UMHLongSwordComboComponent : public UActorComponent
 {
@@ -22,6 +24,11 @@ public:
 
     bool BufferInputPattern(const FGameplayTag& InPatternTag);
     FGameplayTag ConsumeBufferedInputPattern();
+
+    /** 현재 버퍼에 저장된 입력 패턴을 조회한다. */
+    const FGameplayTag& PeekBufferedInputPattern() const { return BufferedInputPatternTag; }
+
+    /** 입력 패턴 버퍼가 비어 있지 않은지 확인한다. */
     bool HasBufferedInputPattern() const;
     bool HasAcceptedBufferedInputPattern() const;
 
