@@ -1,233 +1,296 @@
 #include "Weapons/LongSword/MHLongSwordComboGraph.h"
 
+#include <initializer_list>
+
+#include "GameplayTags/MHInputPatternGameplayTags.h"
 #include "GameplayTags/MHLongSwordGameplayTags.h"
+
+namespace
+{
+    static FMHLongSwordComboBranch MakeBranch(const FGameplayTag& InPatternTag, const FGameplayTag& InMoveTag, int32 InPriority = 0, bool bInRequiresCounterSuccess = false)
+    {
+        FMHLongSwordComboBranch Branch;
+        Branch.RequiredInputPatternTag = InPatternTag;
+        Branch.NextMoveTag = InMoveTag;
+        Branch.BranchPriority = InPriority;
+        Branch.bRequiresCounterSuccess = bInRequiresCounterSuccess;
+        return Branch;
+    }
+
+    static FMHLongSwordComboNode MakeNode(const FGameplayTag& InMoveTag, std::initializer_list<FMHLongSwordComboBranch> InBranches)
+    {
+        FMHLongSwordComboNode Node;
+        Node.MoveTag = InMoveTag;
+        Node.SectionName = NAME_None;
+        for (const FMHLongSwordComboBranch& Branch : InBranches)
+        {
+            Node.Branches.Add(Branch);
+        }
+        return Node;
+    }
+}
 
 const FMHLongSwordComboNode* UMHLongSwordComboGraph::FindNode(const FGameplayTag& InMoveTag) const
 {
-	for (const FMHLongSwordComboNode& Node : Nodes)
-	{
-		if (Node.MoveTag == InMoveTag)
-		{
-			return &Node;
-		}
-	}
+    for (const FMHLongSwordComboNode& Node : Nodes)
+    {
+        if (Node.MoveTag == InMoveTag)
+        {
+            return &Node;
+        }
+    }
 
-	return nullptr;
+    return nullptr;
 }
 
-const TArray<FGameplayTag>& UMHLongSwordComboGraph::GetNextList(const FMHLongSwordComboNode& Node, EMHComboInputType InputType)
+const FMHLongSwordComboNode* UMHLongSwordComboGraph::SelectBestNodeFromBranches(
+    const TArray<FMHLongSwordComboBranch>& InBranches,
+    const FGameplayTag& InPatternTag,
+    bool bInCounterSuccess) const
 {
-	switch (InputType)
-	{
-	case EMHComboInputType::Primary:
-		return Node.PrimaryNextMoves;
-	case EMHComboInputType::Secondary:
-		return Node.SecondaryNextMoves;
-	case EMHComboInputType::Special:
-		return Node.SpecialNextMoves;
-	default:
-		return Node.PrimaryNextMoves;
-	}
+    const FMHLongSwordComboBranch* BestBranch = nullptr;
+
+    for (const FMHLongSwordComboBranch& Branch : InBranches)
+    {
+        if (!Branch.RequiredInputPatternTag.IsValid() || Branch.RequiredInputPatternTag != InPatternTag)
+        {
+            continue;
+        }
+
+        if (Branch.bRequiresCounterSuccess && !bInCounterSuccess)
+        {
+            continue;
+        }
+
+        if (BestBranch == nullptr || Branch.BranchPriority > BestBranch->BranchPriority)
+        {
+            BestBranch = &Branch;
+        }
+    }
+
+    return BestBranch ? FindNode(BestBranch->NextMoveTag) : nullptr;
 }
 
-const TArray<FGameplayTag>& UMHLongSwordComboGraph::GetEntryList(EMHComboInputType InputType) const
+const FMHLongSwordComboNode* UMHLongSwordComboGraph::FindBestEntryNode(const FGameplayTag& InPatternTag, bool bInCounterSuccess) const
 {
-	switch (InputType)
-	{
-	case EMHComboInputType::Primary:
-		return EntryMoves_Primary;
-	case EMHComboInputType::Secondary:
-		return EntryMoves_Secondary;
-	case EMHComboInputType::Special:
-		return EntryMoves_Special;
-	default:
-		return EntryMoves_Primary;
-	}
+    return SelectBestNodeFromBranches(EntryBranches, InPatternTag, bInCounterSuccess);
 }
 
-static FMHLongSwordComboNode MakeNode(const FGameplayTag& InTag, const TArray<FGameplayTag>& InPrimaryNext)
+const FMHLongSwordComboNode* UMHLongSwordComboGraph::FindBestNextNode(
+    const FGameplayTag& InCurrentMoveTag,
+    const FGameplayTag& InPatternTag,
+    bool bInCounterSuccess) const
 {
-	FMHLongSwordComboNode Node;
-	Node.MoveTag = InTag;
-	Node.PrimaryNextMoves = InPrimaryNext;
-	Node.SectionName = NAME_None;
-	return Node;
+    const FMHLongSwordComboNode* CurrentNode = FindNode(InCurrentMoveTag);
+    if (!CurrentNode)
+    {
+        return nullptr;
+    }
+
+    return SelectBestNodeFromBranches(CurrentNode->Branches, InPatternTag, bInCounterSuccess);
 }
 
 void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
 {
-	// 시작기(발도 상태 시작공격)
-	EntryMoves_Primary =
-	{
-		MHLongSwordGameplayTags::Move_LS_DownwardSlash,
-		MHLongSwordGameplayTags::Move_LS_AdvancingSlash,
-		MHLongSwordGameplayTags::Move_LS_Thrust,
-		MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
-	};
+    using namespace MHInputPatternGameplayTags;
+    using namespace MHLongSwordGameplayTags;
 
-	// 시작기(무기 장착 공격 2개)
-	EntryMoves_Special =
-	{
-		MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
-		MHLongSwordGameplayTags::Move_LS_AdvancingSlash,
-	};
+    EntryBranches =
+    {
+        MakeBranch(InputPattern_LS_DrawOnly, Move_LS_DrawOnly, 10),
+        MakeBranch(InputPattern_LS_DrawAdvancingSlash, Move_LS_DrawAdvancingSlash, 20),
+        MakeBranch(InputPattern_LS_DrawSpiritSlash1, Move_LS_DrawSpiritSlash1, 30),
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_FadeSlash, Move_LS_FadeSlash, 70),
+        MakeBranch(InputPattern_LS_LateralFadeSlash, Move_LS_LateralFadeSlash, 71),
+        MakeBranch(InputPattern_LS_SpiritThrust, Move_LS_SpiritThrust, 80),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    };
 
-	EntryMoves_Secondary.Reset();
+    Nodes.Reset();
 
-	Nodes.Reset();
+    Nodes.Add(MakeNode(Move_LS_DrawOnly,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_FadeSlash, Move_LS_FadeSlash, 70),
+        MakeBranch(InputPattern_LS_LateralFadeSlash, Move_LS_LateralFadeSlash, 71),
+        MakeBranch(InputPattern_LS_SpiritThrust, Move_LS_SpiritThrust, 80),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_AdvancingSlash,
-		{
-			MHLongSwordGameplayTags::Move_LS_VerticalSlash,
-			MHLongSwordGameplayTags::Move_LS_Thrust,
-			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
-			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
-			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_DrawAdvancingSlash,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_FadeSlash, Move_LS_FadeSlash, 70),
+        MakeBranch(InputPattern_LS_LateralFadeSlash, Move_LS_LateralFadeSlash, 71),
+        MakeBranch(InputPattern_LS_SpiritThrust, Move_LS_SpiritThrust, 80),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_VerticalSlash,
-		{
-			MHLongSwordGameplayTags::Move_LS_Thrust,
-			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
-			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
-			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
-			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_DrawSpiritSlash1,
+    {
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash2, 50),
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_Thrust,
-		{
-			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
-			MHLongSwordGameplayTags::Move_LS_RisingSlash,
-			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
-			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
-			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_AdvancingSlash,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_VerticalSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_RisingSlash,
-		{
-			MHLongSwordGameplayTags::Move_LS_VerticalSlash,
-			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
-			MHLongSwordGameplayTags::Move_LS_Thrust,
-			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
-			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_VerticalSlash,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_DownwardSlash,
-		{
-			MHLongSwordGameplayTags::Move_LS_Thrust,
-			MHLongSwordGameplayTags::Move_LS_SpiritAdvancingSlash,
-			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
-			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_Thrust,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_FadeSlash, Move_LS_FadeSlash, 70),
+        MakeBranch(InputPattern_LS_LateralFadeSlash, Move_LS_LateralFadeSlash, 71),
+        MakeBranch(InputPattern_LS_SpiritThrust, Move_LS_SpiritThrust, 80),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
-		{
-			MHLongSwordGameplayTags::Move_LS_Thrust,
-			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
-			MHLongSwordGameplayTags::Move_LS_SpiritSlash2,
-			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
-			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_RisingSlash,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_VerticalSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_SpiritSlash2,
-		{
-			MHLongSwordGameplayTags::Move_LS_RisingSlash,
-			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
-			MHLongSwordGameplayTags::Move_LS_SpiritSlash3,
-			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
-			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_DownwardSlash,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_FadeSlash, Move_LS_FadeSlash, 70),
+        MakeBranch(InputPattern_LS_LateralFadeSlash, Move_LS_LateralFadeSlash, 71),
+        MakeBranch(InputPattern_LS_SpiritThrust, Move_LS_SpiritThrust, 80),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_SpiritSlash3,
-		{
-			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
-			MHLongSwordGameplayTags::Move_LS_SpiritRoundslash,
-			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
-			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_FadeSlash,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_SpiritRoundslash,
-		{
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_LateralFadeSlash,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_SpiritAdvancingSlash,
-		{
-			MHLongSwordGameplayTags::Move_LS_RisingSlash,
-			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
-			MHLongSwordGameplayTags::Move_LS_SpiritSlash3,
-			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_SpiritSlash1,
+    {
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash2, 50),
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_SpiritThrust,
-		{
-			MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker,
-		}));
+    Nodes.Add(MakeNode(Move_LS_SpiritSlash2,
+    {
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash3, 50),
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker,
-		{
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_SpiritSlash3,
+    {
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritRoundslash, 50),
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		{
-			MHLongSwordGameplayTags::Move_LS_IaiSlash,
-			MHLongSwordGameplayTags::Move_LS_IaiSpiritSlash,
-		}));
+    Nodes.Add(MakeNode(Move_LS_SpiritRoundslash,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_ForesightSlash, Move_LS_ForesightSlash, 90),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_IaiSlash,
-		{
-			MHLongSwordGameplayTags::Move_LS_VerticalSlash,
-			MHLongSwordGameplayTags::Move_LS_Thrust,
-			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
-			MHLongSwordGameplayTags::Move_LS_SpiritSlash1,
-			MHLongSwordGameplayTags::Move_LS_ForesightSlash,
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_SpiritAdvancingSlash,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_IaiSpiritSlash,
-		{
-			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
-		}));
+    Nodes.Add(MakeNode(Move_LS_SpiritThrust,
+    {
+        MakeBranch(InputPattern_LS_Helmbreaker, Move_LS_SpiritHelmbreaker, 130),
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 
-	Nodes.Add(MakeNode(
-		MHLongSwordGameplayTags::Move_LS_ForesightSlash,
-		{
-			MHLongSwordGameplayTags::Move_LS_AdvancingSlash,
-			MHLongSwordGameplayTags::Move_LS_DownwardSlash,
-			MHLongSwordGameplayTags::Move_LS_Thrust,
-			MHLongSwordGameplayTags::Move_LS_SpiritThrust,
-			MHLongSwordGameplayTags::Move_LS_SpecialSheathe,
-		}));
+    Nodes.Add(MakeNode(Move_LS_SpiritHelmbreaker, {}));
 
-	// Secondary/Special NextMoves는 이번 단계에서 비움
-	for (FMHLongSwordComboNode& Node : Nodes)
-	{
-		Node.SecondaryNextMoves.Reset();
-		Node.SpecialNextMoves.Reset();
-	}
+    Nodes.Add(MakeNode(Move_LS_ForesightSlash,
+    {
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritRoundslash, 200, true),
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Thrust, Move_LS_Thrust, 45),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
+
+    Nodes.Add(MakeNode(Move_LS_SpecialSheathe,
+    {
+        MakeBranch(InputPattern_LS_IaiSlash, Move_LS_IaiSlash, 110),
+        MakeBranch(InputPattern_LS_IaiSpiritSlash, Move_LS_IaiSpiritSlash, 120),
+    }));
+
+    Nodes.Add(MakeNode(Move_LS_IaiSlash,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
+
+    Nodes.Add(MakeNode(Move_LS_IaiSpiritSlash,
+    {
+        MakeBranch(InputPattern_LS_Basic, Move_LS_DownwardSlash, 40),
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritSlash1, 50),
+        MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 100),
+    }));
 }

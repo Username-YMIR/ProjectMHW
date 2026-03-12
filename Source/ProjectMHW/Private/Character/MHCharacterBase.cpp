@@ -1,9 +1,9 @@
 #include "Character/MHCharacterBase.h"
 
 #include "AbilitySystemComponent.h"
+#include "Combat/Attributes/MHPlayerAttributeSet.h"
 
 DEFINE_LOG_CATEGORY(LogMHCharacterBase)
-
 
 
 AMHCharacterBase::AMHCharacterBase()
@@ -12,6 +12,7 @@ AMHCharacterBase::AMHCharacterBase()
     PrimaryActorTick.bStartWithTickEnabled = false;
     
     AbilitySystemComponent = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
+    
 }
 
 UAbilitySystemComponent* AMHCharacterBase::GetAbilitySystemComponent() const

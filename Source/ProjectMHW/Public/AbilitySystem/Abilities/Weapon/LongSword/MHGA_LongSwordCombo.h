@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbility.h"
-#include "Weapons/Common/MHWeaponComboTypes.h"
+#include "GameplayTagContainer.h"
 #include "MHGA_LongSwordCombo.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMHGALSCombo, Log, All);
@@ -13,7 +13,6 @@ class UMHLongSwordComboComponent;
 class UAbilityTask_PlayMontageAndWait;
 struct FMHLongSwordComboNode;
 
-// 태도 콤보 어빌리티
 UCLASS()
 class PROJECTMHW_API UMHGA_LongSwordCombo : public UGameplayAbility
 {
@@ -30,29 +29,30 @@ protected:
         const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
 private:
-    // 다음 모션 재생
-    bool PlayNextMove(AMHPlayerCharacter* Player, AMHLongSwordInstance* Weapon, UMHLongSwordComboComponent* ComboComp, EMHComboInputType InputType);
+    bool PlayNextMove(
+        AMHPlayerCharacter* Player,
+        AMHLongSwordInstance* Weapon,
+        UMHLongSwordComboComponent* ComboComp,
+        const FGameplayTag& InPatternTag);
 
-    // 몽타주 종료 처리
     UFUNCTION()
     void OnMontageCompleted();
 
     UFUNCTION()
     void OnMontageInterrupted();
 
-    // 현재 태스크 정리
     void ClearTask();
 
 private:
     UPROPERTY(Transient)
-    TObjectPtr<UAbilityTask_PlayMontageAndWait> MontageTask; // 몽타주 태스크
+    TObjectPtr<UAbilityTask_PlayMontageAndWait> MontageTask;
 
     UPROPERTY(Transient)
-    TObjectPtr<UMHLongSwordComboComponent> CachedComboComponent; // 콤보 컴포넌트
+    TObjectPtr<UMHLongSwordComboComponent> CachedComboComponent;
 
     UPROPERTY(Transient)
-    TObjectPtr<AMHPlayerCharacter> CachedPlayer; // 플레이어
+    TObjectPtr<AMHPlayerCharacter> CachedPlayer;
 
     UPROPERTY(Transient)
-    TObjectPtr<AMHLongSwordInstance> CachedWeapon; // 무기
+    TObjectPtr<AMHLongSwordInstance> CachedWeapon;
 };

@@ -12,9 +12,14 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMHPlayerCharacter, Log, All);
 
+class UMHHealthAttributeSet;
+class UMHCombatAttributeSet;
+class UMHResistanceAttributeSet;
+class UMHPlayerAttributeSet;
 class USpringArmComponent;
 class UCameraComponent;
 class UDataAsset_InputConfig;
+class UDataAsset_LSInputPatternSet;
 class USkeletalMeshComponent;
 class USkeletalMesh;
 class UAnimInstance;
@@ -72,6 +77,11 @@ protected:
     // 무기 특수 입력
     void Input_WeaponSpecial(const FInputActionValue& InputActionValue); //손승우 추가
 
+    void Input_AttackPrimaryCompleted(const FInputActionValue& InputActionValue);
+    void Input_AttackSecondaryCompleted(const FInputActionValue& InputActionValue);
+    void Input_WeaponSpecialCompleted(const FInputActionValue& InputActionValue);
+    void Input_DodgeCompleted(const FInputActionValue& InputActionValue);
+
     // 동시 공격 입력
     void Input_AttackSimultaneous(const FInputActionValue& InputActionValue); //손승우 추가
 
@@ -111,6 +121,17 @@ public:
     
     // 현재 장착 중인 무기 인스턴스 반환
     AMHWeaponInstance* GetEquippedWeapon() const { return EquippedWeapon; }
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_LongSwordForesightCounterSuccess();
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void ClearLongSwordForesightCounterSuccess();
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    bool HasLongSwordForesightCounterSuccess() const { return bLongSwordForesightCounterSuccess; }
+
+    bool TryStartAutoSheatheAfterLongSwordMove(const FGameplayTag& CompletedMoveTag);
 protected:
 // 동일 카테고리 오브젝트가 3개 이상이면 region으로 구분
 #pragma region Components
@@ -140,6 +161,9 @@ protected:
     // ===== Inputs =====
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UDataAsset_InputConfig> InputConfigDataAsset; // 입력 설정
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UDataAsset_LSInputPatternSet> LongSwordInputPatternSet; // 롱소드 입력 패턴 DA
     // ===== End Inputs =====
 
     // ===== Weapon =====
@@ -164,7 +188,25 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
     TSoftObjectPtr<UAnimMontage> SheathedRollMontage; // 납도 구르기 몽타주(루트모션)
     // ===== End Weapon =====
+    
+    
+#pragma region GAS
+    // GAS
+    // 플레이어 어트리뷰트 셋 _이건주
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="GAS")
+    TObjectPtr<UMHHealthAttributeSet> HealthAttributeSet;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="GAS")
+    TObjectPtr<UMHCombatAttributeSet> CombatAttributeSet;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="GAS")
+    TObjectPtr<UMHResistanceAttributeSet> ResistanceAttributeSet;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="GAS")
+    TObjectPtr<UMHPlayerAttributeSet> PlayerAttributeSet;
+#pragma endregion 
+
+    
 // 동일 카테고리 오브젝트가 3개 이상이면 region으로 구분
 #pragma region Visual
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visual", meta = (AllowPrivateAccess = "true"))
@@ -189,6 +231,12 @@ private:
 
     // 조준 홀드 상태
     bool bAimHeld = false; //손승우 추가
+
+    bool bAttackPrimaryHeld = false;
+    bool bAttackSecondaryHeld = false;
+    bool bWeaponSpecialHeld = false;
+    bool bDodgeHeld = false;
+    bool bLongSwordForesightCounterSuccess = false;
 
     // 납도 상태 특수 진입 후 첫 몽타주 종료 대기 여부
     bool bPendingUnsheatheFromComboEntry = false; //손승우 추가
@@ -236,11 +284,24 @@ private:
     // 무기 발도 상태로 부착
     void AttachWeaponToHand();
 
-    // 납도 상태 특수 진입 가능 여부
-    bool CanStartSpecialEntryFromSheathed() const; //손승우 추가
+    FGameplayTag ResolveLongSwordPatternForPrimaryInput() const;
+    FGameplayTag ResolveLongSwordPatternForSecondaryInput() const;
+    FGameplayTag ResolveLongSwordPatternForWeaponSpecialInput() const;
+    FGameplayTag ResolveLongSwordPatternForDodgeInput() const;
+    FGameplayTag ResolveLongSwordPatternForCompositeInput() const;
 
-    // 현재 입력을 태도 콤보 입력으로 처리
-    bool TryHandleWeaponComboInput(EMHComboInputType InputType); //손승우 추가
+    bool IsLongSwordEquipped() const;
+    bool HasMovementInputForCombat() const;
+    bool IsStandingStillForCombat() const;
+    bool IsInLongSwordSpecialSheatheState() const;
+
+    FGameplayTag GetCurrentWeaponTypeGameplayTag() const;
+    FGameplayTag GetCurrentWeaponSheathGameplayTag() const;
+    FGameplayTag GetCurrentCombatStateGameplayTag() const;
+
+    bool IsLongSwordDrawEntryPattern(const FGameplayTag& InPatternTag) const;
+    bool TryResolveAndHandleLongSwordPattern(const FGameplayTag& PreferredPatternTag = FGameplayTag());
+    bool TryHandleWeaponComboInput(const FGameplayTag& InPatternTag);
 
     // 납도 시작 가능 여부
     bool CanStartSheathe() const;
