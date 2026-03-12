@@ -3,7 +3,10 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "Engine/DataAsset.h"
+#include "Weapons/Common/MHWeaponComboTypes.h"
 #include "MHLongSwordComboGraph.generated.h"
+
+DECLARE_LOG_CATEGORY_EXTERN(LogMHLongSwordComboGraph, Log, All);
 
 class UAnimMontage;
 
@@ -23,6 +26,9 @@ struct FMHLongSwordComboBranch
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo")
     bool bRequiresCounterSuccess = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo")
+    EMHLongSwordForesightPhase RequiredForesightPhase = EMHLongSwordForesightPhase::None;
 };
 
 USTRUCT(BlueprintType)
@@ -41,6 +47,9 @@ struct FMHLongSwordComboNode
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Transition")
     bool bAllowEarlyTransition = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Transition")
+    bool bUseNotifyDrivenEarlyTransition = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo|Transition", meta = (ClampMin = "0.0"))
     float EarlyTransitionLeadTime = 0.20f;
@@ -76,11 +85,11 @@ public:
 public:
     const FMHLongSwordComboNode* FindNode(const FGameplayTag& InMoveTag) const;
     const FMHLongSwordComboNode* FindBestEntryNode(const FGameplayTag& InPatternTag, bool bInCounterSuccess) const;
-    const FMHLongSwordComboNode* FindBestNextNode(const FGameplayTag& InCurrentMoveTag, const FGameplayTag& InPatternTag, bool bInCounterSuccess) const;
+    const FMHLongSwordComboNode* FindBestNextNode(const FGameplayTag& InCurrentMoveTag, const FGameplayTag& InPatternTag, bool bInCounterSuccess, EMHLongSwordForesightPhase InForesightPhase) const;
 
     UFUNCTION(BlueprintCallable, CallInEditor, Category = "Combo|Tools")
     void PopulateDefaults_LongSword();
 
 private:
-    const FMHLongSwordComboNode* SelectBestNodeFromBranches(const TArray<FMHLongSwordComboBranch>& InBranches, const FGameplayTag& InPatternTag, bool bInCounterSuccess) const;
+    const FMHLongSwordComboNode* SelectBestNodeFromBranches(const TArray<FMHLongSwordComboBranch>& InBranches, const FGameplayTag& InCurrentMoveTag, const FGameplayTag& InPatternTag, bool bInCounterSuccess, EMHLongSwordForesightPhase InForesightPhase) const;
 };

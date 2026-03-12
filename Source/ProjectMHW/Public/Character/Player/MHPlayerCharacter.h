@@ -118,6 +118,14 @@ public:
     // 노티파이: 콤보 입력 윈도우 종료
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_EndComboChainWindow();
+
+    // 노티파이: 조기 전환 윈도우 시작
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_BeginEarlyTransitionWindow();
+
+    // 노티파이: 조기 전환 윈도우 종료
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_EndEarlyTransitionWindow();
     
     // 현재 장착 중인 무기 인스턴스 반환
     AMHWeaponInstance* GetEquippedWeapon() const { return EquippedWeapon; }
@@ -310,7 +318,7 @@ private:
     // 우클릭 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForSecondaryInput() const;
 
-    // Mouse5 입력을 기준으로 태도 패턴을 해석한다.
+    // Mouse4(실제 기인 축) 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForWeaponSpecialInput() const;
 
     // 스페이스 입력을 기준으로 태도 패턴을 해석한다.
@@ -319,7 +327,7 @@ private:
     // 동시 입력 조합을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForCompositeInput() const;
 
-    // Mouse4 단일 입력을 기준으로 태도 패턴을 해석한다.
+    // Mouse5(실제 베어내리기 계열 축) 단일 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForAttackSimultaneousInput() const;
 
     bool IsLongSwordEquipped() const;
@@ -368,6 +376,7 @@ protected:
     bool IsLongSwordDrawEntryPattern(const FGameplayTag& InPatternTag) const;
     bool TryResolveAndHandleLongSwordPattern(const FGameplayTag& PreferredPatternTag = FGameplayTag());
     bool TryHandleWeaponComboInput(const FGameplayTag& InPatternTag);
+    bool TryRequestLongSwordEarlyTransition();
 
     // 납도 시작 가능 여부
     bool CanStartSheathe() const;

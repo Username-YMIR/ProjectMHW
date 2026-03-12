@@ -22,6 +22,7 @@ class PROJECTMHW_API UMHGA_LongSwordCombo : public UGameplayAbility
 
 public:
     UMHGA_LongSwordCombo();
+    bool TryEvaluateEarlyTransitionNow();
 
 protected:
     virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
@@ -46,6 +47,9 @@ private:
 
     /** 현재 노드 설정을 기준으로 다음 기술로 조기 전환을 시도한다. */
     bool TryCommitQueuedComboTransition();
+
+    /** 현재 상태가 조기 전환 시도를 허용하는지 확인한다. */
+    bool CanEvaluateEarlyTransition() const;
 
     /** 현재 MoveTag가 드로우 엔트리 기술인지 확인한다. */
     bool IsDrawEntryMoveTag(const FGameplayTag& InMoveTag) const;

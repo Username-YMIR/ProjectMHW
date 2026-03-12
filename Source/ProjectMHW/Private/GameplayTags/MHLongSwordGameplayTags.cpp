@@ -10,7 +10,6 @@ namespace MHLongSwordGameplayTags
     UE_DEFINE_GAMEPLAY_TAG(Move_LS_VerticalSlash, "Move.LS.VerticalSlash");
     UE_DEFINE_GAMEPLAY_TAG(Move_LS_Thrust, "Move.LS.Thrust");
     UE_DEFINE_GAMEPLAY_TAG(Move_LS_RisingSlash, "Move.LS.RisingSlash");
-    UE_DEFINE_GAMEPLAY_TAG(Move_LS_DownwardSlash, "Move.LS.DownwardSlash");
     UE_DEFINE_GAMEPLAY_TAG(Move_LS_FadeSlash, "Move.LS.FadeSlash");
     UE_DEFINE_GAMEPLAY_TAG(Move_LS_LateralFadeSlash, "Move.LS.LateralFadeSlash");
 

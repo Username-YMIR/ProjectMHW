@@ -19,6 +19,16 @@ UMHGA_LongSwordCombo::UMHGA_LongSwordCombo()
     InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 }
 
+bool UMHGA_LongSwordCombo::TryEvaluateEarlyTransitionNow()
+{
+    if (!CanEvaluateEarlyTransition())
+    {
+        return false;
+    }
+
+    return TryCommitQueuedComboTransition();
+}
+
 void UMHGA_LongSwordCombo::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
     const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
@@ -159,20 +169,41 @@ bool UMHGA_LongSwordCombo::PlayResolvedNode(const FMHLongSwordComboNode& InNode,
     return true;
 }
 
-void UMHGA_LongSwordCombo::PollQueuedComboTransition()
+bool UMHGA_LongSwordCombo::CanEvaluateEarlyTransition() const
 {
     if (!CachedPlayer || !CachedComboComponent || !ActiveMontage || !bHasActiveNode)
     {
-        return;
+        return false;
     }
 
     if (!ActiveNode.bAllowEarlyTransition)
     {
-        return;
+        return false;
     }
 
     if (!CachedComboComponent->HasAcceptedBufferedInputPattern())
     {
+        return false;
+    }
+
+    if (ActiveNode.bUseNotifyDrivenEarlyTransition)
+    {
+        return CachedComboComponent->IsEarlyTransitionWindowOpen();
+    }
+
+    return true;
+}
+
+void UMHGA_LongSwordCombo::PollQueuedComboTransition()
+{
+    if (!CanEvaluateEarlyTransition())
+    {
+        return;
+    }
+
+    if (ActiveNode.bUseNotifyDrivenEarlyTransition)
+    {
+        TryCommitQueuedComboTransition();
         return;
     }
 

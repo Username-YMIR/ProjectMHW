@@ -12,6 +12,7 @@
 #include "Items/Instance/MHLongSwordInstance.h"
 #include "Weapons/LongSword/MHLongSwordComboComponent.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/Abilities/Weapon/LongSword/MHGA_LongSwordCombo.h"
 #include "GameplayTags/MHCombatStateGameplayTags.h"
 #include "GameplayTags/MHInputPatternGameplayTags.h"
 #include "GameplayTags/MHLongSwordGameplayTags.h"
@@ -373,9 +374,9 @@ void AMHPlayerCharacter::Input_WeaponSpecialCompleted(const FInputActionValue& I
 
 void AMHPlayerCharacter::Input_AttackSimultaneous(const FInputActionValue& InputActionValue)
 {
-    // Mouse4 단일 입력은 베어내리기 계열 전용 진입으로 사용한다.
+    // Mouse5 단일 입력은 베어내리기 계열 전용 진입으로 사용한다.
     // 좌클릭 + 우클릭 동시 입력과 동일한 기술군을 가리키지만,
-    // Mouse4 입력은 별도 액션으로 들어오므로 전용 해석 함수를 거친다.
+    // Mouse5 입력은 별도 액션으로 들어오므로 전용 해석 함수를 거친다.
     TryResolveAndHandleLongSwordPattern(ResolveLongSwordPatternForAttackSimultaneousInput());
 }
 
@@ -448,6 +449,29 @@ void AMHPlayerCharacter::Notify_EndComboChainWindow()
         if (UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
         {
             ComboComp->SetChainWindowOpen(false);
+        }
+    }
+}
+
+void AMHPlayerCharacter::Notify_BeginEarlyTransitionWindow()
+{
+    if (AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
+    {
+        if (UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
+        {
+            ComboComp->BeginEarlyTransitionWindow();
+            TryRequestLongSwordEarlyTransition();
+        }
+    }
+}
+
+void AMHPlayerCharacter::Notify_EndEarlyTransitionWindow()
+{
+    if (AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
+    {
+        if (UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
+        {
+            ComboComp->EndEarlyTransitionWindow();
         }
     }
 }
@@ -771,13 +795,14 @@ UAnimMontage* AMHPlayerCharacter::ResolveLongSwordMoveMontageOverride(const FGam
 FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForPrimaryInput() const
 {
     using namespace MHInputPatternGameplayTags;
+    using namespace MHLongSwordGameplayTags;
 
     if (!IsLongSwordEquipped())
     {
         return FGameplayTag::EmptyTag;
     }
 
-    // 특수납도 상태에서는 좌클릭이 앉아발도베기로 바로 이어진다.
+    // 특수납도 상태 좌클릭은 앉아발도베기로 고정한다.
     if (IsInLongSwordSpecialSheatheState())
     {
         return InputPattern_LS_IaiSlash;
@@ -794,7 +819,19 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForPrimaryInput() const
         return FGameplayTag::EmptyTag;
     }
 
-    // 좌클릭 + Mouse5 = 기인찌르기
+    // 기인찌르기 이후 좌클릭은 기인투구깨기로 이어진다.
+    if (const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
+    {
+        if (const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
+        {
+            if (ComboComp->IsComboActive() && ComboComp->GetCurrentMoveTag() == Move_LS_SpiritThrust)
+            {
+                return InputPattern_LS_Helmbreaker;
+            }
+        }
+    }
+
+    // Mouse4 + 좌클릭 = 기인찌르기
     if (bWeaponSpecialHeld)
     {
         return InputPattern_LS_SpiritThrust;
@@ -806,8 +843,45 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForPrimaryInput() const
         return ShouldUseLateralFadeSlashPattern() ? InputPattern_LS_LateralFadeSlash : InputPattern_LS_FadeSlash;
     }
 
-    // 발도 시작/파생의 좌클릭 일반 공격은 그래프에서 현재 노드에 맞는 기본 파생으로 해석한다.
-    return InputPattern_LS_Basic;
+    // 발도 시작/파생의 좌클릭 일반 공격은 현재 노드 기준 기본 파생으로 해석한다.
+    // 발도 상태 좌클릭은 현재 콤보 문맥에 따라 실제 일반 공격 입력 패턴으로 해석한다.
+    if (const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
+    {
+        if (const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
+        {
+            const FGameplayTag CurrentMoveTag = ComboComp->GetCurrentMoveTag();
+
+            if (!ComboComp->IsComboActive() || !CurrentMoveTag.IsValid())
+            {
+                return InputPattern_LS_AdvancingSlash;
+            }
+
+            if (CurrentMoveTag == Move_LS_DrawOnly || CurrentMoveTag == Move_LS_ForesightSlash)
+            {
+                return InputPattern_LS_AdvancingSlash;
+            }
+
+            if (CurrentMoveTag == Move_LS_DrawAdvancingSlash || CurrentMoveTag == Move_LS_AdvancingSlash
+                || CurrentMoveTag == Move_LS_RisingSlash || CurrentMoveTag == Move_LS_IaiSlash)
+            {
+                return InputPattern_LS_VerticalSlash;
+            }
+
+            if (CurrentMoveTag == Move_LS_VerticalSlash || CurrentMoveTag == Move_LS_FadeSlash
+                || CurrentMoveTag == Move_LS_LateralFadeSlash || CurrentMoveTag == Move_LS_SpiritSlash1)
+            {
+                return InputPattern_LS_Thrust;
+            }
+
+            if (CurrentMoveTag == Move_LS_Thrust || CurrentMoveTag == Move_LS_SpiritSlash2
+                || CurrentMoveTag == Move_LS_SpiritAdvancingSlash)
+            {
+                return InputPattern_LS_RisingSlash;
+            }
+        }
+    }
+
+    return FGameplayTag::EmptyTag;
 }
 
 FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForSecondaryInput() const
@@ -836,7 +910,7 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForSecondaryInput() cons
         return FGameplayTag::EmptyTag;
     }
 
-    // Mouse5 + 우클릭 = 간파베기
+    // Mouse4 + 우클릭 = 간파베기
     if (bWeaponSpecialHeld)
     {
         return InputPattern_LS_ForesightSlash;
@@ -849,6 +923,21 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForSecondaryInput() cons
     }
 
     // 우클릭 단독은 찌르기 시작/파생 축이다.
+    // 기인베기2 / 기인내딛어베기에서는 우클릭도 베어올리기로 해석한다.
+    if (const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
+    {
+        if (const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
+        {
+            const FGameplayTag CurrentMoveTag = ComboComp->GetCurrentMoveTag();
+
+            if (CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritSlash2
+                || CurrentMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritAdvancingSlash)
+            {
+                return InputPattern_LS_RisingSlash;
+            }
+        }
+    }
+
     return InputPattern_LS_Thrust;
 }
 
@@ -861,13 +950,16 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForWeaponSpecialInput() 
         return FGameplayTag::EmptyTag;
     }
 
-    // 특수납도 상태 Mouse5는 앉아발도기인베기다.
+    // 실제 입력 키 txt 기준으로 5번/4번을 서로 치환해서 읽으므로,
+    // Input_WeaponSpecial 액션은 Mouse4(기인 축)로 해석한다.
+
+    // 특수납도 상태 Mouse4는 앉아발도기인베기다.
     if (IsInLongSwordSpecialSheatheState())
     {
         return InputPattern_LS_IaiSpiritSlash;
     }
 
-    // 납도 상태 Mouse5 단독은 기인베기1 드로우로 연결한다.
+    // 납도 상태 Mouse4 단독은 기인베기1 드로우로 연결한다.
     if (WeaponSheathState == EMHWeaponSheathState::Sheathed)
     {
         return InputPattern_LS_DrawSpiritSlash1;
@@ -878,25 +970,25 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForWeaponSpecialInput() 
         return FGameplayTag::EmptyTag;
     }
 
-    // Mouse5 + 우클릭 = 간파베기
+    // Mouse4 + 우클릭 = 간파베기
     if (bAttackSecondaryHeld)
     {
         return InputPattern_LS_ForesightSlash;
     }
 
-    // Mouse5 + 스페이스 = 특수납도
+    // Mouse4 + 스페이스 = 특수납도
     if (bDodgeHeld)
     {
         return InputPattern_LS_SpecialSheathe;
     }
 
-    // Mouse5 + 좌클릭 = 기인찌르기
+    // Mouse4 + 좌클릭 = 기인찌르기
     if (bAttackPrimaryHeld)
     {
         return InputPattern_LS_SpiritThrust;
     }
 
-    // Mouse5 단독은 기인베기 축이다.
+    // Mouse4 단독은 기인베기 축이다.
     return InputPattern_LS_Spirit;
 }
 
@@ -909,7 +1001,7 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForDodgeInput() const
         return FGameplayTag::EmptyTag;
     }
 
-    // 발도 상태에서는 Mouse5 + Space 조합만 특수납도로 사용한다.
+    // 발도 상태에서는 Mouse4 + Space 조합만 특수납도로 사용한다.
     if (bWeaponSpecialHeld)
     {
         return InputPattern_LS_SpecialSheathe;
@@ -945,19 +1037,19 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForCompositeInput() cons
         return FGameplayTag::EmptyTag;
     }
 
-    // Mouse5 + Space = 특수납도
+    // Mouse4 + Space = 특수납도
     if (bWeaponSpecialHeld && bDodgeHeld)
     {
         return InputPattern_LS_SpecialSheathe;
     }
 
-    // Mouse5 + 우클릭 = 간파베기
+    // Mouse4 + 우클릭 = 간파베기
     if (bWeaponSpecialHeld && bAttackSecondaryHeld)
     {
         return InputPattern_LS_ForesightSlash;
     }
 
-    // Mouse5 + 좌클릭 = 기인찌르기
+    // Mouse4 + 좌클릭 = 기인찌르기
     if (bWeaponSpecialHeld && bAttackPrimaryHeld)
     {
         return InputPattern_LS_SpiritThrust;
@@ -981,63 +1073,69 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForAttackSimultaneousInp
         return FGameplayTag::EmptyTag;
     }
 
-    // Mouse4 단일 입력은 베어내리기 계열 전용 보조 입력이다.
-    // 시작 공격에서는 좌우 이동베기를 금지하고, 파생 상태에서만 좌우 이동베기를 연다.
+    // 실제 입력 키 txt 기준으로 4번/5번을 서로 치환해서 읽으므로,
+    // Input_AttackSimultaneous 액션은 Mouse5(베어내리기 계열)로 해석한다.
+    // 시작 공격에서는 좌우이동베기를 금지하고, 후속 파생 상태에서만 좌우이동베기를 연다.
     return ShouldUseLateralFadeSlashPattern() ? InputPattern_LS_LateralFadeSlash : InputPattern_LS_FadeSlash;
+}
+
+bool AMHPlayerCharacter::IsLongSwordStartAttackContext() const
+{
+    if (!IsLongSwordEquipped())
+    {
+        return false;
+    }
+
+    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
+    {
+        return false;
+    }
+
+    const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon);
+    if (!LongSword)
+    {
+        return false;
+    }
+
+    const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent();
+    if (!ComboComp)
+    {
+        return false;
+    }
+
+    return !ComboComp->IsComboActive() || !ComboComp->GetCurrentMoveTag().IsValid();
 }
 
 bool AMHPlayerCharacter::IsLongSwordFollowupContext() const
 {
-    // 롱소드 발도 상태가 아니면 후속 파생 문맥으로 보지 않는다.
-    const FGameplayTag LongSwordWeaponTypeTag = FGameplayTag::RequestGameplayTag(
-        FName(TEXT("WeaponType.LongSword")),
-        false);
-
-    const FGameplayTag UnsheathedWeaponStateTag = FGameplayTag::RequestGameplayTag(
-        FName(TEXT("WeaponSheath.Unsheathed")),
-        false);
-
-    if (GetCurrentWeaponTypeGameplayTag() != LongSwordWeaponTypeTag)
+    if (!IsLongSwordEquipped())
     {
         return false;
     }
 
-    if (GetCurrentWeaponSheathGameplayTag() != UnsheathedWeaponStateTag)
+    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
     {
         return false;
     }
 
-    // 시작공격에서는 좌우이동베기를 허용하지 않기 위해,
-    // 전투 상태가 None / Draw / Sheathe가 아닌 경우만 후속 파생 문맥으로 본다.
-    const FGameplayTag CurrentCombatStateTag = GetCurrentCombatStateGameplayTag();
-
-    const FGameplayTag CombatStateNoneTag = FGameplayTag::RequestGameplayTag(
-        FName(TEXT("CombatState.None")),
-        false);
-
-    const FGameplayTag CombatStateDrawTag = FGameplayTag::RequestGameplayTag(
-        FName(TEXT("CombatState.Draw")),
-        false);
-
-    const FGameplayTag CombatStateSheatheTag = FGameplayTag::RequestGameplayTag(
-        FName(TEXT("CombatState.Sheathe")),
-        false);
-
-    if (!CurrentCombatStateTag.IsValid())
+    const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon);
+    if (!LongSword)
     {
         return false;
     }
 
-    return CurrentCombatStateTag != CombatStateNoneTag
-        && CurrentCombatStateTag != CombatStateDrawTag
-        && CurrentCombatStateTag != CombatStateSheatheTag;
+    const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent();
+    if (!ComboComp)
+    {
+        return false;
+    }
+
+    return ComboComp->IsComboActive() && ComboComp->GetCurrentMoveTag().IsValid();
 }
 
 bool AMHPlayerCharacter::ShouldUseDirectionalLateralFadeSlash() const
 {
     // 좌/우 입력이 실제로 들어왔을 때만 좌우이동베기 Variant를 허용한다.
-    // 베어내리기 / 좌우이동베기 판정은 현재 입력 방향을 기준으로 하므로
-    // 액터 정면 고정 없이 입력 방향 그대로 해석한다.
     const EMHDirectionalVariant DirectionalVariant = ResolveDirectionalVariantFromInput(false);
 
     return DirectionalVariant == EMHDirectionalVariant::Left
@@ -1046,7 +1144,7 @@ bool AMHPlayerCharacter::ShouldUseDirectionalLateralFadeSlash() const
 
 bool AMHPlayerCharacter::ShouldUseLateralFadeSlashPattern() const
 {
-    // 시작공격에서는 무조건 베어내리기(FadeSlash)만 허용하고,
+    // 시작 공격에서는 무조건 베어내리기(FadeSlash)만 허용하고,
     // 후속 파생 문맥에서만 좌/우 입력 기반 LateralFadeSlash를 허용한다.
     return IsLongSwordFollowupContext() && ShouldUseDirectionalLateralFadeSlash();
 }
@@ -1185,6 +1283,10 @@ bool AMHPlayerCharacter::TryHandleWeaponComboInput(const FGameplayTag& InPattern
     {
         if (Spec->IsActive())
         {
+            if (ComboComp->IsEarlyTransitionWindowOpen())
+            {
+                TryRequestLongSwordEarlyTransition();
+            }
             return true;
         }
     }
@@ -1203,6 +1305,47 @@ bool AMHPlayerCharacter::TryHandleWeaponComboInput(const FGameplayTag& InPattern
     }
 
     return bActivated;
+}
+
+bool AMHPlayerCharacter::TryRequestLongSwordEarlyTransition()
+{
+    if (!AbilitySystemComponent || !EquippedWeapon)
+    {
+        return false;
+    }
+
+    AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon);
+    if (!LongSword)
+    {
+        return false;
+    }
+
+    UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent();
+    if (!ComboComp || !ComboComp->IsEarlyTransitionWindowOpen())
+    {
+        return false;
+    }
+
+    const TSubclassOf<UGameplayAbility> AbilityClass = EquippedWeapon->GetPrimaryAttackAbilityClass();
+    if (!AbilityClass)
+    {
+        return false;
+    }
+
+    FGameplayAbilitySpec* Spec = AbilitySystemComponent->FindAbilitySpecFromClass(AbilityClass);
+    if (!Spec || !Spec->IsActive())
+    {
+        return false;
+    }
+
+    UGameplayAbility* ActiveAbility = Spec->GetPrimaryInstance();
+    UMHGA_LongSwordCombo* ComboAbility = Cast<UMHGA_LongSwordCombo>(ActiveAbility);
+    if (!ComboAbility)
+    {
+        return false;
+    }
+
+    return ComboAbility->TryEvaluateEarlyTransitionNow();
 }
 
 bool AMHPlayerCharacter::CanStartSheathe() const

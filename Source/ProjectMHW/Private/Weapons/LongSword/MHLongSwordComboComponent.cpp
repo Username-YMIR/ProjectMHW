@@ -39,8 +39,7 @@ bool UMHLongSwordComboComponent::BufferInputPattern(const FGameplayTag& InPatter
 FGameplayTag UMHLongSwordComboComponent::ConsumeBufferedInputPattern()
 {
     const FGameplayTag Result = BufferedInputPatternTag;
-    BufferedInputPatternTag = FGameplayTag::EmptyTag;
-    bBufferedInputAccepted = false;
+    ClearBufferedInputPattern();
     return Result;
 }
 
@@ -54,9 +53,41 @@ bool UMHLongSwordComboComponent::HasAcceptedBufferedInputPattern() const
     return HasBufferedInputPattern() && bBufferedInputAccepted;
 }
 
+void UMHLongSwordComboComponent::ClearBufferedInputPattern()
+{
+    BufferedInputPatternTag = FGameplayTag::EmptyTag;
+    bBufferedInputAccepted = false;
+}
+
 void UMHLongSwordComboComponent::SetChainWindowOpen(bool bOpen)
 {
     bChainWindowOpen = bOpen;
+}
+
+void UMHLongSwordComboComponent::BeginEarlyTransitionWindow()
+{
+    bEarlyTransitionWindowOpen = true;
+}
+
+void UMHLongSwordComboComponent::EndEarlyTransitionWindow()
+{
+    bEarlyTransitionWindowOpen = false;
+}
+
+void UMHLongSwordComboComponent::SetForesightPhase(EMHLongSwordForesightPhase InPhase)
+{
+    if (CurrentForesightPhase == InPhase)
+    {
+        return;
+    }
+
+    CurrentForesightPhase = InPhase;
+
+    if (HasBufferedInputPattern())
+    {
+        UE_LOG(LogMHLongSwordComboComponent, Verbose, TEXT("간파 입력 구간이 변경되어 버퍼 입력을 비웁니다. Phase=%d"), static_cast<int32>(InPhase));
+        ClearBufferedInputPattern();
+    }
 }
 
 const FMHLongSwordComboNode* UMHLongSwordComboComponent::SelectEntryNode(const FGameplayTag& InPatternTag, bool bInCounterSuccess) const
@@ -76,7 +107,7 @@ const FMHLongSwordComboNode* UMHLongSwordComboComponent::SelectNextNode(const FG
         return SelectEntryNode(InPatternTag, bInCounterSuccess);
     }
 
-    return ComboGraph->FindBestNextNode(CurrentMoveTag, InPatternTag, bInCounterSuccess);
+    return ComboGraph->FindBestNextNode(CurrentMoveTag, InPatternTag, bInCounterSuccess, CurrentForesightPhase);
 }
 
 void UMHLongSwordComboComponent::CommitMove(const FMHLongSwordComboNode& Node)
@@ -85,8 +116,9 @@ void UMHLongSwordComboComponent::CommitMove(const FMHLongSwordComboNode& Node)
     CurrentMoveTag = Node.MoveTag;
     bComboActive = true;
     bChainWindowOpen = false;
-    bBufferedInputAccepted = false;
-    BufferedInputPatternTag = FGameplayTag::EmptyTag;
+    bEarlyTransitionWindowOpen = false;
+    ClearBufferedInputPattern();
+    CurrentForesightPhase = EMHLongSwordForesightPhase::None;
 }
 
 void UMHLongSwordComboComponent::ResetCombo()
@@ -94,6 +126,7 @@ void UMHLongSwordComboComponent::ResetCombo()
     CurrentMoveTag = FGameplayTag::EmptyTag;
     bComboActive = false;
     bChainWindowOpen = false;
-    bBufferedInputAccepted = false;
-    BufferedInputPatternTag = FGameplayTag::EmptyTag;
+    bEarlyTransitionWindowOpen = false;
+    ClearBufferedInputPattern();
+    CurrentForesightPhase = EMHLongSwordForesightPhase::None;
 }
