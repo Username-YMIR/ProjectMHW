@@ -45,6 +45,9 @@ public:
     UFUNCTION(BlueprintPure, Category="Monster|Combat")
     bool IsCombatTargetInRange(float Range) const;
     
+    UFUNCTION(BlueprintCallable , Category="Monster|Combat")
+    bool IsMonsterAttacking() const;
+    
 protected:
     // =========================
     // Monster State

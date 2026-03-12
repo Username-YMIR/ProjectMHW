@@ -71,9 +71,17 @@ namespace MHGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Roaring);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Combat);
 	
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Attacking);	// 근거리 패턴
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Charging);		// 원거리 돌진 
+	
 	// Event
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Monster_DetectedBySight);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Monster_AttackedFromUnaware);
+	
+	// Attack
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Monster_Attack_Basic);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Monster_Attack_Charge);
+	
 	
 #pragma endregion
 	

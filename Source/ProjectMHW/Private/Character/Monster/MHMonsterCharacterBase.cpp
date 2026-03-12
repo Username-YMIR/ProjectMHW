@@ -38,7 +38,12 @@ void AMHMonsterCharacterBase::BeginPlay()
 {
     Super::BeginPlay();
 
+    UE_LOG(MonsterCharacter, Warning, TEXT("BeginPlay | Enter"));
+
     InitMonsterGAS();
+
+    UE_LOG(MonsterCharacter, Warning, TEXT("BeginPlay | After InitMonsterGAS"));
+
 
     // 시작 상태: Unaware
     if (AbilitySystemComponent)
@@ -67,9 +72,35 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
         return false;
     }
 
+    // 1) 현재 ASC가 가진 Ability 전부 출력
+    for (const FGameplayAbilitySpec& Spec : AbilitySystemComponent->GetActivatableAbilities())
+    {
+        if (Spec.Ability)
+        {
+            UE_LOG(MonsterCharacter, Warning, TEXT("  Owned Ability = %s"),
+                *Spec.Ability->GetClass()->GetName());
+
+            UE_LOG(MonsterCharacter, Warning, TEXT("  Ability Tags = %s"),
+                *Spec.Ability->AbilityTags.ToStringSimple());
+        }
+    }
+    
+    TArray<FGameplayAbilitySpec*> MatchingSpecs;
     FGameplayTagContainer TagContainer;
     TagContainer.AddTag(AbilityTag);
 
+    for (FGameplayAbilitySpec* Spec : MatchingSpecs)
+    {
+        if (Spec && Spec->Ability)
+        {
+            
+            const bool bTryByHandle = AbilitySystemComponent->TryActivateAbility(Spec->Handle);
+           
+        }
+    }
+    
+    
+    
     const bool bActivated = AbilitySystemComponent->TryActivateAbilitiesByTag(TagContainer);
 
     UE_LOG(MonsterCharacter, Warning,
@@ -98,6 +129,18 @@ bool AMHMonsterCharacterBase::IsCombatTargetInRange(float Range) const
     }
 
     return GetDistanceToCombatTarget() <= Range;
+}
+
+bool AMHMonsterCharacterBase::IsMonsterAttacking() const
+{
+    if (!AbilitySystemComponent)
+    {
+        UE_LOG(MonsterCharacter, Warning, TEXT("IsMonsterAttacking | !AbilitySystemComponent "));
+        
+        return false;
+    }
+    return AbilitySystemComponent->HasMatchingGameplayTag(MHGameplayTags::State_Monster_Attacking);
+    
 }
 
 AMHMonsterAIController* AMHMonsterCharacterBase::GetMonsterAIController() const
@@ -822,6 +865,7 @@ void AMHMonsterCharacterBase::GrantStartupAbilities()
     UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
     if (!MonsterDataAsset || !AbilitySystemComponent)
     {
+        UE_LOG(MonsterCharacter, Warning, TEXT("GrantStartupAbilities | !MonsterDataAsset"));
         return;
     }
 
@@ -829,9 +873,13 @@ void AMHMonsterCharacterBase::GrantStartupAbilities()
     {
         if (!AbilityClass)
         {
+            // todo 로그 제거 
+            UE_LOG(MonsterCharacter, Warning, TEXT("GrantStartupAbilities | AbilityClass = NULL"));
+            
             continue;
         }
-
+        UE_LOG(MonsterCharacter, Warning, TEXT("GrantStartupAbilities | GiveAbility = %s"),
+            *AbilityClass->GetName());
         AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
     }
 }
