@@ -24,6 +24,8 @@
 // 	Dragon	UMETA(DisplayName="Dragon"),
 // };
 
+class UMHGameplayEffect_Damage;
+
 UENUM(BlueprintType)
 enum class EMHSharpnessColor : uint8
 {
@@ -140,3 +142,34 @@ struct FMHDamageContext
 	UPROPERTY(BlueprintReadWrite)
 	FGameplayTag DamageTypeTag;
 };
+
+// 공격 결과 리턴 값
+UENUM(BlueprintType)
+enum class EMHHitResult : uint8
+{
+	None        UMETA(DisplayName="None"),
+	Hit         UMETA(DisplayName="Hit"),
+	Deflected   UMETA(DisplayName="Deflected"),
+	Blocked     UMETA(DisplayName="Blocked"),
+	Ignored     UMETA(DisplayName="Ignored"),
+	Invincible  UMETA(DisplayName="Invincible")
+};
+
+USTRUCT(BlueprintType)
+struct FMHMeleeAttackPayload
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Attack")
+	TSubclassOf<UMHGameplayEffect_Damage> DamageEffectClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Attack")
+	float PhysicalDamage = 0.f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Attack")
+	float ElementDamage = 0.f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Attack")
+	FGameplayTag AttakElementTag;
+};
+

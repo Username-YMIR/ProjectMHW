@@ -9,6 +9,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "AbilitySystemInterface.h"
+#include "Interfaces/MHDamageSpecReceiverInterface.h"
 #include "MHCharacterBase.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMHCharacterBase, Log, All)
@@ -25,7 +26,10 @@ class AController;
 // ====================================
 
 UCLASS()
-class PROJECTMHW_API AMHCharacterBase : public ACharacter, public IAbilitySystemInterface
+class PROJECTMHW_API AMHCharacterBase 
+    : public ACharacter
+    , public IAbilitySystemInterface
+    , public IMHDamageSpecReceiverInterface
 {
     GENERATED_BODY()
 
@@ -43,6 +47,69 @@ protected:
 
     // GAS 초기화
     virtual void InitializeAbilitySystem();
+    
+    
+#pragma region DamageSystem
+public:
+    virtual FMHHitAcknowledge ReceiveDamageSpec_Implementation(
+        AActor* SourceActor,
+        AActor* SourceWeapon,
+        FGameplayTag AttackTag,
+        const FGameplayEffectSpecHandle& DamageSpecHandle,
+        const FHitResult& HitResult
+    ) override;
+
+protected:
+    /** 전달받은 DamageSpec이 유효한지 검사 */
+    virtual bool ValidateDamageSpec(
+        const FGameplayEffectSpecHandle& DamageSpecHandle
+    ) const;
+
+    /** 현재 이 캐릭터가 피격 가능한 상태인지 검사 */
+    virtual bool CanReceiveDamage(
+        AActor* SourceActor,
+        FGameplayTag AttackTag,
+        const FGameplayEffectSpecHandle& DamageSpecHandle,
+        const FHitResult& HitResult
+    ) const;
+
+    /** 이 캐릭터의 ASC 반환 */
+    virtual UAbilitySystemComponent* GetCharacterASC() const;
+
+    /** 전달받은 DamageSpec을 자신의 ASC에 적용 */
+    virtual bool ApplyIncomingDamageSpec(
+        const FGameplayEffectSpecHandle& DamageSpecHandle
+    );
+
+    /** 대미지 적용 성공 후 후처리 */
+    virtual void HandleDamageAccepted(
+        AActor* SourceActor,
+        AActor* SourceWeapon,
+        FGameplayTag AttackTag,
+        const FHitResult& HitResult
+    );
+
+    /** 대미지 적용 거절 후 후처리 */
+    virtual void HandleDamageRejected(
+        AActor* SourceActor,
+        AActor* SourceWeapon,
+        FGameplayTag AttackTag,
+        const FHitResult& HitResult
+    );
+
+    /** 사망 여부 검사 */
+    virtual bool IsDead() const;
+
+    /** 사망 처리 */
+    virtual void HandleDeath();
+
+    /** 성공 응답 생성 */
+    virtual FMHHitAcknowledge BuildAcceptedHitAcknowledge() const;
+
+    /** 실패 응답 생성 */
+    virtual FMHHitAcknowledge BuildRejectedHitAcknowledge() const;
+#pragma endregion 
+    
 
 protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")

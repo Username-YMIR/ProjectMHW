@@ -30,7 +30,57 @@ protected:
 
     virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
         const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
+#pragma region DamageSystem_GJ
+protected:
+    /** 외부 시스템에서 현재 콤보 어빌리티를 조기 종료할 때 호출_이건주 */
+    UFUNCTION(BlueprintCallable, Category="Ability|LongSword")
+    void RequestExternalEndAbility(bool bInWasCancelled = true);
 
+private:
+    /** 현재 콤보 노드 기준 DamageSpec을 생성해서 무기 인스턴스에 전달 _이건주*/
+    bool PushDamageSpecToWeapon(const FMHLongSwordComboNode& InNode);
+
+    /** 무기 인스턴스에 전달된 현재 공격 데이터를 초기화 */
+    void ClearCurrentAttackDataFromWeapon();
+
+    /** Source ASC의 Attribute 값을 읽어 현재 노드 기준 DamageSpec 생성 _이건주*/
+    bool BuildDamageSpecForNode(
+        const FMHLongSwordComboNode& InNode,
+        FGameplayEffectSpecHandle& OutSpecHandle,
+        FGameplayTag& OutAttackTag) const;
+
+    /** 공격 원본 스탯을 ASC에서 읽는다 _이건주*/
+    float GetSourceAttributeMagnitude(const FGameplayAttribute& InAttribute) const;
+    
+    
+private:
+    /** GA가 생성할 기본 대미지 GE 클래스 */
+    UPROPERTY(EditDefaultsOnly, Category="Ability|Damage")
+    TSubclassOf<UGameplayEffect> DamageEffectClass;
+
+    /** Source ASC에서 읽을 공격 Attribute */
+    UPROPERTY(EditDefaultsOnly, Category="Ability|Damage")
+    FGameplayAttribute SourcePhysicalAttackAttribute;
+
+    UPROPERTY(EditDefaultsOnly, Category="Ability|Damage")
+    FGameplayAttribute SourceElementAttackAttribute;
+
+    /** SetByCaller 태그 */
+    UPROPERTY(EditDefaultsOnly, Category="Ability|Damage")
+    FGameplayTag PhysicalDamageDataTag;
+
+    UPROPERTY(EditDefaultsOnly, Category="Ability|Damage")
+    FGameplayTag ElementDamageDataTag;
+
+    /** 기술별 계수 전 공통 배율 */
+    UPROPERTY(EditDefaultsOnly, Category="Ability|Damage", meta=(ClampMin="0.0"))
+    float GlobalPhysicalScale = 1.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Ability|Damage", meta=(ClampMin="0.0"))
+    float GlobalElementScale = 1.0f;
+    
+#pragma endregion 
+    
 private:
     /** 입력 패턴을 사용해 다음 기술을 선택하고 재생한다. */
     bool PlayNextMove(
@@ -65,6 +115,11 @@ private:
 
     /** 조기 전환 폴링 타이머를 정리한다. */
     void ClearTransitionPollingTimer();
+    
+    // 무기의 히트박스 콜리전을 강제로 비활성화_이건주
+    // 몽타주 완료, 끊김, 어빌리티 종료 시 안전 장치
+    // 정상적으로는 애님스테이트에서 관리
+    void ResetMeleeWeaponAttack();
 
 private:
     UPROPERTY(Transient)

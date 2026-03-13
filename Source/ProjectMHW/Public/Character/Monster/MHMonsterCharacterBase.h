@@ -13,7 +13,7 @@ class UMHMonsterAttributeSet;
 class UAnimMontage;
 class AMHMonsterAIController;
 
-DECLARE_LOG_CATEGORY_EXTERN(MonsterCharacter, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(MHMonsterCharacterBase, Log, All);
 
 UCLASS()
 class PROJECTMHW_API AMHMonsterCharacterBase : public AMHCharacterBase
@@ -44,6 +44,30 @@ public:
     
     UFUNCTION(BlueprintPure, Category="Monster|Combat")
     bool IsCombatTargetInRange(float Range) const;
+    
+    
+    
+#pragma region DamageSystem_GJ
+public:
+    virtual FMHHitAcknowledge ReceiveDamageSpec_Implementation(
+        AActor* SourceActor,
+        AActor* SourceWeapon,
+        FGameplayTag AttackTag,
+        const FGameplayEffectSpecHandle& DamageSpecHandle,
+        const FHitResult& HitResult
+    ) override;
+
+protected:
+    virtual void HandleDamageAccepted(
+        AActor* SourceActor,
+        AActor* SourceWeapon,
+        FGameplayTag AttackTag,
+        const FHitResult& HitResult
+    ) override;
+
+    virtual void HandleDeath() override;
+#pragma endregion  
+    
     
 protected:
     // =========================
