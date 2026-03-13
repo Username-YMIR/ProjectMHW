@@ -1,4 +1,7 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 제작자 : 허혁
+// 제작일 : 2026-03-08
+// 수정자 : 허혁
+// 수정일 : 2026-03-13
 
 
 #include "Character/Monster/AI/MHMonsterAIController.h"
@@ -49,4 +52,13 @@ void AMHMonsterAIController::SetIsRoaring(bool bNewIsRoaring)
 		
 		BB->SetValueAsBool(MHMonsterBBKeys::bIsRoaring, bNewIsRoaring);
 	}
+}
+
+void AMHMonsterAIController::SetAttacking(bool bNewAttacking)
+{
+	if (UBlackboardComponent* BB = GetBlackboardComponent())
+	{
+		BB->SetValueAsBool(MHMonsterBBKeys::bAttacking, bNewAttacking);
+	}
+	
 }

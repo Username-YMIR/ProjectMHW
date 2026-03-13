@@ -1,7 +1,7 @@
 // 제작자 : 손승우
 // 제작일 : 2026-03-04
 // 수정자 : 허혁
-// 수정일 : 2026-03-09
+// 수정일 : 2026-03-13
 
 
 #include "Character/Monster/MHMonsterCharacterBase.h"
@@ -9,6 +9,7 @@
 #include "GameplayEffect.h"
 #include "MHGameplayTags.h"
 #include "NavigationSystem.h"
+#include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Monster/AI/MHMonsterAIController.h"
 #include "Character/Monster/AI/MHMonsterBlackboardKeys.h"
 #include "Character/Monster/Attribute/MHMonsterAttributeSet.h"
@@ -56,6 +57,8 @@ void AMHMonsterCharacterBase::BeginPlay()
     StartAmbientBehavior();
     // 시작부터 Roar 체크하는 게 아니라 "시야 감지"만 시작
     StartSightDetection();
+    SetMonsterAttacking(false);
+    
 }
 
 bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag AbilityTag)
@@ -71,6 +74,16 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
         UE_LOG(MonsterCharacter, Warning, TEXT("TryActivateMonsterAbilityByTag | AbilityTag invalid"));
         return false;
     }
+    
+    if (IsMonsterAbilityOnCooldown(AbilityTag))
+    {
+        UE_LOG(MonsterCharacter, Warning,
+            TEXT("TryActivateMonsterAbilityByTag | Tag=%s is on cooldown (Remaining=%.2f)"),
+            *AbilityTag.ToString(),
+            GetMonsterAbilityCooldownRemaining(AbilityTag));
+        return false;
+    }
+    
 
     // 1) 현재 ASC가 가진 Ability 전부 출력
     for (const FGameplayAbilitySpec& Spec : AbilitySystemComponent->GetActivatableAbilities())
@@ -85,11 +98,12 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
         }
     }
     
-    TArray<FGameplayAbilitySpec*> MatchingSpecs;
+    
     FGameplayTagContainer TagContainer;
     TagContainer.AddTag(AbilityTag);
-
-    for (FGameplayAbilitySpec* Spec : MatchingSpecs)
+    
+   // TArray<FGameplayAbilitySpec*> MatchingSpecs;
+    /*for (FGameplayAbilitySpec* Spec : MatchingSpecs)
     {
         if (Spec && Spec->Ability)
         {
@@ -97,9 +111,9 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
             const bool bTryByHandle = AbilitySystemComponent->TryActivateAbility(Spec->Handle);
            
         }
-    }
+    }*/
     
-    
+    FaceCombatTargetInstant();  // 타겟 위치 추적 
     
     const bool bActivated = AbilitySystemComponent->TryActivateAbilitiesByTag(TagContainer);
 
@@ -108,6 +122,12 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
         *AbilityTag.ToString(),
         bActivated ? TEXT("Success") : TEXT("Fail"));
 
+    // 성공시 쿨타임 시작 
+    if (bActivated)
+    {
+        StartMonsterAbilityCooldown(AbilityTag);
+    }
+    
     return bActivated;
 }
 
@@ -133,6 +153,7 @@ bool AMHMonsterCharacterBase::IsCombatTargetInRange(float Range) const
 
 bool AMHMonsterCharacterBase::IsMonsterAttacking() const
 {
+    /*
     if (!AbilitySystemComponent)
     {
         UE_LOG(MonsterCharacter, Warning, TEXT("IsMonsterAttacking | !AbilitySystemComponent "));
@@ -140,8 +161,86 @@ bool AMHMonsterCharacterBase::IsMonsterAttacking() const
         return false;
     }
     return AbilitySystemComponent->HasMatchingGameplayTag(MHGameplayTags::State_Monster_Attacking);
+    */
+    
+    return bMonsterAttacking;
+    
     
 }
+
+void AMHMonsterCharacterBase::SetMonsterAttacking(bool bNewAttacking)
+{
+    if (bMonsterAttacking == bNewAttacking)
+    {
+        return;
+    }
+
+    bMonsterAttacking = bNewAttacking;
+
+    UE_LOG(MonsterCharacter, Warning,
+        TEXT("SetMonsterAttacking | %s"),
+        bMonsterAttacking ? TEXT("true") : TEXT("false"));
+    // 블랙보드 
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        // BBKeys 로 이동 
+        /*if (UBlackboardComponent* BB = MonsterAI->GetBlackboardComponent())
+        {
+            BB->SetValueAsBool(MHMonsterBBKeys::bAttacking, bMonsterAttacking);
+        }*/
+        
+        MonsterAI->SetAttacking(bNewAttacking);
+        
+    }
+}
+
+void AMHMonsterCharacterBase::FaceCombatTargetInstant()
+{
+    if (!CombatTarget)
+    {
+        return;
+    }
+
+    FVector ToTarget = CombatTarget->GetActorLocation() - GetActorLocation();
+    ToTarget.Z = 0.f;
+
+    if (ToTarget.IsNearlyZero())
+    {
+        return;
+    }
+
+    const FRotator TargetRot = ToTarget.Rotation();
+    SetActorRotation(FRotator(0.f, TargetRot.Yaw, 0.f));
+}
+
+void AMHMonsterCharacterBase::FaceCombatTargetInterp(float DeltaSeconds, float TurnSpeedDeg)
+{
+    if (!CombatTarget)
+    {
+        return;
+    }
+
+    FVector ToTarget = CombatTarget->GetActorLocation() - GetActorLocation();
+    ToTarget.Z = 0.f;
+
+    if (ToTarget.IsNearlyZero())
+    {
+        return;
+    }
+
+    const FRotator CurrentRot = GetActorRotation();
+    const FRotator TargetRot(0.f, ToTarget.Rotation().Yaw, 0.f);
+
+    const FRotator NewRot = FMath::RInterpConstantTo(
+        CurrentRot,
+        TargetRot,
+        DeltaSeconds,
+        TurnSpeedDeg
+    );
+
+    SetActorRotation(NewRot);
+}
+
 
 AMHMonsterAIController* AMHMonsterCharacterBase::GetMonsterAIController() const
 {
@@ -267,9 +366,99 @@ void AMHMonsterCharacterBase::SetMonsterMoveSpeed(float NewSpeed)
         GetCharacterMovement()->MaxWalkSpeed = NewSpeed;
     }
 }
+
+
+
 #pragma endregion
 
+#pragma region Cooldown
+bool AMHMonsterCharacterBase::IsMonsterAbilityOnCooldown(FGameplayTag AbilityTag) const
+{
+    if (!AbilityTag.IsValid() || !GetWorld())
+    {
+        return false;
+    }
 
+    const float* EndTime = AbilityCooldownEndTimes.Find(AbilityTag);
+    if (!EndTime)
+    {
+        return false;
+    }
+
+    return GetWorld()->GetTimeSeconds() < *EndTime;
+}
+
+float AMHMonsterCharacterBase::GetMonsterAbilityCooldownRemaining(FGameplayTag AbilityTag) const
+{
+    if (!AbilityTag.IsValid() || !GetWorld())
+    {
+        return 0.f;
+    }
+
+    const float* EndTime = AbilityCooldownEndTimes.Find(AbilityTag);
+    if (!EndTime)
+    {
+        return 0.f;
+    }
+
+    return FMath::Max(0.f, *EndTime - GetWorld()->GetTimeSeconds());
+}
+
+float AMHMonsterCharacterBase::FindMonsterAbilityCooldownSeconds(FGameplayTag AbilityTag) const
+{
+    const UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
+    if (!MonsterDataAsset || !AbilityTag.IsValid())
+    {
+        return 0.f;
+    }
+
+    for (const FMonsterAbilityEntry& Entry : MonsterDataAsset->AbilityEntries)
+    {
+        if (Entry.AbilityTag == AbilityTag)
+        {
+            return Entry.CooldownSeconds;
+        }
+    }
+
+    for (const FPhaseAbilitySet& PhaseEntry : MonsterDataAsset->PhaseSet)
+    {
+        for (const FMonsterAbilityEntry& Entry : PhaseEntry.AbilityEntries)
+        {
+            if (Entry.AbilityTag == AbilityTag)
+            {
+                return Entry.CooldownSeconds;
+            }
+        }
+    }
+
+    return 0.f;
+}
+
+void AMHMonsterCharacterBase::StartMonsterAbilityCooldown(FGameplayTag AbilityTag)
+{
+    if (!AbilityTag.IsValid() || !GetWorld())
+    {
+        return;
+    }
+
+    const float CooldownSeconds = FindMonsterAbilityCooldownSeconds(AbilityTag);
+    if (CooldownSeconds <= 0.f)
+    {
+        return;
+    }
+
+    AbilityCooldownEndTimes.FindOrAdd(AbilityTag) = GetWorld()->GetTimeSeconds() + CooldownSeconds;
+
+    UE_LOG(MonsterCharacter, Warning,
+        TEXT("StartMonsterAbilityCooldown | Tag=%s Cooldown=%.2f"),
+        *AbilityTag.ToString(),
+        CooldownSeconds);
+    
+    
+}
+
+
+#pragma endregion
 
 // 디버그용 함수 TODO: 추후 삭제 
 void AMHMonsterCharacterBase::DrawSightConeDebug(const FVector& SocketLocation, const FRotator& SocketRotation,

@@ -5,6 +5,7 @@
 
 #include "MHGameplayTags.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
+#include "Character/Monster/MHMonsterCharacterBase.h"
 
 DEFINE_LOG_CATEGORY(GAMonsterAttack)
 
@@ -32,10 +33,6 @@ void UGA_MHMonsterAttackBasic::ActivateAbility(const FGameplayAbilitySpecHandle 
 {
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 	
-	
-	
-	
-	
 	if (!ActorInfo || !ActorInfo->AvatarActor.IsValid())
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
@@ -48,12 +45,18 @@ void UGA_MHMonsterAttackBasic::ActivateAbility(const FGameplayAbilitySpecHandle 
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
-	// todo 주석 모두 풀 기 
+	
 	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
 		UE_LOG(GAMonsterAttack, Warning, TEXT("MHGA_MonsterAttackBasic | CommitAbility failed"));
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
+	}
+	
+	if (AMHMonsterCharacterBase* Monster = Cast<AMHMonsterCharacterBase>(ActorInfo->AvatarActor.Get()))
+	{
+		Monster->SetMonsterAttacking(true);
+		Monster->FaceCombatTargetInstant();
 	}
 
 	ClearTask();
@@ -85,6 +88,15 @@ void UGA_MHMonsterAttackBasic::EndAbility(const FGameplayAbilitySpecHandle Handl
 	const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,
 	bool bReplicateEndAbility, bool bWasCancelled)
 {
+	
+	if (ActorInfo && ActorInfo->AvatarActor.IsValid())
+	{
+		if (AMHMonsterCharacterBase* Monster = Cast<AMHMonsterCharacterBase>(ActorInfo->AvatarActor.Get()))
+		{
+			Monster->SetMonsterAttacking(false);
+		}
+	}
+	
 	ClearTask();
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 	

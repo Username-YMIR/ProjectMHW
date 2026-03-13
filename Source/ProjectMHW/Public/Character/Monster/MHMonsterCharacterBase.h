@@ -1,7 +1,7 @@
 // 제작자 : 손승우
 // 제작일 : 2026-03-04
 // 수정자 : 허혁
-// 수정일 : 2026-03-09
+// 수정일 : 2026-03-13
 #pragma once
 
 #include "CoreMinimal.h"
@@ -48,15 +48,28 @@ public:
     UFUNCTION(BlueprintCallable , Category="Monster|Combat")
     bool IsMonsterAttacking() const;
     
+    UFUNCTION(BlueprintCallable, Category="Monster|Combat")
+    void SetMonsterAttacking(bool bNewAttacking);
+    
+    UFUNCTION(BlueprintCallable , Category="Monster|Combat")
+    void FaceCombatTargetInstant();
+    
+    UFUNCTION(BlueprintCallable , Category="Monster|Combat")
+    void FaceCombatTargetInterp(float DeltaSeconds , float TurnSpeedDeg = 720.f);
 protected:
     // =========================
     // Monster State
     // =========================
+    UPROPERTY(VisibleAnywhere , BlueprintReadOnly , Category="Monster|State")
+    bool bMonsterAttacking = false;
+    
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|State")
     bool bInCombat = false;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|State")
     bool bHasRoared = false;
+    
+    
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|State")
     TObjectPtr<AActor> CombatTarget = nullptr;
@@ -66,8 +79,7 @@ protected:
     // =========================
     // Monster Controller
     // ========================= 
-
-   
+    
     AMHMonsterAIController* GetMonsterAIController() const;
 #pragma region Ambient
     // =========================
@@ -108,14 +120,33 @@ protected:
     
 #pragma endregion
     
+
+#pragma region Cooldown
+    // =========================
+    // CoolDown
+    // =========================
+public:
+    UFUNCTION(BlueprintPure , Category="Monster|Combat")
+    bool IsMonsterAbilityOnCooldown(FGameplayTag AbilityTag) const;
     
-    
+    UFUNCTION(BlueprintPure , Category="Monster|Combat")
+    float GetMonsterAbilityCooldownRemaining(FGameplayTag AbilityTag) const;
     
 protected:
+    float FindMonsterAbilityCooldownSeconds(FGameplayTag AbilityTag) const;
+    void StartMonsterAbilityCooldown(FGameplayTag AbilityTag);
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Cooldown")
+    TMap<FGameplayTag, float> AbilityCooldownEndTimes;
+    
+#pragma endregion
+
+
 #pragma region Roar
     // =========================
     // Sight / Roar Config
     // =========================
+protected:
     UPROPERTY(EditDefaultsOnly, Category="Monster|Sight")
     float SightDetectInterval = 0.2f;
 

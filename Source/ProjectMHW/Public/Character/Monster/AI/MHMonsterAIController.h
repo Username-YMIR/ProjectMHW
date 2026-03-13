@@ -1,4 +1,7 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// 제작자 : 허혁
+// 제작일 : 2026-03-08
+// 수정자 : 허혁
+// 수정일 : 2026-03-13
 
 #pragma once
 
@@ -29,6 +32,7 @@ public:
 	void SetCombatTarget(AActor* NewTarget);
 	void SetInCombat(bool bNewInCombat);
 	void SetIsRoaring(bool bNewIsRoaring);
+	void SetAttacking(bool bNewAttacking);
 	
 protected:
 	UPROPERTY(EditDefaultsOnly , Category="AI")

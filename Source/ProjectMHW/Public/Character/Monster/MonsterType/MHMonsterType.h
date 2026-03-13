@@ -1,3 +1,9 @@
+// 제작자 : 허혁
+// 제작일 : 2026-03-08
+// 수정자 : 허혁
+// 수정일 : 2026-03-13
+
+
 #pragma once
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
@@ -18,6 +24,9 @@ struct FMonsterAbilityEntry
 	
 	UPROPERTY(EditDefaultsOnly , BlueprintReadOnly)
 	TObjectPtr<class UAnimMontage> Montage = nullptr;
+	
+	UPROPERTY(EditDefaultsOnly , BlueprintReadOnly ,Category="Cooldown" ,meta=(ClampMin ="0.0"))
+	float CooldownSeconds = 0.f;
 	
 };
 
