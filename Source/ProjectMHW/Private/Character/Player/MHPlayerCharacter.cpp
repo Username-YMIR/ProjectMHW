@@ -732,6 +732,11 @@ bool AMHPlayerCharacter::TryPlayRollMontage(UAnimMontage* InMontage)
         return false;
     }
 
+    if (bRollMontagePlaying)
+    {
+        return false;
+    }
+
     LocomotionState = EMHPlayerLocomotionState::Roll;
 
     const float PlayedLength = AnimInstance->Montage_Play(InMontage);
@@ -740,6 +745,8 @@ bool AMHPlayerCharacter::TryPlayRollMontage(UAnimMontage* InMontage)
         UpdateLocomotionState();
         return false;
     }
+
+    bRollMontagePlaying = true;
 
     FOnMontageEnded EndDelegate;
     EndDelegate.BindUObject(this, &AMHPlayerCharacter::HandleRollMontageEnded);
@@ -1248,7 +1255,7 @@ bool AMHPlayerCharacter::TryHandleWeaponComboInput(const FGameplayTag& InPattern
         return false;
     }
 
-    if (!bDrawEntryFromSheathed && WeaponSheathState != EMHWeaponSheathState::Unsheathed)
+    if (!bComboActive && !bDrawEntryFromSheathed && WeaponSheathState != EMHWeaponSheathState::Unsheathed)
     {
         return false;
     }
@@ -1435,6 +1442,7 @@ void AMHPlayerCharacter::HandleSheatheMontageEnded(UAnimMontage* Montage, bool b
 
 void AMHPlayerCharacter::HandleRollMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
+    bRollMontagePlaying = false;
     UpdateLocomotionState();
 }
 

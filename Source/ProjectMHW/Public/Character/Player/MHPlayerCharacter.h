@@ -345,6 +345,8 @@ private:
     bool ShouldUseDirectionalLateralFadeSlash() const;
     bool ShouldUseLateralFadeSlashPattern() const;
 
+    //롤 입력 차단을 위한
+    bool bRollMontagePlaying = false;
 public:
     FGameplayTag GetCurrentWeaponTypeGameplayTag() const;
     FGameplayTag GetCurrentWeaponSheathGameplayTag() const;

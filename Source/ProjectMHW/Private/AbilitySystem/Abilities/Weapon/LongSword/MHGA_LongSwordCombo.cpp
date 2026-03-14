@@ -255,26 +255,49 @@ bool UMHGA_LongSwordCombo::TryCommitQueuedComboTransition()
     const FMHLongSwordComboNode* NextNode = CachedComboComponent->SelectNextNode(QueuedPatternTag, bCounterSuccess);
     if (!NextNode)
     {
-        UE_LOG(LogMHGALSCombo, Verbose, TEXT("조기 전환 가능한 다음 노드를 찾지 못했습니다. Current=%s Pattern=%s"), *PreviousMoveTag.ToString(), *QueuedPatternTag.ToString());
+        UE_LOG(LogMHGALSCombo, Verbose, TEXT("조기 전환 가능한 다음 노드를 찾지 못했습니다. Current=%s Pattern=%s"),
+            *PreviousMoveTag.ToString(), *QueuedPatternTag.ToString());
         return false;
     }
 
-    CachedComboComponent->ConsumeBufferedInputPattern();
-    CachedComboComponent->CommitMove(*NextNode);
-
-    UAnimInstance* AnimInstance = CachedPlayer->GetMesh() ? CachedPlayer->GetMesh()->GetAnimInstance() : nullptr;
-    if (AnimInstance && ActiveMontage)
+    // 1) 다음 몽타주가 실제로 재생 가능한지 먼저 확인
+    UAnimMontage* NextMontage = NextNode->Montage.IsNull() ? nullptr : NextNode->Montage.LoadSynchronous();
+    NextMontage = CachedPlayer->ResolveLongSwordMoveMontageOverride(NextNode->MoveTag, NextMontage);
+    if (!NextMontage)
     {
-        // 현재 몽타주를 짧게 Blend Out 시킨 뒤 다음 몽타주를 이어붙인다.
-        AnimInstance->Montage_Stop(ActiveNode.TransitionBlendOutTime, ActiveMontage);
+        UE_LOG(LogMHGALSCombo, Warning, TEXT("조기 전환 실패: 다음 몽타주가 없습니다. MoveTag=%s"), *NextNode->MoveTag.ToString());
+        return false;
     }
 
+    // 값 보존
+    const FMHLongSwordComboNode NextNodeCopy = *NextNode;
+
+    // 2) 인터럽트 콜백 무시를 먼저 켠다
     bIgnoreMontageCallbacks = true;
+
+    // 3) 현재 몽타주 정지
+    if (UAnimInstance* AnimInstance = CachedPlayer->GetMesh() ? CachedPlayer->GetMesh()->GetAnimInstance() : nullptr)
+    {
+        if (ActiveMontage)
+        {
+            AnimInstance->Montage_Stop(ActiveNode.TransitionBlendOutTime, ActiveMontage);
+        }
+    }
+
+    // 4) 기존 task 정리
     ClearTask();
+
+    // 5) 이제 새 입력/이동 커밋
+    CachedComboComponent->ConsumeBufferedInputPattern();
+    CachedComboComponent->CommitMove(NextNodeCopy);
+
+    // 6) 새 몽타주 재생 전 콜백 무시 해제
     bIgnoreMontageCallbacks = false;
 
-    UE_LOG(LogMHGALSCombo, Verbose, TEXT("조기 콤보 전환 실행. %s -> %s"), *PreviousMoveTag.ToString(), *NextNode->MoveTag.ToString());
-    return PlayResolvedNode(*NextNode, PreviousMoveTag);
+    UE_LOG(LogMHGALSCombo, Verbose, TEXT("조기 콤보 전환 실행. %s -> %s"),
+        *PreviousMoveTag.ToString(), *NextNodeCopy.MoveTag.ToString());
+
+    return PlayResolvedNode(NextNodeCopy, PreviousMoveTag);
 }
 
 bool UMHGA_LongSwordCombo::IsDrawEntryMoveTag(const FGameplayTag& InMoveTag) const
