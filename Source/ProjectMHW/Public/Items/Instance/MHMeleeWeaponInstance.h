@@ -64,6 +64,21 @@ protected:
 		const FHitResult& HitResult,
 		FMHHitAcknowledge& OutHitAcknowledge
 	);
+	
+protected:
+	FHitResult BuildResolvedHitResult(
+		UPrimitiveComponent* OtherComp,
+		AActor* OtherActor,
+		bool bFromSweep,
+		const FHitResult& SweepResult
+	) const;
+
+	FVector ResolveImpactPoint(
+		UPrimitiveComponent* OtherComp,
+		AActor* OtherActor,
+		bool bFromSweep,
+		const FHitResult& SweepResult
+	) const;
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon")

@@ -12,10 +12,12 @@
 #include "Character/Monster/AI/MHMonsterAIController.h"
 #include "Character/Monster/AI/MHMonsterBlackboardKeys.h"
 #include "Character/Monster/Attribute/MHMonsterAttributeSet.h"
+#include "Combat/Data/MHCombatDataLibrary.h"
 #include "Components/CapsuleComponent.h"
 #include "DataAsset/MHMonsterDataAsset.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
 
 DEFINE_LOG_CATEGORY(MHMonsterCharacterBase)
 
@@ -160,30 +162,121 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
 }
 
 void AMHMonsterCharacterBase::HandleDamageAccepted(
-    AActor* SourceActor,
-    AActor* SourceWeapon,
-    FGameplayTag AttackTag,
-    const FHitResult& HitResult
+	AActor* SourceActor,
+	AActor* SourceWeapon,
+	FGameplayTag AttackTag,
+	const FHitResult& HitResult
 )
 {
-    Super::HandleDamageAccepted(SourceActor, SourceWeapon, AttackTag, HitResult);
+	Super::HandleDamageAccepted(SourceActor, SourceWeapon, AttackTag, HitResult);
 
-    // 예시:
-    // - 피격 리액션 재생
-    // - AI에게 공격자 정보 전달
-    // - 피격 VFX / SFX 실행
-    // - 경직 누적
+	// 피격 VFX
+	PlayHitImpactFXByAttackTag(AttackTag, HitResult);
+
+	// 피격 SFX
+	PlayHitSoundByAttackTag(AttackTag, HitResult);
+
+	// 이후 확장 예시
+	// - 피격 리액션 재생
+	// - AI에게 공격자 전달
+	// - 경직치 누적
+	// - 부위 파괴 누적
 }
 
 void AMHMonsterCharacterBase::HandleDeath()
 {
-    Super::HandleDeath();
+	Super::HandleDeath();
 
-    // 예시:
-    // - 몬스터 사망 애니메이션
-    // - AI 비활성화
-    // - 전리품 드랍
-    // - 시체 처리
+	// TODO:
+	// - 사망 애니메이션
+	// - AI 정지
+	// - 드랍 처리
+	// - 전투 종료 처리
+}
+
+void AMHMonsterCharacterBase::PlayHitImpactFXByAttackTag(
+	FGameplayTag AttackTag,
+	const FHitResult& HitResult
+)
+{
+	if (!IsValid(AttackMetaTable))
+	{
+		UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayHitImpactFXByAttackTag : AttackMetaTable is invalid"));
+		return;
+	}
+
+	FMHAttackMetaRow AttackMetaRow;
+	if (!UMHCombatDataLibrary::FindAttackMetaRowByTag(AttackMetaTable, AttackTag, AttackMetaRow))
+	{
+		UE_LOG(MHMonsterCharacterBase, Verbose, TEXT("PlayHitImpactFXByAttackTag : AttackMetaRow not found -> %s"), *AttackTag.ToString());
+		return;
+	}
+
+	if (AttackMetaRow.HitEffectNiagara.IsNull())
+	{
+		return;
+	}
+
+	UNiagaraSystem* HitEffectNiagara = AttackMetaRow.HitEffectNiagara.LoadSynchronous();
+	if (!IsValid(HitEffectNiagara))
+	{
+		UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayHitImpactFXByAttackTag : Failed to load HitEffectNiagara -> %s"), *AttackTag.ToString());
+		return;
+	}
+
+	const FVector SpawnLocation = HitResult.ImpactPoint;
+	const FRotator SpawnRotation = AttackMetaRow.bUseDirectionalHitFX
+		? HitResult.ImpactNormal.Rotation()
+		: FRotator::ZeroRotator;
+
+	UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		GetWorld(),
+		HitEffectNiagara,
+		SpawnLocation,
+		SpawnRotation
+	);
+    
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("SpawnSystemAtLocation"))
+}
+
+void AMHMonsterCharacterBase::PlayHitSoundByAttackTag(
+	FGameplayTag AttackTag,
+	const FHitResult& HitResult
+)
+{
+	if (!IsValid(AttackMetaTable))
+	{
+		UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayHitSoundByAttackTag : AttackMetaTable is invalid"));
+		return;
+	}
+
+	FMHAttackMetaRow AttackMetaRow;
+	if (!UMHCombatDataLibrary::FindAttackMetaRowByTag(AttackMetaTable, AttackTag, AttackMetaRow))
+	{
+		UE_LOG(MHMonsterCharacterBase, Verbose, TEXT("PlayHitSoundByAttackTag : AttackMetaRow not found -> %s"), *AttackTag.ToString());
+		return;
+	}
+
+	if (AttackMetaRow.HitSound.IsNull())
+	{
+		return;
+	}
+
+	USoundBase* HitSound = AttackMetaRow.HitSound.LoadSynchronous();
+	if (!IsValid(HitSound))
+	{
+		UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayHitSoundByAttackTag : Failed to load HitSound -> %s"), *AttackTag.ToString());
+		return;
+	}
+
+	UGameplayStatics::PlaySoundAtLocation(
+		this,
+		HitSound,
+		HitResult.ImpactPoint
+	);
+    
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlaySoundAtLocation"))
+
 }
 
 AMHMonsterAIController* AMHMonsterCharacterBase::GetMonsterAIController() const
@@ -510,7 +603,7 @@ bool AMHMonsterCharacterBase::CanSeeTargetFromHead(AActor* Target) const
 
     if (!MeshComp->DoesSocketExist(HeadLookSocketName))
     {
-        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("CanSeeTargetFromHead | missing socket: %s"), *HeadLookSocketName.ToString());
+        // UE_LOG(MHMonsterCharacterBase, Warning, TEXT("CanSeeTargetFromHead | missing socket: %s"), *HeadLookSocketName.ToString());
         return false;
     }
 
@@ -876,7 +969,7 @@ void AMHMonsterCharacterBase::InitMonsterGAS()
 
     if (MonsterAttributes)
     {
-        // UE_LOG(LogTemp, Warning, TEXT("[MonsterGAS] %s HP=%f/%f Poise=%f/%f Atk=%f Def=%f"),
+        // UE_LOG(MHMonsterCharacterBase, Warning, TEXT("[MonsterGAS] %s HP=%f/%f Poise=%f/%f Atk=%f Def=%f"),
         //     *GetName(),
         //     MonsterAttributes->GetHealth(), MonsterAttributes->GetMaxHealth(),
         //     MonsterAttributes->GetPoise(), MonsterAttributes->GetMaxPoise(),
@@ -885,7 +978,7 @@ void AMHMonsterCharacterBase::InitMonsterGAS()
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("[MonsterGAS] %s MonsterAttributes is NULL"), *GetName());
+        UE_LOG(MHMonsterCharacterBase, Error, TEXT("[MonsterGAS] %s MonsterAttributes is NULL"), *GetName());
     }
 }
 

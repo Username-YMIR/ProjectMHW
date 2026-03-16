@@ -133,6 +133,78 @@ bool AMHMeleeWeaponInstance::TryDeliverDamageSpecToTarget(
 	return true;
 }
 
+FVector AMHMeleeWeaponInstance::ResolveImpactPoint(
+	UPrimitiveComponent* OtherComp,
+	AActor* OtherActor,
+	bool bFromSweep,
+	const FHitResult& SweepResult
+) const
+{
+	// 1. Sweep로 들어온 유효한 ImpactPoint가 있으면 그대로 사용
+	if (bFromSweep && !SweepResult.ImpactPoint.IsNearlyZero())
+	{
+		return SweepResult.ImpactPoint;
+	}
+
+	// 2. 상대 콜리전에서 무기 박스 기준 최근접점 계산
+	if (IsValid(OtherComp) && IsValid(HitBox))
+	{
+		FVector ClosestPoint = FVector::ZeroVector;
+		const FVector QueryPoint = HitBox->GetComponentLocation();
+		const float Distance = OtherComp->GetClosestPointOnCollision(QueryPoint, ClosestPoint);
+
+		// 0 이상이면 유효한 최근접점 반환
+		if (Distance >= 0.0f)
+		{
+			return ClosestPoint;
+		}
+	}
+
+	// 3. 컴포넌트 중심 fallback
+	if (IsValid(OtherComp))
+	{
+		return OtherComp->GetComponentLocation();
+	}
+
+	// 4. 액터 중심 fallback
+	if (IsValid(OtherActor))
+	{
+		return OtherActor->GetActorLocation();
+	}
+
+	return FVector::ZeroVector;
+}
+
+FHitResult AMHMeleeWeaponInstance::BuildResolvedHitResult(
+	UPrimitiveComponent* OtherComp,
+	AActor* OtherActor,
+	bool bFromSweep,
+	const FHitResult& SweepResult
+) const
+{
+	FHitResult ResolvedHitResult = SweepResult;
+
+	const FVector ResolvedImpactPoint = ResolveImpactPoint(OtherComp, OtherActor, bFromSweep, SweepResult);
+
+	ResolvedHitResult.Location = ResolvedImpactPoint;
+	ResolvedHitResult.ImpactPoint = ResolvedImpactPoint;
+	ResolvedHitResult.Component = OtherComp;
+
+	// Sweep 노멀이 유효하지 않으면 방향 보정
+	if (ResolvedHitResult.ImpactNormal.IsNearlyZero() && IsValid(OtherActor) && IsValid(HitBox))
+	{
+		const FVector Direction = (OtherActor->GetActorLocation() - HitBox->GetComponentLocation()).GetSafeNormal();
+		ResolvedHitResult.ImpactNormal = Direction.IsNearlyZero() ? FVector::UpVector : Direction;
+	}
+
+	if (ResolvedHitResult.Normal.IsNearlyZero())
+	{
+		ResolvedHitResult.Normal = ResolvedHitResult.ImpactNormal;
+	}
+
+	return ResolvedHitResult;
+}
+
 void AMHMeleeWeaponInstance::OnWeaponBeginOverlap(
 	UPrimitiveComponent* OverlappedComponent,
 	AActor* OtherActor,
@@ -183,8 +255,21 @@ void AMHMeleeWeaponInstance::OnWeaponBeginOverlap(
 		return;
 	}
 
+	const FHitResult ResolvedHitResult = BuildResolvedHitResult(OtherComp, OtherActor, bFromSweep, SweepResult);
+
+	UE_LOG(
+		LogMHMeleeWeaponInstance,
+		Log,
+		TEXT("TargetActor=%s bFromSweep=%d ImpactPoint=(%.2f, %.2f, %.2f)"),
+		*GetNameSafe(OtherActor),
+		bFromSweep ? 1 : 0,
+		ResolvedHitResult.ImpactPoint.X,
+		ResolvedHitResult.ImpactPoint.Y,
+		ResolvedHitResult.ImpactPoint.Z
+	);
+
 	FMHHitAcknowledge HitAcknowledge;
-	if (!TryDeliverDamageSpecToTarget(OtherActor, SweepResult, HitAcknowledge))
+	if (!TryDeliverDamageSpecToTarget(OtherActor, ResolvedHitResult, HitAcknowledge))
 	{
 		UE_LOG(
 			LogMHMeleeWeaponInstance,

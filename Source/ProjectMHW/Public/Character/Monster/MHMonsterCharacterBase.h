@@ -66,6 +66,22 @@ protected:
     ) override;
 
     virtual void HandleDeath() override;
+
+    /** 공격 메타 테이블에서 VFX / SFX를 찾아 실행 */
+    virtual void PlayHitImpactFXByAttackTag(
+        FGameplayTag AttackTag,
+        const FHitResult& HitResult
+    );
+
+    /** 공격 메타 테이블에서 사운드를 찾아 실행 */
+    virtual void PlayHitSoundByAttackTag(
+        FGameplayTag AttackTag,
+        const FHitResult& HitResult
+    );
+
+protected:
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Combat|Data")
+    TObjectPtr<UDataTable> AttackMetaTable = nullptr;
 #pragma endregion  
     
     
