@@ -334,6 +334,7 @@ private:
     bool HasMovementInputForCombat() const;
     bool IsStandingStillForCombat() const;
     bool IsInLongSwordSpecialSheatheState() const;
+    bool CanResolveLongSwordFollowupDuringUnsheathing() const;
 
     // 발도 상태에서 첫 시작 공격을 선택하는 문맥인지 확인한다.
     bool IsLongSwordStartAttackContext() const;

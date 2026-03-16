@@ -620,6 +620,23 @@ bool AMHPlayerCharacter::IsInLongSwordSpecialSheatheState() const
     return false;
 }
 
+bool AMHPlayerCharacter::CanResolveLongSwordFollowupDuringUnsheathing() const
+{
+    if (WeaponSheathState != EMHWeaponSheathState::Unsheathing)
+    {
+        return false;
+    }
+
+    const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon);
+    if (!LongSword)
+    {
+        return false;
+    }
+
+    const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent();
+    return ComboComp && ComboComp->IsComboActive();
+}
+
 FVector2D AMHPlayerCharacter::GetPreferredMoveInput2D() const
 {
     // 같은 프레임의 입력이 없더라도, 직전에 누르던 방향으로 회피/Variant를 해석할 수 있게 fallback을 둔다.
@@ -821,7 +838,8 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForPrimaryInput() const
         return HasMovementInputForCombat() ? InputPattern_LS_DrawAdvancingSlash : InputPattern_LS_DrawOnly;
     }
 
-    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
+    const bool bAllowFollowupDuringUnsheathing = CanResolveLongSwordFollowupDuringUnsheathing();
+    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed && !bAllowFollowupDuringUnsheathing)
     {
         return FGameplayTag::EmptyTag;
     }
@@ -912,7 +930,8 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForSecondaryInput() cons
         return FGameplayTag::EmptyTag;
     }
 
-    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
+    const bool bAllowFollowupDuringUnsheathing = CanResolveLongSwordFollowupDuringUnsheathing();
+    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed && !bAllowFollowupDuringUnsheathing)
     {
         return FGameplayTag::EmptyTag;
     }
@@ -972,7 +991,8 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForWeaponSpecialInput() 
         return InputPattern_LS_DrawSpiritSlash1;
     }
 
-    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
+    const bool bAllowFollowupDuringUnsheathing = CanResolveLongSwordFollowupDuringUnsheathing();
+    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed && !bAllowFollowupDuringUnsheathing)
     {
         return FGameplayTag::EmptyTag;
     }
@@ -1003,7 +1023,13 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForDodgeInput() const
 {
     using namespace MHInputPatternGameplayTags;
 
-    if (!IsLongSwordEquipped() || WeaponSheathState != EMHWeaponSheathState::Unsheathed)
+    if (!IsLongSwordEquipped())
+    {
+        return FGameplayTag::EmptyTag;
+    }
+
+    const bool bAllowFollowupDuringUnsheathing = CanResolveLongSwordFollowupDuringUnsheathing();
+    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed && !bAllowFollowupDuringUnsheathing)
     {
         return FGameplayTag::EmptyTag;
     }
@@ -1039,7 +1065,8 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForCompositeInput() cons
         }
     }
 
-    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
+    const bool bAllowFollowupDuringUnsheathing = CanResolveLongSwordFollowupDuringUnsheathing();
+    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed && !bAllowFollowupDuringUnsheathing)
     {
         return FGameplayTag::EmptyTag;
     }
@@ -1230,11 +1257,6 @@ bool AMHPlayerCharacter::TryHandleWeaponComboInput(const FGameplayTag& InPattern
         return false;
     }
 
-    if (WeaponSheathState == EMHWeaponSheathState::Unsheathing || WeaponSheathState == EMHWeaponSheathState::Sheathing)
-    {
-        return false;
-    }
-
     AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon);
     if (!LongSword)
     {
@@ -1248,14 +1270,40 @@ bool AMHPlayerCharacter::TryHandleWeaponComboInput(const FGameplayTag& InPattern
     }
 
     const bool bComboActive = ComboComp->IsComboActive();
-    const bool bDrawEntryFromSheathed = !bComboActive && WeaponSheathState == EMHWeaponSheathState::Sheathed && IsLongSwordDrawEntryPattern(InPatternTag);
+    const bool bDrawEntryFromSheathed =
+        !bComboActive
+        && WeaponSheathState == EMHWeaponSheathState::Sheathed
+        && IsLongSwordDrawEntryPattern(InPatternTag);
 
+    // 발도 시작 공격으로 이미 콤보가 활성화된 상태라면,
+    // Unsheathing 중에도 후속 콤보 입력은 허용해야 함.
+    const bool bAllowFollowupDuringUnsheathing =
+        bComboActive && WeaponSheathState == EMHWeaponSheathState::Unsheathing;
+
+    // 납도 중에는 여전히 입력 차단
+    if (WeaponSheathState == EMHWeaponSheathState::Sheathing)
+    {
+        return false;
+    }
+
+    // 발도 중(Unsheathing)에는 "이미 진행 중인 콤보의 후속 입력"만 허용
+    if (WeaponSheathState == EMHWeaponSheathState::Unsheathing && !bAllowFollowupDuringUnsheathing)
+    {
+        return false;
+    }
+
+    // 콤보 비활성 + 납도 상태면 발도 시작 공격만 허용
     if (!bComboActive && WeaponSheathState == EMHWeaponSheathState::Sheathed && !bDrawEntryFromSheathed)
     {
         return false;
     }
 
-    if (!bComboActive && !bDrawEntryFromSheathed && WeaponSheathState != EMHWeaponSheathState::Unsheathed)
+    // 콤보 비활성 상태에서는 발도 완료(Unsheathed) 상태여야 시작 공격 가능
+    // 단, 이미 발도 시작 공격으로 들어와 Unsheathing 중 후속 입력을 넣는 경우는 허용
+    if (!bComboActive
+        && !bDrawEntryFromSheathed
+        && WeaponSheathState != EMHWeaponSheathState::Unsheathed
+        && !bAllowFollowupDuringUnsheathing)
     {
         return false;
     }
@@ -1271,6 +1319,7 @@ bool AMHPlayerCharacter::TryHandleWeaponComboInput(const FGameplayTag& InPattern
         {
             HandleComboMontageStateTransition(true);
         }
+
         ComboComp->ResetCombo();
         return false;
     }
@@ -1282,6 +1331,7 @@ bool AMHPlayerCharacter::TryHandleWeaponComboInput(const FGameplayTag& InPattern
         {
             HandleComboMontageStateTransition(true);
         }
+
         ComboComp->ResetCombo();
         return false;
     }
@@ -1294,6 +1344,7 @@ bool AMHPlayerCharacter::TryHandleWeaponComboInput(const FGameplayTag& InPattern
             {
                 TryRequestLongSwordEarlyTransition();
             }
+
             return true;
         }
     }
