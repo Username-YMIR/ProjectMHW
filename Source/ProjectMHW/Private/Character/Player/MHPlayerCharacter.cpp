@@ -29,6 +29,8 @@
 #include "Combat/Attributes/MHResistanceAttributeSet.h"
 #include "Combat/Effects/MHGameplayEffect_Damage.h"
 #include "Combat/Effects/MHGameplayEffect_PlayerDamage.h"
+#include "Combat/Data/MHAttackMetaTypes.h"
+#include "Combat/Data/MHCombatDataLibrary.h"
 #include "GameplayEffect.h"
 #include "GameplayEffectTypes.h"
 #include "Combat/mh_attack_definition_library.h"
@@ -63,12 +65,26 @@ namespace
         Result.ResultType = EMHHitResultType::Invulnerable;
         return Result;
     }
+
+    static const TCHAR* ResolveLongSwordResourceCommitTypeText(const EMHLongSwordResourceCommitType InCommitType)
+    {
+        switch (InCommitType)
+        {
+        case EMHLongSwordResourceCommitType::FirstValidHit:
+            return TEXT("FirstValidHit");
+        case EMHLongSwordResourceCommitType::FinisherHit:
+            return TEXT("FinisherHit");
+        case EMHLongSwordResourceCommitType::CounterSuccess:
+            return TEXT("CounterSuccess");
+        default:
+            return TEXT("None");
+        }
+    }
 }
 
 AMHPlayerCharacter::AMHPlayerCharacter()
 {
     InitializeCapsuleSettings();
-    InitializeMeshCollisionSettings();
     
     PrimaryActorTick.bCanEverTick = false;
     PrimaryActorTick.bStartWithTickEnabled = false;
@@ -100,8 +116,6 @@ AMHPlayerCharacter::AMHPlayerCharacter()
     }
 
 
-    CurrentStamina = StaminaConfig.MaxStamina;
-    
     // 데칼 영향 제거
     if (USkeletalMeshComponent* MeshComp = GetMesh())
     {
@@ -128,11 +142,14 @@ void AMHPlayerCharacter::BeginPlay()
 
     SpawnAndEquipDefaultWeapon();
 
+    SyncStaminaAttributesFromConfig();
+
     // 무브먼트 업데이트 델리게이트 바인딩
     if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
     {
         OnCharacterMovementUpdated.AddDynamic(this, &AMHPlayerCharacter::HandleMovementUpdated);
     }
+
 }
 
 void AMHPlayerCharacter::InitializeCapsuleSettings()
@@ -140,9 +157,6 @@ void AMHPlayerCharacter::InitializeCapsuleSettings()
     GetCapsuleComponent()->InitCapsuleSize(42.0f, 96.0f);
 }
 
-void AMHPlayerCharacter::InitializeMeshCollisionSettings()
-{
-}
 
 void AMHPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -179,11 +193,6 @@ void AMHPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
     {
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_Dodge, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_Dodge);
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_Dodge, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_DodgeCompleted);
-    }
-
-    if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_Interact))
-    {
-        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_Interact, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_Interact);
     }
 
     if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_AttackPrimary))
@@ -354,21 +363,6 @@ void AMHPlayerCharacter::Input_DodgeCompleted(const FInputActionValue& InputActi
     bDodgeHeld = false;
 }
 
-void AMHPlayerCharacter::Input_Interact(const FInputActionValue& InputActionValue)
-{
-    Interact();
-}
-
-void AMHPlayerCharacter::Input_DebugSelfDamage()
-{
-    ApplyDebugDamageToSelf();
-}
-
-void AMHPlayerCharacter::ApplyDebugDamageToSelf()
-{
-    ApplyDebugDamageFromSource(this, DebugIncomingPhysicalDamage, DebugIncomingAttackTag);
-}
-
 void AMHPlayerCharacter::ApplyDebugDamageFromSource(AActor* InSourceActor, float InPhysicalDamage)
 {
     ApplyDebugDamageFromSource(InSourceActor, InPhysicalDamage, DebugIncomingAttackTag);
@@ -489,9 +483,6 @@ void AMHPlayerCharacter::Input_AimHoldCompleted(const FInputActionValue& InputAc
     bAimHeld = false; //손승우 추가
 }
 
-void AMHPlayerCharacter::Interact()
-{
-}
 
 void AMHPlayerCharacter::UsePrimaryAction()
 {
@@ -605,6 +596,55 @@ void AMHPlayerCharacter::ClearLongSwordSpecialSheatheSpiritCounterSuccess()
     bLongSwordSpecialSheatheSpiritCounterSuccess = false;
 }
 
+void AMHPlayerCharacter::Notify_LongSwordAttackHitConfirmed(const FGameplayTag& InMoveTag)
+{
+    if (!IsLongSwordEquipped() || !InMoveTag.IsValid())
+    {
+        return;
+    }
+
+    const EMHLongSwordResourceCommitType CommitType = ResolveLongSwordResourceCommitType(InMoveTag);
+    if (CommitType == EMHLongSwordResourceCommitType::None
+        || CommitType == EMHLongSwordResourceCommitType::CounterSuccess)
+    {
+        return;
+    }
+
+    CommitLongSwordResourceDelta(InMoveTag, CommitType);
+}
+
+void AMHPlayerCharacter::Notify_LongSwordCounterCommitSuccess(const EMHLongSwordCounterWindowType InCounterWindowType)
+{
+    // 카운터 성공 시점에 확정해야 하는 기술만 여기서 자원을 처리한다.
+    if (!IsLongSwordEquipped())
+    {
+        return;
+    }
+
+    const FGameplayTag CurrentMoveTag = GetCurrentLongSwordMoveTag();
+    if (!CurrentMoveTag.IsValid())
+    {
+        return;
+    }
+
+    const EMHLongSwordResourceCommitType CommitType = ResolveLongSwordResourceCommitType(CurrentMoveTag);
+    if (CommitType != EMHLongSwordResourceCommitType::CounterSuccess)
+    {
+        return;
+    }
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Verbose,
+        TEXT("%s : LongSword counter commit resolved. Window=%d Move=%s"),
+        *GetName(),
+        static_cast<int32>(InCounterWindowType),
+        *CurrentMoveTag.ToString()
+    );
+
+    CommitLongSwordResourceDelta(CurrentMoveTag, CommitType);
+}
+
 void AMHPlayerCharacter::Notify_BeginLongSwordCounterWindow(const EMHLongSwordCounterWindowType InCounterWindowType)
 {
     ActiveLongSwordCounterWindowType = InCounterWindowType;
@@ -659,6 +699,7 @@ FMHHitAcknowledge AMHPlayerCharacter::ReceiveDamageSpec_Implementation(
     if (CanTriggerLongSwordForesightCounter() && IsAttackAllowedForForesightCounter(AttackTag))
     {
         Notify_LongSwordForesightCounterSuccess();
+        Notify_LongSwordCounterCommitSuccess(EMHLongSwordCounterWindowType::Foresight);
         UE_LOG(LogMHPlayerCharacter, Log, TEXT("%s : Foresight counter success. AttackTag=%s"), *GetName(), *AttackTag.ToString());
         return BuildLongSwordInvulnerableHitAcknowledge();
     }
@@ -666,6 +707,7 @@ FMHHitAcknowledge AMHPlayerCharacter::ReceiveDamageSpec_Implementation(
     if (CanTriggerLongSwordSpecialSheatheSlashCounter() && IsAttackAllowedForSpecialSheatheCounter(AttackTag))
     {
         Notify_LongSwordSpecialSheatheSlashCounterSuccess();
+        Notify_LongSwordCounterCommitSuccess(EMHLongSwordCounterWindowType::SpecialSheatheSlash);
         bIgnoreDamageUntilCurrentActionEnd = true;
         DamageIgnoreUntilCurrentMoveTag = GetCurrentLongSwordMoveTag();
         UE_LOG(LogMHPlayerCharacter, Log, TEXT("%s : Special sheathe slash counter success. AttackTag=%s MoveTag=%s"),
@@ -678,6 +720,7 @@ FMHHitAcknowledge AMHPlayerCharacter::ReceiveDamageSpec_Implementation(
     if (CanTriggerLongSwordSpecialSheatheSpiritCounter() && IsAttackAllowedForSpecialSheatheCounter(AttackTag))
     {
         Notify_LongSwordSpecialSheatheSpiritCounterSuccess();
+        Notify_LongSwordCounterCommitSuccess(EMHLongSwordCounterWindowType::SpecialSheatheSpirit);
         bIgnoreDamageUntilCurrentActionEnd = true;
         DamageIgnoreUntilCurrentMoveTag = GetCurrentLongSwordMoveTag();
         UE_LOG(LogMHPlayerCharacter, Log, TEXT("%s : Special sheathe spirit counter success. AttackTag=%s MoveTag=%s"),
@@ -892,6 +935,262 @@ bool AMHPlayerCharacter::CanTriggerLongSwordSpecialSheatheSpiritCounter() const
 const FMHAttackDefinitionRow* AMHPlayerCharacter::FindAttackDefinitionRow(const FGameplayTag& InAttackTag) const
 {
     return UMHAttackDefinitionLibrary::FindAttackDefinitionRowPtr(AttackDefinitionTable, InAttackTag);
+}
+
+bool AMHPlayerCharacter::FindAttackMetaRow(const FGameplayTag& InMoveTag, FMHAttackMetaRow& OutAttackMetaRow) const
+{
+    if (!IsValid(LongSwordAttackMetaTable))
+    {
+        return false;
+    }
+
+    return UMHCombatDataLibrary::FindAttackMetaRowByTag(LongSwordAttackMetaTable, InMoveTag, OutAttackMetaRow);
+}
+
+EMHLongSwordResourceCommitType AMHPlayerCharacter::ResolveLongSwordResourceCommitType(const FGameplayTag& InMoveTag) const
+{
+    // 일반 기술은 첫 유효 타격, 일부 피니시 기술은 마지막 확정 타격, 간파는 카운터 성공 시점으로 분리한다.
+    if (!InMoveTag.IsValid())
+    {
+        return EMHLongSwordResourceCommitType::None;
+    }
+
+    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_ForesightSlash)
+    {
+        return EMHLongSwordResourceCommitType::CounterSuccess;
+    }
+
+    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritRoundslash
+        || InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker)
+    {
+        return EMHLongSwordResourceCommitType::FinisherHit;
+    }
+
+    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_DrawOnly
+        || InMoveTag == MHLongSwordGameplayTags::Move_LS_SpecialSheathe)
+    {
+        return EMHLongSwordResourceCommitType::None;
+    }
+
+    return EMHLongSwordResourceCommitType::FirstValidHit;
+}
+
+void AMHPlayerCharacter::CommitLongSwordResourceDelta(const FGameplayTag& InMoveTag, const EMHLongSwordResourceCommitType InCommitType)
+{
+    // 실제 수치 변화는 이 함수 한곳에서만 처리해서 기술별 예외를 모은다.
+    if (!InMoveTag.IsValid())
+    {
+        return;
+    }
+
+    FMHAttackMetaRow AttackMetaRow;
+    if (!FindAttackMetaRow(InMoveTag, AttackMetaRow))
+    {
+        return;
+    }
+
+    const float PreviousSpiritGauge = CurrentSpiritGauge;
+    const int32 PreviousSpiritLevel = CurrentSpiritLevel;
+
+    const bool bShouldIgnoreSpiritConsume =
+        bLongSwordForesightCounterSuccess
+        || bLongSwordSpecialSheatheSlashCounterSuccess
+        || bLongSwordSpecialSheatheSpiritCounterSuccess;
+
+    if (InCommitType != EMHLongSwordResourceCommitType::CounterSuccess)
+    {
+        AddSpiritGauge(FMath::Max(0.0f, AttackMetaRow.SpiritGaugeGain));
+    }
+
+    if (InCommitType == EMHLongSwordResourceCommitType::CounterSuccess)
+    {
+        ConsumeSpiritGauge(FMath::Max(0.0f, AttackMetaRow.SpiritGaugeConsume));
+    }
+    else if (!bShouldIgnoreSpiritConsume)
+    {
+        ConsumeSpiritGauge(FMath::Max(0.0f, AttackMetaRow.SpiritGaugeConsume));
+    }
+
+    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritRoundslash)
+    {
+        IncreaseSpiritLevel();
+    }
+    else if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker)
+    {
+        DecreaseSpiritLevel();
+    }
+    else if (InMoveTag == MHLongSwordGameplayTags::Move_LS_IaiSpiritSlash && !bLongSwordSpecialSheatheSpiritCounterSuccess)
+    {
+        DecreaseSpiritLevel();
+    }
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Verbose,
+        TEXT("%s : LongSword resource committed. Move=%s CommitType=%s Gauge=%.2f->%.2f Level=%d->%d"),
+        *GetName(),
+        *InMoveTag.ToString(),
+        ResolveLongSwordResourceCommitTypeText(InCommitType),
+        PreviousSpiritGauge,
+        CurrentSpiritGauge,
+        PreviousSpiritLevel,
+        CurrentSpiritLevel
+    );
+}
+
+float AMHPlayerCharacter::GetCurrentSpiritDamageMultiplier() const
+{
+    switch (FMath::Clamp(CurrentSpiritLevel, 0, 3))
+    {
+    case 1:
+        return SpiritLevelMultiplierLv1;
+    case 2:
+        return SpiritLevelMultiplierLv2;
+    case 3:
+        return SpiritLevelMultiplierLv3;
+    default:
+        return SpiritLevelMultiplierLv0;
+    }
+}
+
+float AMHPlayerCharacter::ResolveLongSwordDamageMultiplier(const FGameplayTag& InMoveTag) const
+{
+    FMHAttackMetaRow AttackMetaRow;
+    const float MetaDamageMultiplier =
+        FindAttackMetaRow(InMoveTag, AttackMetaRow)
+        ? FMath::Max(0.0f, AttackMetaRow.DamageMultiplier)
+        : 1.0f;
+
+    return MetaDamageMultiplier * GetCurrentSpiritDamageMultiplier();
+}
+
+float AMHPlayerCharacter::GetCurrentHealthValue() const
+{
+    return HealthAttributeSet ? HealthAttributeSet->GetHealth() : 0.0f;
+}
+
+float AMHPlayerCharacter::GetMaxHealthValue() const
+{
+    return HealthAttributeSet ? HealthAttributeSet->GetMaxHealth() : 0.0f;
+}
+
+float AMHPlayerCharacter::GetHealthRatio() const
+{
+    const float MaxHealthValue = GetMaxHealthValue();
+    if (MaxHealthValue <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    return FMath::Clamp(GetCurrentHealthValue() / MaxHealthValue, 0.0f, 1.0f);
+}
+
+float AMHPlayerCharacter::GetCurrentStaminaValue() const
+{
+    return PlayerAttributeSet ? FMath::Max(0.0f, PlayerAttributeSet->GetStamina()) : 0.0f;
+}
+
+float AMHPlayerCharacter::GetMaxStaminaValue() const
+{
+    return PlayerAttributeSet ? FMath::Max(0.0f, PlayerAttributeSet->GetMaxStamina()) : 0.0f;
+}
+
+float AMHPlayerCharacter::GetStaminaRatio() const
+{
+    const float MaxStaminaValue = GetMaxStaminaValue();
+    if (MaxStaminaValue <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    return FMath::Clamp(GetCurrentStaminaValue() / MaxStaminaValue, 0.0f, 1.0f);
+}
+
+float AMHPlayerCharacter::GetCurrentSpiritGaugeValue() const
+{
+    return CurrentSpiritGauge;
+}
+
+float AMHPlayerCharacter::GetMaxSpiritGaugeValue() const
+{
+    return FMath::Max(0.0f, MaxSpiritGauge);
+}
+
+float AMHPlayerCharacter::GetSpiritGaugeRatio() const
+{
+    const float MaxSpiritGaugeValue = GetMaxSpiritGaugeValue();
+    if (MaxSpiritGaugeValue <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    return FMath::Clamp(GetCurrentSpiritGaugeValue() / MaxSpiritGaugeValue, 0.0f, 1.0f);
+}
+
+int32 AMHPlayerCharacter::GetCurrentSpiritLevelValue() const
+{
+    return CurrentSpiritLevel;
+}
+
+int32 AMHPlayerCharacter::GetMaxSpiritLevelValue() const
+{
+    return 3;
+}
+
+void AMHPlayerCharacter::GetPlayerVitalStatus(float& OutCurrentHealth, float& OutMaxHealth, float& OutCurrentStamina, float& OutMaxStamina) const
+{
+    OutCurrentHealth = GetCurrentHealthValue();
+    OutMaxHealth = GetMaxHealthValue();
+    OutCurrentStamina = GetCurrentStaminaValue();
+    OutMaxStamina = GetMaxStaminaValue();
+}
+
+void AMHPlayerCharacter::GetLongSwordSpiritStatus(float& OutCurrentSpiritGauge, float& OutMaxSpiritGauge, int32& OutCurrentSpiritLevel, int32& OutMaxSpiritLevel) const
+{
+    OutCurrentSpiritGauge = GetCurrentSpiritGaugeValue();
+    OutMaxSpiritGauge = GetMaxSpiritGaugeValue();
+    OutCurrentSpiritLevel = GetCurrentSpiritLevelValue();
+    OutMaxSpiritLevel = GetMaxSpiritLevelValue();
+}
+
+void AMHPlayerCharacter::AddSpiritGauge(const float InAmount)
+{
+    if (InAmount <= 0.0f)
+    {
+        return;
+    }
+
+    CurrentSpiritGauge = FMath::Clamp(CurrentSpiritGauge + InAmount, 0.0f, FMath::Max(0.0f, MaxSpiritGauge));
+}
+
+void AMHPlayerCharacter::ConsumeSpiritGauge(const float InAmount)
+{
+    if (InAmount <= 0.0f)
+    {
+        return;
+    }
+
+    CurrentSpiritGauge = FMath::Clamp(CurrentSpiritGauge - InAmount, 0.0f, FMath::Max(0.0f, MaxSpiritGauge));
+}
+
+void AMHPlayerCharacter::IncreaseSpiritLevel(const int32 InAmount)
+{
+    if (InAmount <= 0)
+    {
+        return;
+    }
+
+    CurrentSpiritLevel = FMath::Clamp(CurrentSpiritLevel + InAmount, 0, 3);
+}
+
+void AMHPlayerCharacter::DecreaseSpiritLevel(const int32 InAmount)
+{
+    if (InAmount <= 0)
+    {
+        return;
+    }
+
+    CurrentSpiritLevel = FMath::Clamp(CurrentSpiritLevel - InAmount, 0, 3);
 }
 
 bool AMHPlayerCharacter::IsAttackAllowedForForesightCounter(const FGameplayTag& InAttackTag) const
@@ -1921,6 +2220,48 @@ void AMHPlayerCharacter::UpdateLocomotionState()
     LocomotionState = (Speed2D < 3.0f) ? EMHPlayerLocomotionState::Idle : EMHPlayerLocomotionState::Move;
 }
 
+void AMHPlayerCharacter::SyncStaminaAttributesFromConfig()
+{
+    const float ConfigMaxStamina = FMath::Max(0.0f, StaminaConfig.MaxStamina);
+    SetMaxStaminaAttributeValue(ConfigMaxStamina);
+    SetCurrentStaminaAttributeValue(ConfigMaxStamina);
+}
+
+void AMHPlayerCharacter::SetCurrentStaminaAttributeValue(float InNewValue)
+{
+    const float MaxStaminaValue = GetMaxStaminaValue();
+    const float ClampedStaminaValue = FMath::Clamp(InNewValue, 0.0f, MaxStaminaValue);
+
+    if (PlayerAttributeSet)
+    {
+        if (AbilitySystemComponent)
+        {
+            AbilitySystemComponent->SetNumericAttributeBase(UMHPlayerAttributeSet::GetStaminaAttribute(), ClampedStaminaValue);
+        }
+        else
+        {
+            PlayerAttributeSet->SetStamina(ClampedStaminaValue);
+        }
+    }
+}
+
+void AMHPlayerCharacter::SetMaxStaminaAttributeValue(float InNewValue)
+{
+    const float ClampedMaxStaminaValue = FMath::Max(0.0f, InNewValue);
+
+    if (PlayerAttributeSet)
+    {
+        if (AbilitySystemComponent)
+        {
+            AbilitySystemComponent->SetNumericAttributeBase(UMHPlayerAttributeSet::GetMaxStaminaAttribute(), ClampedMaxStaminaValue);
+        }
+        else
+        {
+            PlayerAttributeSet->SetMaxStamina(ClampedMaxStaminaValue);
+        }
+    }
+}
+
 void AMHPlayerCharacter::UpdateStamina(float DeltaSeconds)
 {
     if (DeltaSeconds <= 0.0f)
@@ -1928,18 +2269,27 @@ void AMHPlayerCharacter::UpdateStamina(float DeltaSeconds)
         return;
     }
 
+    const float CurrentStaminaValue = GetCurrentStaminaValue();
+    const float MaxStaminaValue = GetMaxStaminaValue();
+    float NewStaminaValue = CurrentStaminaValue;
+
     if (bIsSprinting)
     {
-        CurrentStamina -= StaminaConfig.SprintCostPerSecond * DeltaSeconds;
+        NewStaminaValue -= StaminaConfig.SprintCostPerSecond * DeltaSeconds;
     }
     else
     {
-        CurrentStamina += StaminaConfig.RecoveryPerSecond * DeltaSeconds;
+        NewStaminaValue += StaminaConfig.RecoveryPerSecond * DeltaSeconds;
     }
 
-    CurrentStamina = FMath::Clamp(CurrentStamina, 0.0f, StaminaConfig.MaxStamina);
+    NewStaminaValue = FMath::Clamp(NewStaminaValue, 0.0f, MaxStaminaValue);
 
-    if (bIsSprinting && CurrentStamina <= 0.0f)
+    if (!FMath::IsNearlyEqual(CurrentStaminaValue, NewStaminaValue))
+    {
+        SetCurrentStaminaAttributeValue(NewStaminaValue);
+    }
+
+    if (bIsSprinting && GetCurrentStaminaValue() <= 0.0f)
     {
         bIsSprinting = false;
         ApplyMovementProfile(EMHPlayerMoveProfile::Run);
@@ -1973,27 +2323,9 @@ void AMHPlayerCharacter::EvaluateSprintState()
 
 bool AMHPlayerCharacter::CanStartSprint() const
 {
-    return CurrentStamina > StaminaConfig.LowStaminaThreshold;
+    return GetCurrentStaminaValue() > StaminaConfig.LowStaminaThreshold;
 }
 
-bool AMHPlayerCharacter::TryEnterSlide()
-{
-    return false;
-}
-
-bool AMHPlayerCharacter::TryStartClimb()
-{
-    return false;
-}
-
-bool AMHPlayerCharacter::TryJumpOffLedge()
-{
-    return false;
-}
-
-void AMHPlayerCharacter::HandleLandingState()
-{
-}
 
 
 bool AMHPlayerCharacter::ApplyIncomingDamageSpec(

@@ -96,6 +96,10 @@ protected:
 	UPROPERTY(Transient)
 	FGameplayTag CurrentAttackTag;
 
+	/** 이번 공격에서 자원 반영을 이미 처리했는지 기록 */
+	UPROPERTY(Transient)
+	bool bResolvedConfirmedHitForCurrentAttack = false;
+
 protected:
 	UFUNCTION()
 	void OnWeaponBeginOverlap(
