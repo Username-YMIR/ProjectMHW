@@ -38,6 +38,7 @@ class UDataTable;
 class AMHWeaponInstance;
 struct FInputActionValue;
 struct FMHAttackDefinitionRow;
+struct FMHAttackMetaRow;
 
 UCLASS()
 class PROJECTMHW_API AMHPlayerCharacter : public AMHCharacterBase
@@ -215,6 +216,9 @@ public:
      */
     UAnimMontage* ResolveLongSwordMoveMontageOverride(const FGameplayTag& InMoveTag, UAnimMontage* InDefaultMontage) const;
 
+    float ResolveLongSwordDamageMultiplier(const FGameplayTag& InMoveTag) const;
+    void ApplyLongSwordAttackMeta(const FGameplayTag& InMoveTag);
+
 protected:
 // 동일 카테고리 오브젝트가 3개 이상이면 region으로 구분
 #pragma region Components
@@ -287,6 +291,35 @@ protected:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debug|Damage", meta = (AllowPrivateAccess = "true"))
     FGameplayTag DebugIncomingAttackTag;
+#pragma endregion
+
+#pragma region LongSwordCombat
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UDataTable> AttackMetaTable;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+    float MaxSpiritGauge = 100.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+    float CurrentSpiritGauge = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true", ClampMin = "0", ClampMax = "3"))
+    int32 CurrentSpiritLevel = 0;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+    float SpiritGaugeBuffDurationMultiplier = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+    float SpiritLevelMultiplierLv0 = 1.00f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+    float SpiritLevelMultiplierLv1 = 1.05f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+    float SpiritLevelMultiplierLv2 = 1.10f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+    float SpiritLevelMultiplierLv3 = 1.20f;
 #pragma endregion
 
 #pragma region GAS
@@ -434,6 +467,8 @@ private:
     bool IsAttackAllowedForForesightCounter(const FGameplayTag& InAttackTag) const;
     bool IsAttackAllowedForSpecialSheatheCounter(const FGameplayTag& InAttackTag) const;
     const FMHAttackDefinitionRow* FindAttackDefinitionRow(const FGameplayTag& InAttackTag) const;
+    const FMHAttackMetaRow* FindAttackMetaRow(const FGameplayTag& InMoveTag) const;
+    float GetCurrentSpiritDamageMultiplier() const;
     FMHHitAcknowledge BuildLongSwordInvulnerableHitAcknowledge() const;
 
     // 발도 상태에서 첫 시작 공격을 선택하는 문맥인지 확인한다.

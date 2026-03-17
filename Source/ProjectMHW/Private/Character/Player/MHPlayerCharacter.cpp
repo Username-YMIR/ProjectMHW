@@ -29,6 +29,7 @@
 #include "Combat/Attributes/MHResistanceAttributeSet.h"
 #include "Combat/Effects/MHGameplayEffect_Damage.h"
 #include "Combat/Effects/MHGameplayEffect_PlayerDamage.h"
+#include "Combat/Data/MHAttackMetaTypes.h"
 #include "GameplayEffect.h"
 #include "GameplayEffectTypes.h"
 #include "Combat/mh_attack_definition_library.h"
@@ -892,6 +893,109 @@ bool AMHPlayerCharacter::CanTriggerLongSwordSpecialSheatheSpiritCounter() const
 const FMHAttackDefinitionRow* AMHPlayerCharacter::FindAttackDefinitionRow(const FGameplayTag& InAttackTag) const
 {
     return UMHAttackDefinitionLibrary::FindAttackDefinitionRowPtr(AttackDefinitionTable, InAttackTag);
+}
+
+const FMHAttackMetaRow* AMHPlayerCharacter::FindAttackMetaRow(const FGameplayTag& InMoveTag) const
+{
+    if (!IsValid(AttackMetaTable) || !InMoveTag.IsValid())
+    {
+        return nullptr;
+    }
+
+    static const FString ContextString = TEXT("FindAttackMetaRow");
+    TArray<FMHAttackMetaRow*> AttackMetaRows;
+    AttackMetaTable->GetAllRows<FMHAttackMetaRow>(ContextString, AttackMetaRows);
+
+    for (const FMHAttackMetaRow* AttackMetaRow : AttackMetaRows)
+    {
+        if (AttackMetaRow && AttackMetaRow->MoveTag == InMoveTag)
+        {
+            return AttackMetaRow;
+        }
+    }
+
+    return nullptr;
+}
+
+float AMHPlayerCharacter::GetCurrentSpiritDamageMultiplier() const
+{
+    switch (FMath::Clamp(CurrentSpiritLevel, 0, 3))
+    {
+    case 1:
+        return SpiritLevelMultiplierLv1;
+    case 2:
+        return SpiritLevelMultiplierLv2;
+    case 3:
+        return SpiritLevelMultiplierLv3;
+    default:
+        return SpiritLevelMultiplierLv0;
+    }
+}
+
+float AMHPlayerCharacter::ResolveLongSwordDamageMultiplier(const FGameplayTag& InMoveTag) const
+{
+    const FMHAttackMetaRow* AttackMetaRow = FindAttackMetaRow(InMoveTag);
+    const float MetaDamageMultiplier = AttackMetaRow ? FMath::Max(0.0f, AttackMetaRow->DamageMultiplier) : 1.0f;
+    return MetaDamageMultiplier * GetCurrentSpiritDamageMultiplier();
+}
+
+void AMHPlayerCharacter::ApplyLongSwordAttackMeta(const FGameplayTag& InMoveTag)
+{
+    if (!InMoveTag.IsValid())
+    {
+        return;
+    }
+
+    const FMHAttackMetaRow* AttackMetaRow = FindAttackMetaRow(InMoveTag);
+    if (!AttackMetaRow)
+    {
+        return;
+    }
+
+    float GaugeConsume = FMath::Max(0.0f, AttackMetaRow->SpiritGaugeConsume);
+    const bool bHasCounterSuccess =
+        bLongSwordForesightCounterSuccess ||
+        bLongSwordSpecialSheatheSlashCounterSuccess ||
+        bLongSwordSpecialSheatheSpiritCounterSuccess;
+
+    if (GaugeConsume > 0.0f && bHasCounterSuccess)
+    {
+        GaugeConsume = 0.0f;
+    }
+
+    const float GaugeGain = FMath::Max(0.0f, AttackMetaRow->SpiritGaugeGain);
+    CurrentSpiritGauge = FMath::Clamp(CurrentSpiritGauge + GaugeGain - GaugeConsume, 0.0f, FMath::Max(0.0f, MaxSpiritGauge));
+
+    // 태도 규칙 1차: 기인큰회전베기 적중 시 코팅 증가(현재는 시작 시점 기준 적용)
+    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritRoundslash)
+    {
+        CurrentSpiritLevel = FMath::Clamp(CurrentSpiritLevel + 1, 0, 3);
+    }
+
+    // 태도 규칙 1차: 투구깨기 / 앉아발도기인베기는 코팅 소모
+    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker)
+    {
+        CurrentSpiritLevel = FMath::Clamp(CurrentSpiritLevel - 1, 0, 3);
+    }
+
+    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_IaiSpiritSlash)
+    {
+        if (!bLongSwordSpecialSheatheSpiritCounterSuccess)
+        {
+            CurrentSpiritLevel = FMath::Clamp(CurrentSpiritLevel - 1, 0, 3);
+        }
+    }
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Verbose,
+        TEXT("%s : Applied LongSword AttackMeta. Move=%s Gauge=%.2f/%0.2f Level=%d"),
+        *GetName(),
+        *InMoveTag.ToString(),
+        CurrentSpiritGauge,
+        MaxSpiritGauge,
+        CurrentSpiritLevel
+    );
 }
 
 bool AMHPlayerCharacter::IsAttackAllowedForForesightCounter(const FGameplayTag& InAttackTag) const

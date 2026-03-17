@@ -199,10 +199,14 @@ bool UMHGA_LongSwordCombo::BuildDamageSpecForNode(
     const float SourcePhysicalAttack = GetSourceAttributeMagnitude(SourcePhysicalAttackAttribute);
     const float SourceElementAttack = GetSourceAttributeMagnitude(SourceElementAttackAttribute);
 
-    // 현재는 InNode에 대미지 계수 필드가 없다고 가정하고 공통 배율만 적용
-    // 이후 노드에 DamageScale / ElementScale 필드가 생기면 여기서 곱해 확장
-    const float FinalPhysicalDamage = SourcePhysicalAttack * GlobalPhysicalScale;
-    const float FinalElementDamage = SourceElementAttack * GlobalElementScale;
+    float NodeDamageMultiplier = 1.0f;
+    if (CachedPlayer)
+    {
+        NodeDamageMultiplier = CachedPlayer->ResolveLongSwordDamageMultiplier(InNode.MoveTag);
+    }
+
+    const float FinalPhysicalDamage = SourcePhysicalAttack * GlobalPhysicalScale * NodeDamageMultiplier;
+    const float FinalElementDamage = SourceElementAttack * GlobalElementScale * NodeDamageMultiplier;
 
     if (PhysicalDamageDataTag.IsValid())
     {
@@ -221,10 +225,11 @@ bool UMHGA_LongSwordCombo::BuildDamageSpecForNode(
     UE_LOG(
         LogMHGALSCombo,
         Verbose,
-        TEXT("DamageSpec built. Move=%s Physical=%.2f Element=%.2f"),
+        TEXT("DamageSpec built. Move=%s Physical=%.2f Element=%.2f NodeMultiplier=%.2f"),
         *InNode.MoveTag.ToString(),
         FinalPhysicalDamage,
-        FinalElementDamage
+        FinalElementDamage,
+        NodeDamageMultiplier
     );
 
     return true;
@@ -308,6 +313,8 @@ bool UMHGA_LongSwordCombo::PlayResolvedNode(const FMHLongSwordComboNode& InNode,
     bHasActiveNode = true;
     bIgnoreMontageCallbacks = false;
     
+    CachedPlayer->ApplyLongSwordAttackMeta(InNode.MoveTag);
+
     // 현재 콤보 노드 기준 공격 Spec을 무기 인스턴스에 전달_이건주
     PushDamageSpecToWeapon(InNode);
 
