@@ -14,6 +14,8 @@ class PROJECTMHW_API AMHItemInstanceBase : public AActor
 public:
 	// Sets default values for this actor's properties
 	AMHItemInstanceBase();
-
+protected:
+	UPROPERTY()
+	FName ItemDataKeyName = FName("");
 
 };
