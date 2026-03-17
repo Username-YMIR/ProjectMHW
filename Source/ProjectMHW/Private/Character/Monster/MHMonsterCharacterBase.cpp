@@ -176,6 +176,9 @@ void AMHMonsterCharacterBase::HandleDamageAccepted(
 	// 피격 SFX
 	PlayHitSoundByAttackTag(AttackTag, HitResult);
 
+    // 대미지 텍스트 UI 스폰
+    
+    
 	// 이후 확장 예시
 	// - 피격 리액션 재생
 	// - AI에게 공격자 전달
