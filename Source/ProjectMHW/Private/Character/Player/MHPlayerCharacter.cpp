@@ -27,6 +27,10 @@
 #include "Combat/Attributes/MHHealthAttributeSet.h"
 #include "Combat/Attributes/MHPlayerAttributeSet.h"
 #include "Combat/Attributes/MHResistanceAttributeSet.h"
+#include "Combat/Effects/MHGameplayEffect_Damage.h"
+#include "Combat/mh_attack_definition_library.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "InputCoreTypes.h"
 
 DEFINE_LOG_CATEGORY(LogMHPlayerCharacter);
 
@@ -45,6 +49,16 @@ namespace
         const FVector ForwardDirection = FRotationMatrix(ControlRotation).GetUnitAxis(EAxis::X);
         const FVector RightDirection = FRotationMatrix(ControlRotation).GetUnitAxis(EAxis::Y);
         return (ForwardDirection * InMoveInput.Y + RightDirection * InMoveInput.X).GetSafeNormal();
+    }
+
+    static FMHHitAcknowledge BuildLongSwordCounterAcknowledge()
+    {
+        FMHHitAcknowledge Result;
+        Result.bAcceptedHit = true;
+        Result.bConsumeHitOnce = true;
+        Result.bShouldStopAttackWindow = false;
+        Result.ResultType = EMHHitResultType::Invulnerable;
+        return Result;
     }
 }
 
@@ -96,6 +110,8 @@ AMHPlayerCharacter::AMHPlayerCharacter()
     CombatAttributeSet = CreateDefaultSubobject<UMHCombatAttributeSet>(TEXT("CombatAttributeSet"));
     ResistanceAttributeSet = CreateDefaultSubobject<UMHResistanceAttributeSet>(TEXT("ResistanceAttributeSet"));
     PlayerAttributeSet = CreateDefaultSubobject<UMHPlayerAttributeSet>(TEXT("PlayerAttributeSet"));
+
+    DebugDamageEffectClass = UMHGameplayEffect_Damage::StaticClass();
 }
 
 void AMHPlayerCharacter::BeginPlay()
@@ -339,6 +355,85 @@ void AMHPlayerCharacter::Input_Interact(const FInputActionValue& InputActionValu
     Interact();
 }
 
+void AMHPlayerCharacter::Input_DebugSelfDamage()
+{
+    ApplyDebugDamageToSelf();
+}
+
+void AMHPlayerCharacter::ApplyDebugDamageToSelf()
+{
+    ApplyDebugDamageFromSource(this, DebugIncomingPhysicalDamage, DebugIncomingAttackTag);
+}
+
+void AMHPlayerCharacter::ApplyDebugDamageFromSource(AActor* InSourceActor, float InPhysicalDamage)
+{
+    ApplyDebugDamageFromSource(InSourceActor, InPhysicalDamage, DebugIncomingAttackTag);
+}
+
+void AMHPlayerCharacter::ApplyDebugDamageFromSource(AActor* InSourceActor, float InPhysicalDamage, const FGameplayTag& InAttackTag)
+{
+    if (!AbilitySystemComponent)
+    {
+        UE_LOG(LogMHPlayerCharacter, Warning, TEXT("%s : Debug damage skipped. AbilitySystemComponent is null."), *GetName());
+        return;
+    }
+
+    UAbilitySystemComponent* SourceASC = nullptr;
+    if (IsValid(InSourceActor))
+    {
+        SourceASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(InSourceActor);
+    }
+
+    if (!SourceASC)
+    {
+        SourceASC = AbilitySystemComponent;
+    }
+
+    if (!DebugDamageEffectClass)
+    {
+        UE_LOG(LogMHPlayerCharacter, Warning, TEXT("%s : Debug damage skipped. DebugDamageEffectClass is null."), *GetName());
+        return;
+    }
+
+    FGameplayEffectContextHandle EffectContext = SourceASC->MakeEffectContext();
+    EffectContext.AddSourceObject(IsValid(InSourceActor) ? InSourceActor : this);
+
+    FGameplayEffectSpecHandle SpecHandle = SourceASC->MakeOutgoingSpec(DebugDamageEffectClass, 1.0f, EffectContext);
+    if (!SpecHandle.IsValid() || !SpecHandle.Data.IsValid())
+    {
+        UE_LOG(LogMHPlayerCharacter, Warning, TEXT("%s : Debug damage spec creation failed."), *GetName());
+        return;
+    }
+
+    const float PhysicalDamage = FMath::Max(0.0f, InPhysicalDamage);
+    SpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Physical, PhysicalDamage);
+    SpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Fire, 0.0f);
+    SpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Water, 0.0f);
+    SpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Thunder, 0.0f);
+    SpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Ice, 0.0f);
+    SpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Dragon, 0.0f);
+
+    const FMHHitAcknowledge HitAcknowledge = ReceiveDamageSpec_Implementation(
+        IsValid(InSourceActor) ? InSourceActor : this,
+        nullptr,
+        InAttackTag,
+        SpecHandle,
+        FHitResult()
+    );
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Log,
+        TEXT("%s : Debug self damage requested. Source=%s Physical=%.2f AttackTag=%s Accepted=%s ResultType=%d"),
+        *GetName(),
+        *GetNameSafe(InSourceActor),
+        PhysicalDamage,
+        InAttackTag.IsValid() ? *InAttackTag.ToString() : TEXT("None"),
+        HitAcknowledge.bAcceptedHit ? TEXT("true") : TEXT("false"),
+        static_cast<int32>(HitAcknowledge.ResultType)
+    );
+}
+
 void AMHPlayerCharacter::Input_AttackPrimary(const FInputActionValue& InputActionValue)
 {
     bAttackPrimaryHeld = true;
@@ -484,6 +579,111 @@ void AMHPlayerCharacter::Notify_LongSwordForesightCounterSuccess()
 void AMHPlayerCharacter::ClearLongSwordForesightCounterSuccess()
 {
     bLongSwordForesightCounterSuccess = false;
+}
+
+void AMHPlayerCharacter::Notify_LongSwordSpecialSheatheSlashCounterSuccess()
+{
+    bLongSwordSpecialSheatheSlashCounterSuccess = true;
+}
+
+void AMHPlayerCharacter::ClearLongSwordSpecialSheatheSlashCounterSuccess()
+{
+    bLongSwordSpecialSheatheSlashCounterSuccess = false;
+}
+
+void AMHPlayerCharacter::Notify_LongSwordSpecialSheatheSpiritCounterSuccess()
+{
+    bLongSwordSpecialSheatheSpiritCounterSuccess = true;
+}
+
+void AMHPlayerCharacter::ClearLongSwordSpecialSheatheSpiritCounterSuccess()
+{
+    bLongSwordSpecialSheatheSpiritCounterSuccess = false;
+}
+
+void AMHPlayerCharacter::Notify_BeginLongSwordCounterWindow(const EMHLongSwordCounterWindowType InCounterWindowType)
+{
+    ActiveLongSwordCounterWindowType = InCounterWindowType;
+
+    switch (InCounterWindowType)
+    {
+    case EMHLongSwordCounterWindowType::Foresight:
+        ClearLongSwordForesightCounterSuccess();
+        break;
+    case EMHLongSwordCounterWindowType::SpecialSheatheSlash:
+        ClearLongSwordSpecialSheatheSlashCounterSuccess();
+        break;
+    case EMHLongSwordCounterWindowType::SpecialSheatheSpirit:
+        ClearLongSwordSpecialSheatheSpiritCounterSuccess();
+        break;
+    default:
+        break;
+    }
+}
+
+void AMHPlayerCharacter::Notify_EndLongSwordCounterWindow(const EMHLongSwordCounterWindowType InCounterWindowType)
+{
+    if (ActiveLongSwordCounterWindowType == InCounterWindowType)
+    {
+        ActiveLongSwordCounterWindowType = EMHLongSwordCounterWindowType::None;
+    }
+}
+
+FMHHitAcknowledge AMHPlayerCharacter::ReceiveDamageSpec_Implementation(
+    AActor* SourceActor,
+    AActor* SourceWeapon,
+    FGameplayTag AttackTag,
+    const FGameplayEffectSpecHandle& DamageSpecHandle,
+    const FHitResult& HitResult)
+{
+    if (!ValidateDamageSpec(DamageSpecHandle))
+    {
+        HandleDamageRejected(SourceActor, SourceWeapon, AttackTag, HitResult);
+        return BuildRejectedHitAcknowledge();
+    }
+
+    ClearExpiredLongSwordDamageIgnoreState();
+
+    if (bIgnoreDamageUntilCurrentActionEnd)
+    {
+        UE_LOG(LogMHPlayerCharacter, Verbose, TEXT("%s : Ignore incoming damage until current action ends. MoveTag=%s"),
+            *GetName(),
+            *DamageIgnoreUntilCurrentMoveTag.ToString());
+        return BuildLongSwordInvulnerableHitAcknowledge();
+    }
+
+    if (CanTriggerLongSwordForesightCounter() && IsAttackAllowedForForesightCounter(AttackTag))
+    {
+        Notify_LongSwordForesightCounterSuccess();
+        UE_LOG(LogMHPlayerCharacter, Log, TEXT("%s : Foresight counter success. AttackTag=%s"), *GetName(), *AttackTag.ToString());
+        return BuildLongSwordInvulnerableHitAcknowledge();
+    }
+
+    if (CanTriggerLongSwordSpecialSheatheSlashCounter() && IsAttackAllowedForSpecialSheatheCounter(AttackTag))
+    {
+        Notify_LongSwordSpecialSheatheSlashCounterSuccess();
+        bIgnoreDamageUntilCurrentActionEnd = true;
+        DamageIgnoreUntilCurrentMoveTag = GetCurrentLongSwordMoveTag();
+        UE_LOG(LogMHPlayerCharacter, Log, TEXT("%s : Special sheathe slash counter success. AttackTag=%s MoveTag=%s"),
+            *GetName(),
+            *AttackTag.ToString(),
+            *DamageIgnoreUntilCurrentMoveTag.ToString());
+        return BuildLongSwordInvulnerableHitAcknowledge();
+    }
+
+    if (CanTriggerLongSwordSpecialSheatheSpiritCounter() && IsAttackAllowedForSpecialSheatheCounter(AttackTag))
+    {
+        Notify_LongSwordSpecialSheatheSpiritCounterSuccess();
+        bIgnoreDamageUntilCurrentActionEnd = true;
+        DamageIgnoreUntilCurrentMoveTag = GetCurrentLongSwordMoveTag();
+        UE_LOG(LogMHPlayerCharacter, Log, TEXT("%s : Special sheathe spirit counter success. AttackTag=%s MoveTag=%s"),
+            *GetName(),
+            *AttackTag.ToString(),
+            *DamageIgnoreUntilCurrentMoveTag.ToString());
+        return BuildLongSwordInvulnerableHitAcknowledge();
+    }
+
+    return Super::ReceiveDamageSpec_Implementation(SourceActor, SourceWeapon, AttackTag, DamageSpecHandle, HitResult);
 }
 
 bool AMHPlayerCharacter::TryStartAutoSheatheAfterLongSwordMove(const FGameplayTag& CompletedMoveTag)
@@ -635,6 +835,86 @@ bool AMHPlayerCharacter::CanResolveLongSwordFollowupDuringUnsheathing() const
 
     const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent();
     return ComboComp && ComboComp->IsComboActive();
+}
+
+FGameplayTag AMHPlayerCharacter::GetCurrentLongSwordMoveTag() const
+{
+    if (const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
+    {
+        if (const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
+        {
+            return ComboComp->GetCurrentMoveTag();
+        }
+    }
+
+    return FGameplayTag();
+}
+
+void AMHPlayerCharacter::ClearExpiredLongSwordDamageIgnoreState()
+{
+    if (!bIgnoreDamageUntilCurrentActionEnd)
+    {
+        return;
+    }
+
+    const FGameplayTag CurrentMoveTag = GetCurrentLongSwordMoveTag();
+    if (CurrentMoveTag.IsValid() && CurrentMoveTag == DamageIgnoreUntilCurrentMoveTag)
+    {
+        return;
+    }
+
+    bIgnoreDamageUntilCurrentActionEnd = false;
+    DamageIgnoreUntilCurrentMoveTag = FGameplayTag();
+}
+
+bool AMHPlayerCharacter::CanTriggerLongSwordForesightCounter() const
+{
+    return ActiveLongSwordCounterWindowType == EMHLongSwordCounterWindowType::Foresight
+        && GetCurrentLongSwordMoveTag() == MHLongSwordGameplayTags::Move_LS_ForesightSlash;
+}
+
+bool AMHPlayerCharacter::CanTriggerLongSwordSpecialSheatheSlashCounter() const
+{
+    return ActiveLongSwordCounterWindowType == EMHLongSwordCounterWindowType::SpecialSheatheSlash
+        && GetCurrentLongSwordMoveTag() == MHLongSwordGameplayTags::Move_LS_IaiSlash;
+}
+
+bool AMHPlayerCharacter::CanTriggerLongSwordSpecialSheatheSpiritCounter() const
+{
+    return ActiveLongSwordCounterWindowType == EMHLongSwordCounterWindowType::SpecialSheatheSpirit
+        && GetCurrentLongSwordMoveTag() == MHLongSwordGameplayTags::Move_LS_IaiSpiritSlash;
+}
+
+const FMHAttackDefinitionRow* AMHPlayerCharacter::FindAttackDefinitionRow(const FGameplayTag& InAttackTag) const
+{
+    return UMHAttackDefinitionLibrary::FindAttackDefinitionRowPtr(AttackDefinitionTable, InAttackTag);
+}
+
+bool AMHPlayerCharacter::IsAttackAllowedForForesightCounter(const FGameplayTag& InAttackTag) const
+{
+    const FMHAttackDefinitionRow* AttackDefinitionRow = FindAttackDefinitionRow(InAttackTag);
+    if (!AttackDefinitionRow)
+    {
+        return true;
+    }
+
+    return AttackDefinitionRow->bCanBeForesightCountered;
+}
+
+bool AMHPlayerCharacter::IsAttackAllowedForSpecialSheatheCounter(const FGameplayTag& InAttackTag) const
+{
+    const FMHAttackDefinitionRow* AttackDefinitionRow = FindAttackDefinitionRow(InAttackTag);
+    if (!AttackDefinitionRow)
+    {
+        return true;
+    }
+
+    return AttackDefinitionRow->bCanBeSpecialSheatheCountered;
+}
+
+FMHHitAcknowledge AMHPlayerCharacter::BuildLongSwordInvulnerableHitAcknowledge() const
+{
+    return BuildLongSwordCounterAcknowledge();
 }
 
 FVector2D AMHPlayerCharacter::GetPreferredMoveInput2D() const

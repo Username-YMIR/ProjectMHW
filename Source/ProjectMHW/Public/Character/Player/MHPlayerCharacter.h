@@ -12,6 +12,15 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMHPlayerCharacter, Log, All);
 
+UENUM(BlueprintType)
+enum class EMHLongSwordCounterWindowType : uint8
+{
+    None                    UMETA(DisplayName = "None"),
+    Foresight               UMETA(DisplayName = "Foresight"),
+    SpecialSheatheSlash     UMETA(DisplayName = "SpecialSheatheSlash"),
+    SpecialSheatheSpirit    UMETA(DisplayName = "SpecialSheatheSpirit")
+};
+
 class UMHHealthAttributeSet;
 class UMHCombatAttributeSet;
 class UMHResistanceAttributeSet;
@@ -24,8 +33,11 @@ class USkeletalMeshComponent;
 class USkeletalMesh;
 class UAnimInstance;
 class UAnimMontage;
+class UGameplayEffect;
+class UDataTable;
 class AMHWeaponInstance;
 struct FInputActionValue;
+struct FMHAttackDefinitionRow;
 
 UCLASS()
 class PROJECTMHW_API AMHPlayerCharacter : public AMHCharacterBase
@@ -77,6 +89,9 @@ protected:
     // 무기 특수 입력
     void Input_WeaponSpecial(const FInputActionValue& InputActionValue); //손승우 추가
 
+    // 디버그 자기 대미지 입력(키보드 1)
+    void Input_DebugSelfDamage();
+
     void Input_AttackPrimaryCompleted(const FInputActionValue& InputActionValue);
     void Input_AttackSecondaryCompleted(const FInputActionValue& InputActionValue);
     void Input_WeaponSpecialCompleted(const FInputActionValue& InputActionValue);
@@ -99,6 +114,14 @@ public:
     // 기본 공격
     UFUNCTION(BlueprintCallable, Category = "Player")
     virtual void UsePrimaryAction();
+
+    UFUNCTION(BlueprintCallable, Category = "Debug|Damage")
+    void ApplyDebugDamageToSelf();
+
+    void ApplyDebugDamageFromSource(AActor* InSourceActor, float InPhysicalDamage);
+
+    UFUNCTION(BlueprintCallable, Category = "Debug|Damage")
+    void ApplyDebugDamageFromSource(AActor* InSourceActor, float InPhysicalDamage, const FGameplayTag& InAttackTag);
 
     // 콤보 몽타주 종료 시 납도/발도 상태 확정
     void HandleComboMontageStateTransition(bool bInterrupted); //손승우 추가
@@ -138,6 +161,38 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Combo")
     bool HasLongSwordForesightCounterSuccess() const { return bLongSwordForesightCounterSuccess; }
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_LongSwordSpecialSheatheSlashCounterSuccess();
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void ClearLongSwordSpecialSheatheSlashCounterSuccess();
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    bool HasLongSwordSpecialSheatheSlashCounterSuccess() const { return bLongSwordSpecialSheatheSlashCounterSuccess; }
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_LongSwordSpecialSheatheSpiritCounterSuccess();
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void ClearLongSwordSpecialSheatheSpiritCounterSuccess();
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    bool HasLongSwordSpecialSheatheSpiritCounterSuccess() const { return bLongSwordSpecialSheatheSpiritCounterSuccess; }
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_BeginLongSwordCounterWindow(EMHLongSwordCounterWindowType InCounterWindowType);
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_EndLongSwordCounterWindow(EMHLongSwordCounterWindowType InCounterWindowType);
+
+    virtual FMHHitAcknowledge ReceiveDamageSpec_Implementation(
+        AActor* SourceActor,
+        AActor* SourceWeapon,
+        FGameplayTag AttackTag,
+        const FGameplayEffectSpecHandle& DamageSpecHandle,
+        const FHitResult& HitResult
+    ) override;
 
     bool TryStartAutoSheatheAfterLongSwordMove(const FGameplayTag& CompletedMoveTag);
 
@@ -204,8 +259,21 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
     TSoftObjectPtr<UAnimMontage> SheathedRollMontage; // 납도 구르기 몽타주(루트모션)
     // ===== End Weapon =====
-    
-    
+
+#pragma region Debug
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug|Damage", meta = (AllowPrivateAccess = "true"))
+    TSubclassOf<UGameplayEffect> DebugDamageEffectClass;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug|Damage", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UDataTable> AttackDefinitionTable;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debug|Damage", meta = (AllowPrivateAccess = "true"))
+    float DebugIncomingPhysicalDamage = 10.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debug|Damage", meta = (AllowPrivateAccess = "true"))
+    FGameplayTag DebugIncomingAttackTag;
+#pragma endregion
+
 #pragma region GAS
     // GAS
     // 플레이어 어트리뷰트 셋 _이건주
@@ -252,7 +320,14 @@ private:
     bool bAttackSecondaryHeld = false;
     bool bWeaponSpecialHeld = false;
     bool bDodgeHeld = false;
+
     bool bLongSwordForesightCounterSuccess = false;
+    bool bLongSwordSpecialSheatheSlashCounterSuccess = false;
+    bool bLongSwordSpecialSheatheSpiritCounterSuccess = false;
+    bool bIgnoreDamageUntilCurrentActionEnd = false;
+
+    EMHLongSwordCounterWindowType ActiveLongSwordCounterWindowType = EMHLongSwordCounterWindowType::None;
+    FGameplayTag DamageIgnoreUntilCurrentMoveTag;
 
     /** 현재 프레임 이동 입력 값 */
     FVector2D CachedMoveInput2D = FVector2D::ZeroVector;
@@ -335,6 +410,16 @@ private:
     bool IsStandingStillForCombat() const;
     bool IsInLongSwordSpecialSheatheState() const;
     bool CanResolveLongSwordFollowupDuringUnsheathing() const;
+
+    FGameplayTag GetCurrentLongSwordMoveTag() const;
+    void ClearExpiredLongSwordDamageIgnoreState();
+    bool CanTriggerLongSwordForesightCounter() const;
+    bool CanTriggerLongSwordSpecialSheatheSlashCounter() const;
+    bool CanTriggerLongSwordSpecialSheatheSpiritCounter() const;
+    bool IsAttackAllowedForForesightCounter(const FGameplayTag& InAttackTag) const;
+    bool IsAttackAllowedForSpecialSheatheCounter(const FGameplayTag& InAttackTag) const;
+    const FMHAttackDefinitionRow* FindAttackDefinitionRow(const FGameplayTag& InAttackTag) const;
+    FMHHitAcknowledge BuildLongSwordInvulnerableHitAcknowledge() const;
 
     // 발도 상태에서 첫 시작 공격을 선택하는 문맥인지 확인한다.
     bool IsLongSwordStartAttackContext() const;

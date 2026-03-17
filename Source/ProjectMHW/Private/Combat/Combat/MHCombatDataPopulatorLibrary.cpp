@@ -3,10 +3,11 @@
 #include "Combat/Data/MHAttackMetaTypes.h"
 #include "Combat/Input/DataAsset_LSInputPatternSet.h"
 #include "Combat/Input/MHCombatInputTypes.h"
+#include "Combat/mh_attack_definition_types.h"
 #include "Engine/DataTable.h"
 #include "GameplayTagsManager.h"
 
-// 손승우 추가: 태도 입력 패턴 DA / 공격 메타 DT 자동 채우기 구현
+// 손승우 추가: 태도 입력 패턴 DA / 공격 메타 DT / 공격 정의 DT 자동 채우기 구현
 
 namespace MHCombatDataPopulatorLibrary_Private
 {
@@ -50,9 +51,9 @@ namespace MHCombatDataPopulatorLibrary_Private
 		return PatternDefinition;
 	}
 
-	static FName MakeRowNameFromTag(const TCHAR* InMoveTag)
+	static FName MakeRowNameFromTag(const TCHAR* InTagName)
 	{
-		FString RowNameString(InMoveTag);
+		FString RowNameString(InTagName);
 		RowNameString.ReplaceInline(TEXT("."), TEXT("_"));
 		return FName(*RowNameString);
 	}
@@ -81,6 +82,39 @@ namespace MHCombatDataPopulatorLibrary_Private
 
 		InAttackMetaTable->AddRow(MakeRowNameFromTag(InMoveTag), AttackMetaRow);
 	}
+
+	static void AddAttackDefinitionRow(
+		UDataTable* InAttackDefinitionTable,
+		const TCHAR* InAttackTag,
+		TSubclassOf<UGameplayEffect> InDamageEffectClass,
+		float InPhysicalScale,
+		float InFireScale,
+		float InWaterScale,
+		float InThunderScale,
+		float InIceScale,
+		float InDragonScale,
+		bool bInCanBeForesightCountered,
+		bool bInCanBeSpecialSheatheCountered)
+	{
+		if (!IsValid(InAttackDefinitionTable))
+		{
+			return;
+		}
+
+		FMHAttackDefinitionRow AttackDefinitionRow;
+		AttackDefinitionRow.AttackTag = RequestTagChecked(InAttackTag);
+		AttackDefinitionRow.DamageEffectClass = InDamageEffectClass;
+		AttackDefinitionRow.PhysicalScale = InPhysicalScale;
+		AttackDefinitionRow.FireScale = InFireScale;
+		AttackDefinitionRow.WaterScale = InWaterScale;
+		AttackDefinitionRow.ThunderScale = InThunderScale;
+		AttackDefinitionRow.IceScale = InIceScale;
+		AttackDefinitionRow.DragonScale = InDragonScale;
+		AttackDefinitionRow.bCanBeForesightCountered = bInCanBeForesightCountered;
+		AttackDefinitionRow.bCanBeSpecialSheatheCountered = bInCanBeSpecialSheatheCountered;
+
+		InAttackDefinitionTable->AddRow(MakeRowNameFromTag(InAttackTag), AttackDefinitionRow);
+	}
 }
 
 bool UMHCombatDataPopulatorLibrary::PopulateLongSwordInputPatternSet(UObject* InputPatternAsset)
@@ -102,18 +136,12 @@ bool UMHCombatDataPopulatorLibrary::PopulateLongSwordInputPatternSet(UObject* In
 	// ===== End Draw =====
 
 	// ===== Unsheathed =====
-	// 좌클릭은 현재 콤보 문맥에 따라 실제 일반 공격 패턴으로 해석된다.
-	// 시작 공격 / 파생 공격에서 좌클릭이 어떤 기술이 되는지는 Player 입력 해석과 ComboGraph가 함께 결정한다.
 	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.AdvancingSlash"), TEXT("LS Advancing Slash"), { EMHCombatInputButton::LMB }, 40, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
 	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.VerticalSlash"), TEXT("LS Vertical Slash"), { EMHCombatInputButton::LMB }, 41, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
 	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.RisingSlash"), TEXT("LS Rising Slash"), { EMHCombatInputButton::LMB }, 42, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
 	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.Thrust"), TEXT("LS Thrust"), { EMHCombatInputButton::RMB }, 50, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
 	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.Spirit"), TEXT("LS Spirit"), { EMHCombatInputButton::Mouse4 }, 60, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
-
-	// 실제 입력 키 txt 기준으로 4번/5번은 서로 치환해서 읽는다.
-	// 따라서 베어내리기 계열의 실제 단축 입력은 Mouse5다.
 	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.FadeSlash"), TEXT("LS Fade Slash"), { EMHCombatInputButton::Mouse5 }, 70, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
-	// 좌우이동베기는 시작 공격이 아니라 후속 파생에서만 허용되는 패턴이다.
 	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.LateralFadeSlash"), TEXT("LS Lateral Fade Slash"), { EMHCombatInputButton::Mouse5 }, 71, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, true, true));
 	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.SpiritThrust"), TEXT("LS Spirit Thrust"), { EMHCombatInputButton::Mouse4, EMHCombatInputButton::LMB }, 80, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true, true));
 	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.ForesightSlash"), TEXT("LS Foresight Slash"), { EMHCombatInputButton::Mouse4, EMHCombatInputButton::RMB }, 90, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true, true));
@@ -176,9 +204,73 @@ bool UMHCombatDataPopulatorLibrary::PopulateLongSwordAttackMetaTable(UObject* At
 	return true;
 }
 
+bool UMHCombatDataPopulatorLibrary::PopulateLongSwordAttackDefinitionTable(UObject* AttackDefinitionTableAsset, TSubclassOf<UGameplayEffect> DefaultDamageEffectClass)
+{
+	UDataTable* AttackDefinitionTable = Cast<UDataTable>(AttackDefinitionTableAsset);
+	if (!IsValid(AttackDefinitionTable))
+	{
+		return false;
+	}
+
+	if (AttackDefinitionTable->GetRowStruct() != FMHAttackDefinitionRow::StaticStruct())
+	{
+		return false;
+	}
+
+	using namespace MHCombatDataPopulatorLibrary_Private;
+
+	AttackDefinitionTable->EmptyTable();
+
+	// ===== LongSword Player Attacks =====
+	// 현재 프로젝트는 MoveTag를 사실상 공격 식별자로 사용 중이므로 1차 자동 채움은 MoveTag 기반으로 맞춘다.
+	// 추후 Attack.LongSword.* 태그로 분리하더라도 이 함수만 수정하면 된다.
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.DrawOnly"), DefaultDamageEffectClass, 0.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.DrawAdvancingSlash"), DefaultDamageEffectClass, 1.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.DrawSpiritSlash1"), DefaultDamageEffectClass, 1.05f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.AdvancingSlash"), DefaultDamageEffectClass, 1.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.VerticalSlash"), DefaultDamageEffectClass, 1.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.Thrust"), DefaultDamageEffectClass, 0.95f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.RisingSlash"), DefaultDamageEffectClass, 1.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.FadeSlash"), DefaultDamageEffectClass, 0.95f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.LateralFadeSlash"), DefaultDamageEffectClass, 1.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.SpiritSlash1"), DefaultDamageEffectClass, 1.05f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.SpiritSlash2"), DefaultDamageEffectClass, 1.10f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.SpiritSlash3"), DefaultDamageEffectClass, 1.15f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.SpiritRoundslash"), DefaultDamageEffectClass, 1.25f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.SpiritAdvancingSlash"), DefaultDamageEffectClass, 1.10f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.SpiritThrust"), DefaultDamageEffectClass, 1.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.SpiritHelmbreaker"), DefaultDamageEffectClass, 2.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.SpecialSheathe"), DefaultDamageEffectClass, 0.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.IaiSlash"), DefaultDamageEffectClass, 1.30f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.IaiSpiritSlash"), DefaultDamageEffectClass, 1.60f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Move.LS.ForesightSlash"), DefaultDamageEffectClass, 0.95f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+
+	// ===== Debug / Test Incoming Attacks =====
+	// 플레이어 카운터 테스트용 기본 Row
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Attack.Debug.Generic"), DefaultDamageEffectClass, 1.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, true, true);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Attack.Debug.Counterable"), DefaultDamageEffectClass, 1.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, true, true);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Attack.Debug.Uncounterable"), DefaultDamageEffectClass, 1.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Attack.Monster.Test.Counterable"), DefaultDamageEffectClass, 1.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, true, true);
+	AddAttackDefinitionRow(AttackDefinitionTable, TEXT("Attack.Monster.Test.Uncounterable"), DefaultDamageEffectClass, 1.00f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, false, false);
+
+	AttackDefinitionTable->MarkPackageDirty();
+	return true;
+}
+
 bool UMHCombatDataPopulatorLibrary::PopulateLongSwordCombatData(UObject* InputPatternAsset, UObject* AttackMetaTableAsset)
 {
 	const bool bInputPatternResult = PopulateLongSwordInputPatternSet(InputPatternAsset);
 	const bool bAttackMetaResult = PopulateLongSwordAttackMetaTable(AttackMetaTableAsset);
 	return bInputPatternResult && bAttackMetaResult;
+}
+
+bool UMHCombatDataPopulatorLibrary::PopulateLongSwordCombatDataExtended(UObject* InputPatternAsset, UObject* AttackMetaTableAsset, UObject* AttackDefinitionTableAsset, TSubclassOf<UGameplayEffect> DefaultDamageEffectClass)
+{
+	const bool bInputPatternResult = PopulateLongSwordInputPatternSet(InputPatternAsset);
+	const bool bAttackMetaResult = PopulateLongSwordAttackMetaTable(AttackMetaTableAsset);
+	const bool bAttackDefinitionResult = PopulateLongSwordAttackDefinitionTable(AttackDefinitionTableAsset, DefaultDamageEffectClass);
+	return bInputPatternResult && bAttackMetaResult && bAttackDefinitionResult;
 }
