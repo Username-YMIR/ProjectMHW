@@ -111,6 +111,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Player")
     virtual void Interact();
 
+protected:
+    /** 플레이어는 공통 DamageSpec을 직접 적용하지 않고, 플레이어 전용 Damage GE로 재구성해 적용한다. */
+    virtual bool ApplyIncomingDamageSpec(
+        const FGameplayEffectSpecHandle& DamageSpecHandle
+    ) override;
+
+    /** 전달받은 DamageSpec을 플레이어 전용 Damage GE Spec으로 변환해 적용한다. */
+    bool ApplyIncomingPlayerDamageSpec(
+        const FGameplayEffectSpec& IncomingSpec
+    );
+
+public:
     // 기본 공격
     UFUNCTION(BlueprintCallable, Category = "Player")
     virtual void UsePrimaryAction();
@@ -259,6 +271,9 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
     TSoftObjectPtr<UAnimMontage> SheathedRollMontage; // 납도 구르기 몽타주(루트모션)
     // ===== End Weapon =====
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+    TSubclassOf<UGameplayEffect> PlayerIncomingDamageEffectClass;
 
 #pragma region Debug
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug|Damage", meta = (AllowPrivateAccess = "true"))
