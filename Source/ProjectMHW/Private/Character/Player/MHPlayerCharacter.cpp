@@ -28,6 +28,9 @@
 #include "Combat/Attributes/MHPlayerAttributeSet.h"
 #include "Combat/Attributes/MHResistanceAttributeSet.h"
 #include "Combat/Effects/MHGameplayEffect_Damage.h"
+#include "Combat/Effects/MHGameplayEffect_PlayerDamage.h"
+#include "GameplayEffect.h"
+#include "GameplayEffectTypes.h"
 #include "Combat/mh_attack_definition_library.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "InputCoreTypes.h"
@@ -112,6 +115,7 @@ AMHPlayerCharacter::AMHPlayerCharacter()
     PlayerAttributeSet = CreateDefaultSubobject<UMHPlayerAttributeSet>(TEXT("PlayerAttributeSet"));
 
     DebugDamageEffectClass = UMHGameplayEffect_Damage::StaticClass();
+    PlayerIncomingDamageEffectClass = UMHGameplayEffect_PlayerDamage::StaticClass();
 }
 
 void AMHPlayerCharacter::BeginPlay()
@@ -1990,4 +1994,83 @@ bool AMHPlayerCharacter::TryJumpOffLedge()
 
 void AMHPlayerCharacter::HandleLandingState()
 {
+}
+
+
+bool AMHPlayerCharacter::ApplyIncomingDamageSpec(
+    const FGameplayEffectSpecHandle& DamageSpecHandle
+)
+{
+    if (!DamageSpecHandle.IsValid() || !DamageSpecHandle.Data.IsValid())
+    {
+        return false;
+    }
+
+    return ApplyIncomingPlayerDamageSpec(*DamageSpecHandle.Data.Get());
+}
+
+bool AMHPlayerCharacter::ApplyIncomingPlayerDamageSpec(
+    const FGameplayEffectSpec& IncomingSpec
+)
+{
+    UAbilitySystemComponent* TargetASC = GetCharacterASC();
+    if (!IsValid(TargetASC))
+    {
+        return false;
+    }
+
+    TSubclassOf<UGameplayEffect> DamageGEClass = PlayerIncomingDamageEffectClass;
+    if (!DamageGEClass)
+    {
+        DamageGEClass = UMHGameplayEffect_PlayerDamage::StaticClass();
+    }
+
+    if (!DamageGEClass)
+    {
+        return false;
+    }
+
+    FGameplayEffectContextHandle EffectContext = IncomingSpec.GetContext();
+    if (!EffectContext.IsValid())
+    {
+        EffectContext = TargetASC->MakeEffectContext();
+        EffectContext.AddInstigator(this, this);
+    }
+
+    const FGameplayEffectSpecHandle PlayerDamageSpecHandle =
+        TargetASC->MakeOutgoingSpec(DamageGEClass, IncomingSpec.GetLevel(), EffectContext);
+
+    if (!PlayerDamageSpecHandle.IsValid() || !PlayerDamageSpecHandle.Data.IsValid())
+    {
+        return false;
+    }
+
+    static const FGameplayTag DamageTags[] =
+    {
+        MHGameplayTags::Data_Damage_Physical,
+        MHGameplayTags::Data_Damage_Fire,
+        MHGameplayTags::Data_Damage_Water,
+        MHGameplayTags::Data_Damage_Thunder,
+        MHGameplayTags::Data_Damage_Ice,
+        MHGameplayTags::Data_Damage_Dragon
+    };
+
+    for (const FGameplayTag& DamageTag : DamageTags)
+    {
+        if (!DamageTag.IsValid())
+        {
+            continue;
+        }
+
+        const float Magnitude = IncomingSpec.GetSetByCallerMagnitude(DamageTag, false, 0.0f);
+        if (!FMath::IsNearlyZero(Magnitude))
+        {
+            PlayerDamageSpecHandle.Data->SetSetByCallerMagnitude(DamageTag, Magnitude);
+        }
+    }
+
+    const FActiveGameplayEffectHandle ActiveHandle =
+        TargetASC->ApplyGameplayEffectSpecToSelf(*PlayerDamageSpecHandle.Data.Get());
+
+    return ActiveHandle.WasSuccessfullyApplied();
 }
