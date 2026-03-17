@@ -6,7 +6,7 @@
 #include "Engine/DataTable.h"
 #include "GameplayTagsManager.h"
 
-//손승우 추가: 롱소드 입력 패턴 DA / 공격 메타 DT 자동 채우기 구현
+// 손승우 추가: 태도 입력 패턴 DA / 공격 메타 DT 자동 채우기 구현
 
 namespace MHCombatDataPopulatorLibrary_Private
 {
@@ -95,25 +95,36 @@ bool UMHCombatDataPopulatorLibrary::PopulateLongSwordInputPatternSet(UObject* In
 
 	TArray<FMHInputPatternDefinition> PatternDefinitions;
 
+	// ===== Draw =====
 	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.DrawOnly"), TEXT("LS Draw Only"), { EMHCombatInputButton::LMB }, 10, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Sheathed"), TEXT("CombatState.None"), true, false, false));
 	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.DrawAdvancingSlash"), TEXT("LS Draw Advancing Slash"), { EMHCombatInputButton::LMB }, 20, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Sheathed"), TEXT("CombatState.None"), false, true, true));
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.DrawSpiritSlash1"), TEXT("LS Draw Spirit Slash 1"), { EMHCombatInputButton::RMB }, 30, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Sheathed"), TEXT("CombatState.None"), false, false, true));
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.DrawSpiritSlash1"), TEXT("LS Draw Spirit Slash 1"), { EMHCombatInputButton::Mouse4 }, 30, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Sheathed"), TEXT("CombatState.None"), false, false, true));
+	// ===== End Draw =====
 
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.Basic"), TEXT("LS Basic"), { EMHCombatInputButton::LMB }, 40, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.Thrust"), TEXT("LS Thrust"), { EMHCombatInputButton::Mouse4 }, 45, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.Spirit"), TEXT("LS Spirit"), { EMHCombatInputButton::RMB }, 50, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
+	// ===== Unsheathed =====
+	// 좌클릭은 현재 콤보 문맥에 따라 실제 일반 공격 패턴으로 해석된다.
+	// 시작 공격 / 파생 공격에서 좌클릭이 어떤 기술이 되는지는 Player 입력 해석과 ComboGraph가 함께 결정한다.
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.AdvancingSlash"), TEXT("LS Advancing Slash"), { EMHCombatInputButton::LMB }, 40, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.VerticalSlash"), TEXT("LS Vertical Slash"), { EMHCombatInputButton::LMB }, 41, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.RisingSlash"), TEXT("LS Rising Slash"), { EMHCombatInputButton::LMB }, 42, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.Thrust"), TEXT("LS Thrust"), { EMHCombatInputButton::RMB }, 50, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.Spirit"), TEXT("LS Spirit"), { EMHCombatInputButton::Mouse4 }, 60, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
 
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.FadeSlash"), TEXT("LS Fade Slash"), { EMHCombatInputButton::LMB, EMHCombatInputButton::Mouse4 }, 70, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true, true));
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.LateralFadeSlash"), TEXT("LS Lateral Fade Slash"), { EMHCombatInputButton::LMB, EMHCombatInputButton::Mouse4 }, 71, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, true, true, true));
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.SpiritThrust"), TEXT("LS Spirit Thrust"), { EMHCombatInputButton::RMB, EMHCombatInputButton::LMB }, 80, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true, true));
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.ForesightSlash"), TEXT("LS Foresight Slash"), { EMHCombatInputButton::RMB, EMHCombatInputButton::Mouse4 }, 90, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true, true));
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.SpecialSheathe"), TEXT("LS Special Sheathe"), { EMHCombatInputButton::RMB, EMHCombatInputButton::Space }, 100, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true, true));
+	// 실제 입력 키 txt 기준으로 4번/5번은 서로 치환해서 읽는다.
+	// 따라서 베어내리기 계열의 실제 단축 입력은 Mouse5다.
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.FadeSlash"), TEXT("LS Fade Slash"), { EMHCombatInputButton::Mouse5 }, 70, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
+	// 좌우이동베기는 시작 공격이 아니라 후속 파생에서만 허용되는 패턴이다.
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.LateralFadeSlash"), TEXT("LS Lateral Fade Slash"), { EMHCombatInputButton::Mouse5 }, 71, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, true, true));
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.SpiritThrust"), TEXT("LS Spirit Thrust"), { EMHCombatInputButton::Mouse4, EMHCombatInputButton::LMB }, 80, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true, true));
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.ForesightSlash"), TEXT("LS Foresight Slash"), { EMHCombatInputButton::Mouse4, EMHCombatInputButton::RMB }, 90, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true, true));
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.SpecialSheathe"), TEXT("LS Special Sheathe"), { EMHCombatInputButton::Mouse4, EMHCombatInputButton::Space }, 100, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true, true));
+	// ===== End Unsheathed =====
 
+	// ===== Special Sheathe =====
 	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.IaiSlash"), TEXT("LS Iai Slash"), { EMHCombatInputButton::LMB }, 110, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.SpecialSheathe"), false, false, true));
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.IaiSpiritSlash"), TEXT("LS Iai Spirit Slash"), { EMHCombatInputButton::RMB }, 120, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.SpecialSheathe"), false, false, true));
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.Helmbreaker"), TEXT("LS Helmbreaker"), { EMHCombatInputButton::RMB, EMHCombatInputButton::Mouse5 }, 130, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true, true));
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.SlingerBurst"), TEXT("LS Slinger Burst"), { EMHCombatInputButton::C, EMHCombatInputButton::Mouse5 }, 140, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true, true));
-	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.ClutchFire"), TEXT("LS Clutch Fire"), { EMHCombatInputButton::C, EMHCombatInputButton::Mouse5 }, 150, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.Clutch"), false, false, true, true));
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.IaiSpiritSlash"), TEXT("LS Iai Spirit Slash"), { EMHCombatInputButton::Mouse4 }, 120, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.SpecialSheathe"), false, false, true));
+	PatternDefinitions.Add(MakePattern(TEXT("InputPattern.LS.Helmbreaker"), TEXT("LS Helmbreaker"), { EMHCombatInputButton::LMB }, 130, TEXT("WeaponType.LongSword"), TEXT("WeaponSheath.Unsheathed"), TEXT("CombatState.None"), false, false, true));
+	// ===== End Special Sheathe =====
 
 	InputPatternSet->ReplacePatternDefinitions(PatternDefinitions);
 	InputPatternSet->MarkPackageDirty();
@@ -145,7 +156,6 @@ bool UMHCombatDataPopulatorLibrary::PopulateLongSwordAttackMetaTable(UObject* At
 	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.VerticalSlash"), 1.00f, 1.00f, 0.04f, TEXT("Normal"));
 	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.Thrust"), 0.95f, 0.95f, 0.03f, TEXT("Normal"));
 	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.RisingSlash"), 1.00f, 1.00f, 0.04f, TEXT("Normal"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.DownwardSlash"), 1.10f, 1.05f, 0.05f, TEXT("Normal"));
 	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.FadeSlash"), 0.95f, 0.95f, 0.04f, TEXT("Normal"));
 	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.LateralFadeSlash"), 1.00f, 1.00f, 0.04f, TEXT("Normal"));
 
@@ -158,8 +168,8 @@ bool UMHCombatDataPopulatorLibrary::PopulateLongSwordAttackMetaTable(UObject* At
 	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritHelmbreaker"), 2.00f, 1.50f, 0.10f, TEXT("SpiritFinisher"));
 
 	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpecialSheathe"), 0.0f, 0.0f, 0.00f, TEXT("Utility"), false);
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.IaiSlash"), 1.30f, 1.15f, 0.06f, TEXT("Special"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.IaiSpiritSlash"), 1.50f, 1.20f, 0.08f, TEXT("Special"));
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.IaiSlash"), 1.30f, 1.20f, 0.06f, TEXT("Special"));
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.IaiSpiritSlash"), 1.60f, 1.30f, 0.08f, TEXT("Special"));
 	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.ForesightSlash"), 0.95f, 1.00f, 0.05f, TEXT("Counter"));
 
 	AttackMetaTable->MarkPackageDirty();

@@ -13,12 +13,14 @@
 #include "Character/Monster/AI/MHMonsterAIController.h"
 #include "Character/Monster/AI/MHMonsterBlackboardKeys.h"
 #include "Character/Monster/Attribute/MHMonsterAttributeSet.h"
+#include "Combat/Data/MHCombatDataLibrary.h"
 #include "Components/CapsuleComponent.h"
 #include "DataAsset/MHMonsterDataAsset.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
 
-DEFINE_LOG_CATEGORY(MonsterCharacter)
+DEFINE_LOG_CATEGORY(MHMonsterCharacterBase)
 
 AMHMonsterCharacterBase::AMHMonsterCharacterBase()
 {
@@ -39,11 +41,11 @@ void AMHMonsterCharacterBase::BeginPlay()
 {
     Super::BeginPlay();
 
-    UE_LOG(MonsterCharacter, Warning, TEXT("BeginPlay | Enter"));
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("BeginPlay | Enter"));
 
     InitMonsterGAS();
 
-    UE_LOG(MonsterCharacter, Warning, TEXT("BeginPlay | After InitMonsterGAS"));
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("BeginPlay | After InitMonsterGAS"));
 
 
     // 시작 상태: Unaware
@@ -65,19 +67,19 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
 {
     if (!AbilitySystemComponent)
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("TryActivateMonsterAbilityByTag | ASC is null"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("TryActivateMonsterAbilityByTag | ASC is null"));
         return false;
     }
 
     if (!AbilityTag.IsValid())
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("TryActivateMonsterAbilityByTag | AbilityTag invalid"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("TryActivateMonsterAbilityByTag | AbilityTag invalid"));
         return false;
     }
     
     if (IsMonsterAbilityOnCooldown(AbilityTag))
     {
-        UE_LOG(MonsterCharacter, Warning,
+        UE_LOG(MHMonsterCharacterBase, Warning,
             TEXT("TryActivateMonsterAbilityByTag | Tag=%s is on cooldown (Remaining=%.2f)"),
             *AbilityTag.ToString(),
             GetMonsterAbilityCooldownRemaining(AbilityTag));
@@ -90,10 +92,10 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
     {
         if (Spec.Ability)
         {
-            UE_LOG(MonsterCharacter, Warning, TEXT("  Owned Ability = %s"),
+            UE_LOG(MHMonsterCharacterBase, Warning, TEXT("  Owned Ability = %s"),
                 *Spec.Ability->GetClass()->GetName());
 
-            UE_LOG(MonsterCharacter, Warning, TEXT("  Ability Tags = %s"),
+            UE_LOG(MHMonsterCharacterBase, Warning, TEXT("  Ability Tags = %s"),
                 *Spec.Ability->AbilityTags.ToStringSimple());
         }
     }
@@ -117,7 +119,7 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
     
     const bool bActivated = AbilitySystemComponent->TryActivateAbilitiesByTag(TagContainer);
 
-    UE_LOG(MonsterCharacter, Warning,
+    UE_LOG(MHMonsterCharacterBase, Warning,
         TEXT("TryActivateMonsterAbilityByTag | Tag=%s Result=%s"),
         *AbilityTag.ToString(),
         bActivated ? TEXT("Success") : TEXT("Fail"));
@@ -177,7 +179,7 @@ void AMHMonsterCharacterBase::SetMonsterAttacking(bool bNewAttacking)
 
     bMonsterAttacking = bNewAttacking;
 
-    UE_LOG(MonsterCharacter, Warning,
+    UE_LOG(MHMonsterCharacterBase, Warning,
         TEXT("SetMonsterAttacking | %s"),
         bMonsterAttacking ? TEXT("true") : TEXT("false"));
     // 블랙보드 
@@ -239,6 +241,184 @@ void AMHMonsterCharacterBase::FaceCombatTargetInterp(float DeltaSeconds, float T
     );
 
     SetActorRotation(NewRot);
+}
+
+
+
+FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
+    AActor* SourceActor,
+    AActor* SourceWeapon,
+    FGameplayTag AttackTag,
+    const FGameplayEffectSpecHandle& DamageSpecHandle,
+    const FHitResult& HitResult
+)
+{
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ReceiveDamageSpec_Implementation"))
+    UE_LOG(MHMonsterCharacterBase, Log, TEXT("SourceActor : %s, SourceWeapon : %s, AttackTag : %s")
+        , *SourceActor->GetName()
+        , *SourceActor->GetName()
+        , *AttackTag.GetTagName().ToString())
+    
+    FMHHitAcknowledge Result;
+
+    // 1. 전달받은 DamageSpec 유효성 검사
+    if (!DamageSpecHandle.IsValid() || !DamageSpecHandle.Data.IsValid())
+    {
+        return Result;
+    }
+
+    // 2. 현재 피격 가능한 상태인지 검사
+    if (!CanReceiveDamage(SourceActor, AttackTag, DamageSpecHandle, HitResult))
+    {
+        return Result;
+    }
+
+    // 3. 몬스터 자신의 ASC 조회
+    UAbilitySystemComponent* TargetASC = GetCharacterASC();
+    if (!IsValid(TargetASC))
+    {
+        return Result;
+    }
+
+    // 4. 전달받은 Spec을 자기 자신에게 적용
+    const FActiveGameplayEffectHandle ActiveHandle =
+        TargetASC->ApplyGameplayEffectSpecToSelf(*DamageSpecHandle.Data.Get());
+
+    // 5. 적용 성공 시 후처리 및 응답 작성
+    if (ActiveHandle.WasSuccessfullyApplied())
+    {
+        Result.bAcceptedHit = true;
+        Result.bConsumeHitOnce = true;
+        Result.bShouldStopAttackWindow = false;
+        Result.ResultType = EMHHitResultType::NormalHit;
+
+        HandleDamageAccepted(SourceActor, SourceWeapon, AttackTag, HitResult);
+
+        if (IsDead())
+        {
+            HandleDeath();
+        }
+    }
+
+    return Result;
+}
+
+void AMHMonsterCharacterBase::HandleDamageAccepted(
+	AActor* SourceActor,
+	AActor* SourceWeapon,
+	FGameplayTag AttackTag,
+	const FHitResult& HitResult
+)
+{
+	Super::HandleDamageAccepted(SourceActor, SourceWeapon, AttackTag, HitResult);
+
+	// 피격 VFX
+	PlayHitImpactFXByAttackTag(AttackTag, HitResult);
+
+	// 피격 SFX
+	PlayHitSoundByAttackTag(AttackTag, HitResult);
+
+	// 이후 확장 예시
+	// - 피격 리액션 재생
+	// - AI에게 공격자 전달
+	// - 경직치 누적
+	// - 부위 파괴 누적
+}
+
+void AMHMonsterCharacterBase::HandleDeath()
+{
+	Super::HandleDeath();
+
+	// TODO:
+	// - 사망 애니메이션
+	// - AI 정지
+	// - 드랍 처리
+	// - 전투 종료 처리
+}
+
+void AMHMonsterCharacterBase::PlayHitImpactFXByAttackTag(
+	FGameplayTag AttackTag,
+	const FHitResult& HitResult
+)
+{
+	if (!IsValid(AttackMetaTable))
+	{
+		UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayHitImpactFXByAttackTag : AttackMetaTable is invalid"));
+		return;
+	}
+
+	FMHAttackMetaRow AttackMetaRow;
+	if (!UMHCombatDataLibrary::FindAttackMetaRowByTag(AttackMetaTable, AttackTag, AttackMetaRow))
+	{
+		UE_LOG(MHMonsterCharacterBase, Verbose, TEXT("PlayHitImpactFXByAttackTag : AttackMetaRow not found -> %s"), *AttackTag.ToString());
+		return;
+	}
+
+	if (AttackMetaRow.HitEffectNiagara.IsNull())
+	{
+		return;
+	}
+
+	UNiagaraSystem* HitEffectNiagara = AttackMetaRow.HitEffectNiagara.LoadSynchronous();
+	if (!IsValid(HitEffectNiagara))
+	{
+		UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayHitImpactFXByAttackTag : Failed to load HitEffectNiagara -> %s"), *AttackTag.ToString());
+		return;
+	}
+
+	const FVector SpawnLocation = HitResult.ImpactPoint;
+	const FRotator SpawnRotation = AttackMetaRow.bUseDirectionalHitFX
+		? HitResult.ImpactNormal.Rotation()
+		: FRotator::ZeroRotator;
+
+	UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		GetWorld(),
+		HitEffectNiagara,
+		SpawnLocation,
+		SpawnRotation
+	);
+    
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("SpawnSystemAtLocation"))
+}
+
+void AMHMonsterCharacterBase::PlayHitSoundByAttackTag(
+	FGameplayTag AttackTag,
+	const FHitResult& HitResult
+)
+{
+	if (!IsValid(AttackMetaTable))
+	{
+		UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayHitSoundByAttackTag : AttackMetaTable is invalid"));
+		return;
+	}
+
+	FMHAttackMetaRow AttackMetaRow;
+	if (!UMHCombatDataLibrary::FindAttackMetaRowByTag(AttackMetaTable, AttackTag, AttackMetaRow))
+	{
+		UE_LOG(MHMonsterCharacterBase, Verbose, TEXT("PlayHitSoundByAttackTag : AttackMetaRow not found -> %s"), *AttackTag.ToString());
+		return;
+	}
+
+	if (AttackMetaRow.HitSound.IsNull())
+	{
+		return;
+	}
+
+	USoundBase* HitSound = AttackMetaRow.HitSound.LoadSynchronous();
+	if (!IsValid(HitSound))
+	{
+		UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayHitSoundByAttackTag : Failed to load HitSound -> %s"), *AttackTag.ToString());
+		return;
+	}
+
+	UGameplayStatics::PlaySoundAtLocation(
+		this,
+		HitSound,
+		HitResult.ImpactPoint
+	);
+    
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlaySoundAtLocation"))
+
 }
 
 
@@ -310,7 +490,7 @@ void AMHMonsterCharacterBase::DecideNextAmbientAction()
 
     if (RandValue < AmbientIdleChance)
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("[Ambient] Look Around"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("[Ambient] Look Around"));
         ScheduleNextAmbientDecision();
         return;
     }
@@ -348,13 +528,13 @@ void AMHMonsterCharacterBase::MoveToRandomAmbientLocation()
 
     if (!bFound)
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("[Ambient] Random reachable point not found"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("[Ambient] Random reachable point not found"));
         return;
     }
 
     AICon->MoveToLocation(RandomLocation.Location, 20.f);
 
-    UE_LOG(MonsterCharacter, Warning, TEXT("[Ambient] Move To Random Location"));
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("[Ambient] Move To Random Location"));
 
 }
 
@@ -449,7 +629,7 @@ void AMHMonsterCharacterBase::StartMonsterAbilityCooldown(FGameplayTag AbilityTa
 
     AbilityCooldownEndTimes.FindOrAdd(AbilityTag) = GetWorld()->GetTimeSeconds() + CooldownSeconds;
 
-    UE_LOG(MonsterCharacter, Warning,
+    UE_LOG(MHMonsterCharacterBase, Warning,
         TEXT("StartMonsterAbilityCooldown | Tag=%s Cooldown=%.2f"),
         *AbilityTag.ToString(),
         CooldownSeconds);
@@ -576,7 +756,7 @@ void AMHMonsterCharacterBase::SetCombatTarget(AActor* NewTarget)
 {
     CombatTarget = NewTarget;
 
-    UE_LOG(MonsterCharacter, Warning,
+    UE_LOG(MHMonsterCharacterBase, Warning,
         TEXT("SetCombatTarget | NewTarget=%s"),
         *GetNameSafe(NewTarget));
 
@@ -612,7 +792,7 @@ void AMHMonsterCharacterBase::StartSightDetection()
             true
         );
 
-        UE_LOG(MonsterCharacter, Warning, TEXT("StartSightDetection | timer started"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("StartSightDetection | timer started"));
     }
 }
 
@@ -636,7 +816,7 @@ void AMHMonsterCharacterBase::CheckSightDetection()
 
     if (CanSeeTargetFromHead(PlayerCharacter))
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("CheckSightDetection | player detected by sight"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("CheckSightDetection | player detected by sight"));
         HandleSightDetected(PlayerCharacter);
     }
 }
@@ -656,7 +836,7 @@ bool AMHMonsterCharacterBase::CanSeeTargetFromHead(AActor* Target) const
 
     if (!MeshComp->DoesSocketExist(HeadLookSocketName))
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("CanSeeTargetFromHead | missing socket: %s"), *HeadLookSocketName.ToString());
+        // UE_LOG(MHMonsterCharacterBase, Warning, TEXT("CanSeeTargetFromHead | missing socket: %s"), *HeadLookSocketName.ToString());
         return false;
     }
 
@@ -714,7 +894,7 @@ bool AMHMonsterCharacterBase::CanSeeTargetFromHead(AActor* Target) const
 
     if (LocalDir.X <= 0.f)
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("Sight Fail | target behind head socket"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("Sight Fail | target behind head socket"));
         return false;
     }
 
@@ -724,19 +904,19 @@ bool AMHMonsterCharacterBase::CanSeeTargetFromHead(AActor* Target) const
     const float PitchDeg =
         FMath::RadiansToDegrees(FMath::Atan2(LocalDir.Z, LocalDir.X));
 
-    UE_LOG(MonsterCharacter, Warning,
+    UE_LOG(MHMonsterCharacterBase, Warning,
         TEXT("Sight Debug | Dist=%.2f Yaw=%.2f Pitch=%.2f | LimitYaw=%.2f LimitPitch=%.2f"),
         Distance, YawDeg, PitchDeg, SightHorizontalHalfAngleDeg, SightVerticalHalfAngleDeg);
 
     if (FMath::Abs(YawDeg) > SightHorizontalHalfAngleDeg)
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("Sight Fail | yaw out of range"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("Sight Fail | yaw out of range"));
         return false;
     }
 
     if (FMath::Abs(PitchDeg) > SightVerticalHalfAngleDeg)
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("Sight Fail | pitch out of range"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("Sight Fail | pitch out of range"));
         return false;
     }
 
@@ -764,16 +944,16 @@ bool AMHMonsterCharacterBase::CanSeeTargetFromHead(AActor* Target) const
 
         if (bBlocked)
         {
-            UE_LOG(MonsterCharacter, Warning,
+            UE_LOG(MHMonsterCharacterBase, Warning,
                 TEXT("Sight Fail | LOS blocked by %s"),
                 *GetNameSafe(HitResult.GetActor()));
             return false;
         }
 
-        UE_LOG(MonsterCharacter, Warning, TEXT("Sight LOS Success | no obstacle"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("Sight LOS Success | no obstacle"));
     }
 
-    UE_LOG(MonsterCharacter, Warning, TEXT("Sight Success"));
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("Sight Success"));
     return true;
 }
 
@@ -795,7 +975,7 @@ void AMHMonsterCharacterBase::HandleSightDetected(AActor* Target)
     AbilitySystemComponent->AddLooseGameplayTag(MHGameplayTags::State_Monster_Alert);
     AbilitySystemComponent->AddLooseGameplayTag(MHGameplayTags::Event_Monster_DetectedBySight);
 
-    UE_LOG(MonsterCharacter, Warning, TEXT("HandleSightDetected | Alert -> StartRoar"));
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("HandleSightDetected | Alert -> StartRoar"));
 
     StartRoar();
 }
@@ -817,7 +997,7 @@ void AMHMonsterCharacterBase::HandleDamagedFromUnaware(AActor* InstigatorActor)
     AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Unaware);
     AbilitySystemComponent->AddLooseGameplayTag(MHGameplayTags::Event_Monster_AttackedFromUnaware);
 
-    UE_LOG(MonsterCharacter, Warning, TEXT("HandleDamagedFromUnaware | skip roar -> EnterCombatPhase"));
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("HandleDamagedFromUnaware | skip roar -> EnterCombatPhase"));
 
     EnterCombatPhase();
 }
@@ -846,7 +1026,7 @@ void AMHMonsterCharacterBase::StartRoar()
     
     if (!RoarMontage)
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("StartRoar | RoarMontage null -> fallback combat"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("StartRoar | RoarMontage null -> fallback combat"));
         OnRoarFinished();
         return;
     }
@@ -854,7 +1034,7 @@ void AMHMonsterCharacterBase::StartRoar()
     USkeletalMeshComponent* MeshComp = GetMesh();
     if (!MeshComp)
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("StartRoar | MeshComp null -> fallback combat"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("StartRoar | MeshComp null -> fallback combat"));
         OnRoarFinished();
         return;
     }
@@ -862,19 +1042,19 @@ void AMHMonsterCharacterBase::StartRoar()
     UAnimInstance* Anim = MeshComp->GetAnimInstance();
     if (!Anim)
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("StartRoar | AnimInstance null -> fallback combat"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("StartRoar | AnimInstance null -> fallback combat"));
         OnRoarFinished();
         return;
     }
 
     if (Anim->Montage_IsPlaying(RoarMontage))
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("StartRoar | already playing"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("StartRoar | already playing"));
         return;
     }
 
     const float PlayedLen = Anim->Montage_Play(RoarMontage, 1.0f);
-    UE_LOG(MonsterCharacter, Warning, TEXT("StartRoar | Montage_Play = %f"), PlayedLen);
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("StartRoar | Montage_Play = %f"), PlayedLen);
 
     if (PlayedLen > 0.f)
     {
@@ -883,26 +1063,26 @@ void AMHMonsterCharacterBase::StartRoar()
     }
     else
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("StartRoar | play failed -> fallback combat"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("StartRoar | play failed -> fallback combat"));
         OnRoarFinished();
     }
 }
 
 void AMHMonsterCharacterBase::OnRoarFinished()
 {
-    UE_LOG(MonsterCharacter, Warning, TEXT("OnRoarFinished | roar end -> combat phase"));
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("OnRoarFinished | roar end -> combat phase"));
     
     //BT 용 BOOL 값
     if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("OnRoarFinished | SetIsRoaring(false)"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("OnRoarFinished | SetIsRoaring(false)"));
         
         MonsterAI->SetIsRoaring(false);
     }
     else
     {
         // todo 추후 제거 로그 
-        UE_LOG(MonsterCharacter, Error, TEXT("OnRoarFinished | MonsterAI is null"));
+        UE_LOG(MHMonsterCharacterBase, Error, TEXT("OnRoarFinished | MonsterAI is null"));
         
     }
     
@@ -926,12 +1106,12 @@ void AMHMonsterCharacterBase::EnterCombatPhase()
     //BT 용 BOOL  값
     if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("EnterCombatPhase | SetInCombat(true)"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("EnterCombatPhase | SetInCombat(true)"));
         MonsterAI->SetInCombat(true);
     }
     else
     {
-        UE_LOG(MonsterCharacter, Error, TEXT("EnterCombatPhase | MonsterAI is null"));
+        UE_LOG(MHMonsterCharacterBase, Error, TEXT("EnterCombatPhase | MonsterAI is null"));
     }
     
     bInCombat = true;
@@ -946,7 +1126,7 @@ void AMHMonsterCharacterBase::EnterCombatPhase()
     StopSightDetection();
     EnterCombat();
 
-    UE_LOG(MonsterCharacter, Warning, TEXT("EnterCombatPhase | combat started"));
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("EnterCombatPhase | combat started"));
 }
 
 void AMHMonsterCharacterBase::EnterCombat()
@@ -977,7 +1157,7 @@ void AMHMonsterCharacterBase::ExitCombat()
 
     StartSightDetection();
 
-    UE_LOG(MonsterCharacter, Warning, TEXT("ExitCombat | return to unaware"));
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ExitCombat | return to unaware"));
 }
 
 void AMHMonsterCharacterBase::NotifyDamagedFrom(AActor* InstigatorActor)
@@ -987,7 +1167,7 @@ void AMHMonsterCharacterBase::NotifyDamagedFrom(AActor* InstigatorActor)
         return;
     }
 
-    UE_LOG(MonsterCharacter, Warning, TEXT("NotifyDamagedFrom | damaged by %s"), *GetNameSafe(InstigatorActor));
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("NotifyDamagedFrom | damaged by %s"), *GetNameSafe(InstigatorActor));
 
     if (IsUnaware())
     {
@@ -999,15 +1179,15 @@ void AMHMonsterCharacterBase::InitMonsterGAS()
 {
     if (bMonsterGASInitialized)
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("InitMonsterGAS | already initialized"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("InitMonsterGAS | already initialized"));
         return;
     }
 
-    UE_LOG(MonsterCharacter, Warning, TEXT("InitMonsterGAS | start"));
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("InitMonsterGAS | start"));
 
     if (!AbilitySystemComponent)
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("InitMonsterGAS | AbilitySystemComponent null"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("InitMonsterGAS | AbilitySystemComponent null"));
         return;
     }
 
@@ -1022,7 +1202,7 @@ void AMHMonsterCharacterBase::InitMonsterGAS()
 
     if (MonsterAttributes)
     {
-        // UE_LOG(LogTemp, Warning, TEXT("[MonsterGAS] %s HP=%f/%f Poise=%f/%f Atk=%f Def=%f"),
+        // UE_LOG(MHMonsterCharacterBase, Warning, TEXT("[MonsterGAS] %s HP=%f/%f Poise=%f/%f Atk=%f Def=%f"),
         //     *GetName(),
         //     MonsterAttributes->GetHealth(), MonsterAttributes->GetMaxHealth(),
         //     MonsterAttributes->GetPoise(), MonsterAttributes->GetMaxPoise(),
@@ -1031,7 +1211,7 @@ void AMHMonsterCharacterBase::InitMonsterGAS()
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("[MonsterGAS] %s MonsterAttributes is NULL"), *GetName());
+        UE_LOG(MHMonsterCharacterBase, Error, TEXT("[MonsterGAS] %s MonsterAttributes is NULL"), *GetName());
     }
 }
 
@@ -1054,7 +1234,7 @@ void AMHMonsterCharacterBase::GrantStartupAbilities()
     UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
     if (!MonsterDataAsset || !AbilitySystemComponent)
     {
-        UE_LOG(MonsterCharacter, Warning, TEXT("GrantStartupAbilities | !MonsterDataAsset"));
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("GrantStartupAbilities | !MonsterDataAsset"));
         return;
     }
 
@@ -1063,11 +1243,11 @@ void AMHMonsterCharacterBase::GrantStartupAbilities()
         if (!AbilityClass)
         {
             // todo 로그 제거 
-            UE_LOG(MonsterCharacter, Warning, TEXT("GrantStartupAbilities | AbilityClass = NULL"));
+            UE_LOG(MHMonsterCharacterBase, Warning, TEXT("GrantStartupAbilities | AbilityClass = NULL"));
             
             continue;
         }
-        UE_LOG(MonsterCharacter, Warning, TEXT("GrantStartupAbilities | GiveAbility = %s"),
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("GrantStartupAbilities | GiveAbility = %s"),
             *AbilityClass->GetName());
         AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
     }
@@ -1097,7 +1277,7 @@ void AMHMonsterCharacterBase::ApplyStartupEffects()
         if (SpecHandle.IsValid())
         {
             AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-            UE_LOG(MonsterCharacter, Warning, TEXT("ApplyStartupEffects | applied %s"), *GetNameSafe(EffectClass));
+            UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ApplyStartupEffects | applied %s"), *GetNameSafe(EffectClass));
         }
     }
 }

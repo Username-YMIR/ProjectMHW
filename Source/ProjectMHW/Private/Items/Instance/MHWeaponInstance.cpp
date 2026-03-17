@@ -16,6 +16,16 @@ AMHWeaponInstance::AMHWeaponInstance()
 
 	WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
 	WeaponMesh->SetupAttachment(WeaponRoot); // 손승우 수정
+	
+	// 무기 메시 자체는 판정용이 아니라 표시용이므로 기본 충돌 비활성화_이건주
+	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	WeaponMesh->SetGenerateOverlapEvents(false);
+	WeaponMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+
+	// 물리/시뮬레이션 관련 충돌도 사용하지 않음_이건주
+	WeaponMesh->SetSimulatePhysics(false);
+	WeaponMesh->SetEnableGravity(false);
+	
 }
 
 

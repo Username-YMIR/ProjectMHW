@@ -118,6 +118,14 @@ public:
     // 노티파이: 콤보 입력 윈도우 종료
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_EndComboChainWindow();
+
+    // 노티파이: 조기 전환 윈도우 시작
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_BeginEarlyTransitionWindow();
+
+    // 노티파이: 조기 전환 윈도우 종료
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_EndEarlyTransitionWindow();
     
     // 현재 장착 중인 무기 인스턴스 반환
     AMHWeaponInstance* GetEquippedWeapon() const { return EquippedWeapon; }
@@ -132,6 +140,14 @@ public:
     bool HasLongSwordForesightCounterSuccess() const { return bLongSwordForesightCounterSuccess; }
 
     bool TryStartAutoSheatheAfterLongSwordMove(const FGameplayTag& CompletedMoveTag);
+
+    /**
+     * 현재 MoveTag와 입력 방향을 기준으로 Variant 몽타주를 선택한다.
+     * - 기본적으로 ComboGraph에 지정된 몽타주를 우선 사용한다.
+     * - Fade / LateralFade처럼 방향 Variant가 필요한 경우에만 무기 AnimConfig의 전용 몽타주로 교체한다.
+     */
+    UAnimMontage* ResolveLongSwordMoveMontageOverride(const FGameplayTag& InMoveTag, UAnimMontage* InDefaultMontage) const;
+
 protected:
 // 동일 카테고리 오브젝트가 3개 이상이면 region으로 구분
 #pragma region Components
@@ -238,6 +254,18 @@ private:
     bool bDodgeHeld = false;
     bool bLongSwordForesightCounterSuccess = false;
 
+    /** 현재 프레임 이동 입력 값 */
+    FVector2D CachedMoveInput2D = FVector2D::ZeroVector;
+
+    /** 마지막으로 유효했던 이동 입력 값 */
+    FVector2D LastNonZeroMoveInput2D = FVector2D::ZeroVector;
+
+    /** 마지막으로 해석된 회피 컨텍스트 */
+    EMHDodgeContext LastResolvedDodgeContext = EMHDodgeContext::Sheathed;
+
+    /** 마지막으로 해석된 회피 방향 Variant */
+    EMHDirectionalVariant LastResolvedDodgeVariant = EMHDirectionalVariant::None;
+
     // 납도 상태 특수 진입 후 첫 몽타주 종료 대기 여부
     bool bPendingUnsheatheFromComboEntry = false; //손승우 추가
 
@@ -284,24 +312,74 @@ private:
     // 무기 발도 상태로 부착
     void AttachWeaponToHand();
 
+    // 좌클릭 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForPrimaryInput() const;
+
+    // 우클릭 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForSecondaryInput() const;
+
+    // Mouse4(실제 기인 축) 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForWeaponSpecialInput() const;
+
+    // 스페이스 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForDodgeInput() const;
+
+    // 동시 입력 조합을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForCompositeInput() const;
+
+    // Mouse5(실제 베어내리기 계열 축) 단일 입력을 기준으로 태도 패턴을 해석한다.
+    FGameplayTag ResolveLongSwordPatternForAttackSimultaneousInput() const;
 
     bool IsLongSwordEquipped() const;
     bool HasMovementInputForCombat() const;
     bool IsStandingStillForCombat() const;
     bool IsInLongSwordSpecialSheatheState() const;
+    bool CanResolveLongSwordFollowupDuringUnsheathing() const;
 
+    // 발도 상태에서 첫 시작 공격을 선택하는 문맥인지 확인한다.
+    bool IsLongSwordStartAttackContext() const;
+
+    // 현재 콤보가 진행 중인 파생 문맥인지 확인한다.
+    bool IsLongSwordFollowupContext() const;
+
+    // 베어내리기 계열에서 좌우 이동베기 Variant를 사용할 수 있는지 확인한다.
+    bool ShouldUseDirectionalLateralFadeSlash() const;
+    bool ShouldUseLateralFadeSlashPattern() const;
+
+    //롤 입력 차단을 위한
+    bool bRollMontagePlaying = false;
+public:
     FGameplayTag GetCurrentWeaponTypeGameplayTag() const;
     FGameplayTag GetCurrentWeaponSheathGameplayTag() const;
     FGameplayTag GetCurrentCombatStateGameplayTag() const;
 
+protected:
+
+    /** 최근 이동 입력을 우선 사용하고, 없다면 마지막 유효 입력을 fallback으로 사용한다. */
+    FVector2D GetPreferredMoveInput2D() const;
+
+    /** 입력 방향을 전/후/좌/우 Variant로 양자화한다. */
+    EMHDirectionalVariant ResolveDirectionalVariantFromInput(bool bPreserveActorFacing) const;
+
+    /** 납도 롤 / 발도 중립 롤에서 방향 입력 쪽으로 캐릭터를 회전시킨다. */
+    bool TryRotateActorTowardsMoveInput();
+
+    /** 공격 후 연계 회피 컨텍스트인지 판정한다. */
+    bool IsLongSwordAttackChainDodgeContext() const;
+
+    /** 현재 상태에 맞는 납도 롤 몽타주 반환 */
+    UAnimMontage* ResolveSheathedRollMontage() const;
+
+    /** 현재 상태에 맞는 발도 롤 몽타주 반환 */
+    UAnimMontage* ResolveUnsheathedRollMontage() const;
+
+    /** 루트모션 롤 몽타주를 공통 방식으로 재생한다. */
+    bool TryPlayRollMontage(UAnimMontage* InMontage);
+
     bool IsLongSwordDrawEntryPattern(const FGameplayTag& InPatternTag) const;
     bool TryResolveAndHandleLongSwordPattern(const FGameplayTag& PreferredPatternTag = FGameplayTag());
     bool TryHandleWeaponComboInput(const FGameplayTag& InPatternTag);
+    bool TryRequestLongSwordEarlyTransition();
 
     // 납도 시작 가능 여부
     bool CanStartSheathe() const;
@@ -315,6 +393,18 @@ private:
     // 구르기 몽타주 종료 처리
     void HandleRollMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
-    // 납도/발도 상태에 따른 AnimBP 적용
-    void UpdateAnimClassByWeaponState();
+    // 현재 장착 무기의 애님 레이어 갱신
+    void RefreshWeaponAnimationLayerState();
+
+    // 현재 장착 무기의 애님 레이어 연결
+    void LinkCurrentWeaponAnimLayer();
+
+    // 현재 장착 무기의 애님 레이어 해제
+    void UnlinkCurrentWeaponAnimLayer();
+
+    // 현재 장착 무기의 링크 대상 레이어 클래스 반환
+    TSoftClassPtr<UAnimInstance> GetCurrentWeaponLinkedAnimLayerClass() const;
+
+    UPROPERTY(Transient)
+    bool bWeaponAnimLayerLinked = false;
 };

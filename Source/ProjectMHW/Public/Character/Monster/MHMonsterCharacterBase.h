@@ -13,7 +13,7 @@ class UMHMonsterAttributeSet;
 class UAnimMontage;
 class AMHMonsterAIController;
 
-DECLARE_LOG_CATEGORY_EXTERN(MonsterCharacter, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(MHMonsterCharacterBase, Log, All);
 
 UCLASS()
 class PROJECTMHW_API AMHMonsterCharacterBase : public AMHCharacterBase
@@ -45,6 +45,7 @@ public:
     UFUNCTION(BlueprintPure, Category="Monster|Combat")
     bool IsCombatTargetInRange(float Range) const;
     
+
     UFUNCTION(BlueprintCallable , Category="Monster|Combat")
     bool IsMonsterAttacking() const;
     
@@ -56,6 +57,48 @@ public:
     
     UFUNCTION(BlueprintCallable , Category="Monster|Combat")
     void FaceCombatTargetInterp(float DeltaSeconds , float TurnSpeedDeg = 720.f);
+
+    
+    
+#pragma region DamageSystem_GJ
+public:
+    virtual FMHHitAcknowledge ReceiveDamageSpec_Implementation(
+        AActor* SourceActor,
+        AActor* SourceWeapon,
+        FGameplayTag AttackTag,
+        const FGameplayEffectSpecHandle& DamageSpecHandle,
+        const FHitResult& HitResult
+    ) override;
+
+protected:
+    virtual void HandleDamageAccepted(
+        AActor* SourceActor,
+        AActor* SourceWeapon,
+        FGameplayTag AttackTag,
+        const FHitResult& HitResult
+    ) override;
+
+    virtual void HandleDeath() override;
+
+    /** 공격 메타 테이블에서 VFX / SFX를 찾아 실행 */
+    virtual void PlayHitImpactFXByAttackTag(
+        FGameplayTag AttackTag,
+        const FHitResult& HitResult
+    );
+
+    /** 공격 메타 테이블에서 사운드를 찾아 실행 */
+    virtual void PlayHitSoundByAttackTag(
+        FGameplayTag AttackTag,
+        const FHitResult& HitResult
+    );
+
+protected:
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Combat|Data")
+    TObjectPtr<UDataTable> AttackMetaTable = nullptr;
+#pragma endregion  
+    
+    
+
 protected:
     // =========================
     // Monster State
