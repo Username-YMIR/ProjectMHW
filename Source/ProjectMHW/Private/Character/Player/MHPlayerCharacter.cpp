@@ -636,6 +636,7 @@ FMHHitAcknowledge AMHPlayerCharacter::ReceiveDamageSpec_Implementation(
     const FGameplayEffectSpecHandle& DamageSpecHandle,
     const FHitResult& HitResult)
 {
+    
     if (!ValidateDamageSpec(DamageSpecHandle))
     {
         HandleDamageRejected(SourceActor, SourceWeapon, AttackTag, HitResult);

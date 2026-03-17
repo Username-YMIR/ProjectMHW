@@ -55,8 +55,11 @@ void UGA_MHMonsterAttackBasic::ActivateAbility(const FGameplayAbilitySpecHandle 
 	
 	if (AMHMonsterCharacterBase* Monster = Cast<AMHMonsterCharacterBase>(ActorInfo->AvatarActor.Get()))
 	{
+		UE_LOG(GAMonsterAttack, Warning, TEXT("sssssssssssssssssss"));
 		Monster->SetMonsterAttacking(true);
 		Monster->FaceCombatTargetInstant();
+		// 타격 지점 윈도우 열기 
+		Monster->BeginMonsterAttackWindow();
 	}
 
 	ClearTask();
@@ -93,6 +96,9 @@ void UGA_MHMonsterAttackBasic::EndAbility(const FGameplayAbilitySpecHandle Handl
 	{
 		if (AMHMonsterCharacterBase* Monster = Cast<AMHMonsterCharacterBase>(ActorInfo->AvatarActor.Get()))
 		{
+			// 몬스터 타격지점 윈도우 닫기 
+			Monster->EndMonsterAttackWindow();
+			// todo  
 			Monster->SetMonsterAttacking(false);
 		}
 	}

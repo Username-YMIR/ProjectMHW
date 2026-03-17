@@ -14,6 +14,8 @@
 #include "Character/Monster/AI/MHMonsterBlackboardKeys.h"
 #include "Character/Monster/Attribute/MHMonsterAttributeSet.h"
 #include "Combat/Data/MHCombatDataLibrary.h"
+#include "Combat/Effects/MHGameplayEffect_Damage.h"
+#include "Interfaces/MHDamageSpecReceiverInterface.h"
 #include "Components/CapsuleComponent.h"
 #include "DataAsset/MHMonsterDataAsset.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -34,7 +36,9 @@ AMHMonsterCharacterBase::AMHMonsterCharacterBase()
 
     bUseControllerRotationYaw = false;
 
-    MonsterAttributes = CreateDefaultSubobject<UMHMonsterAttributeSet>(TEXT("MonsterAttributeSet"));   
+    MonsterAttributes = CreateDefaultSubobject<UMHMonsterAttributeSet>(TEXT("MonsterAttributeSet"));
+    
+    MonsterDamageEffectClass = UMHGameplayEffect_Damage::StaticClass();
 }
 
 void AMHMonsterCharacterBase::BeginPlay()
@@ -196,6 +200,32 @@ void AMHMonsterCharacterBase::SetMonsterAttacking(bool bNewAttacking)
     }
 }
 
+void AMHMonsterCharacterBase::BeginMonsterAttackWindow()
+{
+    bMonsterAttackWindowOpen = true;
+    bMonsterAttackHitConsumed = false;
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("BeginMonsterAttackWindow | Open=true Consumed=false"));
+}
+
+void AMHMonsterCharacterBase::EndMonsterAttackWindow()
+{
+    bMonsterAttackWindowOpen = false;
+    bMonsterAttackHitConsumed = false;
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("EndMonsterAttackWindow | Open=false Consumed=false"));
+}
+
+bool AMHMonsterCharacterBase::CanMonsterAttackHitNow() const
+{
+    return bMonsterAttackWindowOpen && !bMonsterAttackHitConsumed;
+    
+}
+
+
+
 void AMHMonsterCharacterBase::FaceCombatTargetInstant()
 {
     if (!CombatTarget)
@@ -244,6 +274,127 @@ void AMHMonsterCharacterBase::FaceCombatTargetInterp(float DeltaSeconds, float T
 }
 
 
+bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag)
+{
+    
+    
+    
+    if (!bMonsterAttackWindowOpen)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | Window closed"));
+        return false;
+    }
+
+    if (bMonsterAttackHitConsumed)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | Already consumed"));
+        return false;
+    }
+
+    if (!CombatTarget)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | CombatTarget null"));
+        return false;
+    }
+
+    if (!CombatTarget->GetClass()->ImplementsInterface(UMHDamageSpecReceiverInterface::StaticClass()))
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | Target has no damage receiver interface"));
+        return false;
+    }
+    
+    const float Dist = FVector::Dist(GetActorLocation(), CombatTarget->GetActorLocation());
+    if (Dist > 220.f)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | Out of range"));
+        return false;
+    }
+
+    FGameplayEffectSpecHandle DamageSpecHandle;
+    if (!BuildMonsterDamageSpec(MonsterBasicPhysicalDamage, DamageSpecHandle))
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | BuildMonsterDamageSpec failed"));
+        return false;
+    }
+
+    FHitResult HitResult;
+    HitResult.Location = CombatTarget->GetActorLocation();
+    HitResult.ImpactPoint = CombatTarget->GetActorLocation();
+    HitResult.ImpactNormal = (CombatTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+    HitResult.Normal = HitResult.ImpactNormal;
+
+    const FMHHitAcknowledge HitAck =
+        IMHDamageSpecReceiverInterface::Execute_ReceiveDamageSpec(
+            CombatTarget,
+            this,
+            this,
+            AttackTag,
+            DamageSpecHandle,
+            HitResult
+        );
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("ConsumeMonsterAttackHitOnce | Accepted=%d Consume=%d StopWindow=%d ResultType=%d"),
+        HitAck.bAcceptedHit ? 1 : 0,
+        HitAck.bConsumeHitOnce ? 1 : 0,
+        HitAck.bShouldStopAttackWindow ? 1 : 0,
+        static_cast<int32>(HitAck.ResultType));
+
+    if (HitAck.bConsumeHitOnce)
+    {
+        bMonsterAttackHitConsumed = true;
+    }
+
+    if (HitAck.bShouldStopAttackWindow)
+    {
+        EndMonsterAttackWindow();
+    }
+
+    return HitAck.bAcceptedHit;
+}
+
+bool AMHMonsterCharacterBase::BuildMonsterDamageSpec(float PhysicalDamage,
+    FGameplayEffectSpecHandle& OutSpecHandle) const
+{
+    OutSpecHandle = FGameplayEffectSpecHandle();
+
+    if (!AbilitySystemComponent)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("BuildMonsterDamageSpec | ASC null"));
+        return false;
+    }
+
+    if (!MonsterDamageEffectClass)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("BuildMonsterDamageSpec | MonsterDamageEffectClass null"));
+        return false;
+    }
+
+    FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+    EffectContext.AddInstigator(const_cast<AMHMonsterCharacterBase*>(this), const_cast<AMHMonsterCharacterBase*>(this));
+    EffectContext.AddSourceObject(const_cast<AMHMonsterCharacterBase*>(this));
+
+    FGameplayEffectSpecHandle SpecHandle =
+        AbilitySystemComponent->MakeOutgoingSpec(MonsterDamageEffectClass, 1.f, EffectContext);
+
+    if (!SpecHandle.IsValid() || !SpecHandle.Data.IsValid())
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("BuildMonsterDamageSpec | SpecHandle invalid"));
+        return false;
+    }
+
+    SpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Physical, PhysicalDamage);
+    SpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Fire, 0.f);
+    SpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Water, 0.f);
+    SpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Thunder, 0.f);
+    SpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Ice, 0.f);
+    SpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Dragon, 0.f);
+
+    OutSpecHandle = SpecHandle;
+    return true;
+}
+
+
 
 FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
     AActor* SourceActor,
@@ -253,11 +404,11 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
     const FHitResult& HitResult
 )
 {
-    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ReceiveDamageSpec_Implementation"))
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ReceiveDamageSpec_Implementation"));
     UE_LOG(MHMonsterCharacterBase, Log, TEXT("SourceActor : %s, SourceWeapon : %s, AttackTag : %s")
         , *SourceActor->GetName()
         , *SourceActor->GetName()
-        , *AttackTag.GetTagName().ToString())
+        , *AttackTag.GetTagName().ToString());
     
     FMHHitAcknowledge Result;
 
@@ -635,6 +786,15 @@ void AMHMonsterCharacterBase::StartMonsterAbilityCooldown(FGameplayTag AbilityTa
         CooldownSeconds);
     
     
+}
+
+bool AMHMonsterCharacterBase::FindMonsterAbilityEntryByTag(FGameplayTag AbilityTag,
+    FMonsterAbilityEntry& OutEntry) const
+{
+    
+    
+    
+    return nullptr;
 }
 
 

@@ -7,11 +7,13 @@
 #include "CoreMinimal.h"
 #include "Character/MHCharacterBase.h"
 #include "GameplayTagContainer.h"
+#include "GameplayEffectTypes.h"
 #include "MHMonsterCharacterBase.generated.h"
 
 class UMHMonsterAttributeSet;
 class UAnimMontage;
 class AMHMonsterAIController;
+class UGameplayEffect;
 
 DECLARE_LOG_CATEGORY_EXTERN(MHMonsterCharacterBase, Log, All);
 
@@ -58,6 +60,35 @@ public:
     UFUNCTION(BlueprintCallable , Category="Monster|Combat")
     void FaceCombatTargetInterp(float DeltaSeconds , float TurnSpeedDeg = 720.f);
 
+   
+    
+    // 노티파이 용 체크 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Attack")
+    bool bMonsterAttackWindowOpen = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Attack")
+    bool bMonsterAttackHitConsumed = false;
+    
+    UFUNCTION(BlueprintCallable, Category="Monster|Attack")
+    void BeginMonsterAttackWindow();
+
+    UFUNCTION(BlueprintCallable, Category="Monster|Attack")
+    void EndMonsterAttackWindow();
+
+    UFUNCTION(BlueprintPure, Category="Monster|Attack")
+    bool CanMonsterAttackHitNow() const;
+    
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Monster|Attack")
+    TSubclassOf<UGameplayEffect> MonsterDamageEffectClass;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Monster|Attack")
+    float MonsterBasicPhysicalDamage = 20.f;
+
+    UFUNCTION(BlueprintCallable, Category="Monster|Attack")
+    bool ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag);
+
+protected:
+    bool BuildMonsterDamageSpec(float PhysicalDamage, FGameplayEffectSpecHandle& OutSpecHandle) const;
     
     
 #pragma region DamageSystem_GJ
@@ -178,6 +209,7 @@ public:
 protected:
     float FindMonsterAbilityCooldownSeconds(FGameplayTag AbilityTag) const;
     void StartMonsterAbilityCooldown(FGameplayTag AbilityTag);
+    bool FindMonsterAbilityEntryByTag(FGameplayTag AbilityTag, FMonsterAbilityEntry& OutEntry) const;
     
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Cooldown")
     TMap<FGameplayTag, float> AbilityCooldownEndTimes;
