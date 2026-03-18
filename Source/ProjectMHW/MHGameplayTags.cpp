@@ -75,6 +75,11 @@ namespace MHGameplayTags
 	
 #pragma endregion
 	
+#pragma region Attack
+	UE_DEFINE_GAMEPLAY_TAG(Attack_Debug_Generic, "Attack.Debug.Generic");
+	UE_DEFINE_GAMEPLAY_TAG(Attack_Debug_Counterable, "Attack.Debug.Counterable");
+	UE_DEFINE_GAMEPLAY_TAG(Attack_Debug_Uncounterable, "Attack.Debug.Uncounterable");
+#pragma endregion
 	
 #pragma region Data
 	// Damage SetByCaller

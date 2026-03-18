@@ -33,6 +33,12 @@ namespace MHGameplayTags
 	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Element_Ice);
 	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Element_Dragon);
 	
+#pragma region Attack
+	// 디버그 공격 판정용 태그
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Attack_Debug_Generic);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Attack_Debug_Counterable);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Attack_Debug_Uncounterable);
+#pragma endregion
 	
 #pragma region ItemTags
 	// Root
