@@ -131,6 +131,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Debug|Damage")
     void ApplyDebugDamageFromSource(AActor* InSourceActor, float InPhysicalDamage, const FGameplayTag& InAttackTag);
 
+#pragma region WeaponAndLongSwordAPI
     // 콤보 몽타주 종료 시 납도/발도 상태 확정
     void HandleComboMontageStateTransition(bool bInterrupted); //손승우 추가
 
@@ -196,6 +197,7 @@ public:
 
     // 현재 기인 레벨과 공격 메타를 반영한 최종 배율을 계산한다.
     float ResolveLongSwordDamageMultiplier(const FGameplayTag& InMoveTag) const;
+#pragma endregion
 
     // UI/HUD에서 현재 체력 값을 조회할 때 사용한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
@@ -304,7 +306,7 @@ protected:
     TObjectPtr<UDataAsset_LSInputPatternSet> LongSwordInputPatternSet; // 롱소드 입력 패턴 DA
     // ===== End Inputs =====
 
-    // ===== Weapon =====
+#pragma region WeaponState
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
     FGameplayTag CurrentWeaponTag; // 무기 타입 태그
 
@@ -325,9 +327,9 @@ protected:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
     TSoftObjectPtr<UAnimMontage> SheathedRollMontage; // 납도 구르기 몽타주(루트모션)
-    // ===== End Weapon =====
+#pragma endregion
 
-    // ===== LongSword Runtime =====
+#pragma region LongSwordRuntimeState
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UDataTable> LongSwordAttackMetaTable;
 
@@ -351,7 +353,7 @@ protected:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
     float SpiritLevelMultiplierLv3 = 1.20f;
-    // ===== End LongSword Runtime =====
+#pragma endregion
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true"))
     TSubclassOf<UGameplayEffect> PlayerIncomingDamageEffectClass;
@@ -470,6 +472,7 @@ private:
     // ===== Terrain Hooks =====
     // ===== End Terrain Hooks =====
 
+#pragma region WeaponRuntimeFunctions
     // 무기 메쉬 적용
     void SpawnAndEquipDefaultWeapon();
 
@@ -505,7 +508,9 @@ private:
 
     // Mouse5(실제 베어내리기 계열 축) 단일 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForAttackSimultaneousInput() const;
+#pragma endregion
 
+#pragma region LongSwordRuntimeFunctions
     bool IsLongSwordEquipped() const;
     bool HasMovementInputForCombat() const;
     bool IsStandingStillForCombat() const;
@@ -544,6 +549,7 @@ private:
     // 베어내리기 계열에서 좌우 이동베기 Variant를 사용할 수 있는지 확인한다.
     bool ShouldUseDirectionalLateralFadeSlash() const;
     bool ShouldUseLateralFadeSlashPattern() const;
+#pragma endregion
 
 
     //롤 입력 차단을 위한
@@ -593,6 +599,7 @@ protected:
     // 구르기 몽타주 종료 처리
     void HandleRollMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
+#pragma region WeaponAnimationLayerFunctions
     // 현재 장착 무기의 애님 레이어 갱신
     void RefreshWeaponAnimationLayerState();
 
@@ -604,6 +611,7 @@ protected:
 
     // 현재 장착 무기의 링크 대상 레이어 클래스 반환
     TSoftClassPtr<UAnimInstance> GetCurrentWeaponLinkedAnimLayerClass() const;
+#pragma endregion
 
     UPROPERTY(Transient)
     bool bWeaponAnimLayerLinked = false;
