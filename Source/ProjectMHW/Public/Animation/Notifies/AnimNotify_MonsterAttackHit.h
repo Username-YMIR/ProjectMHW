@@ -13,10 +13,10 @@
 UCLASS(meta=(DisplayName="MH Monster Attack Hit"))
 class PROJECTMHW_API UAnimNotify_MonsterAttackHit : public UAnimNotify
 {
-	GENERATED_BODY()\
+	GENERATED_BODY()
 	
 public:
-	UPROPERTY(EditAnywhere , BlueprintReadOnly , Category="Monster|Attack")
+	UPROPERTY(EditAnywhere , BlueprintReadWrite , Category="Monster|Attack")
 	FGameplayTag AttackTag; 
 	
 	virtual void Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation) override;

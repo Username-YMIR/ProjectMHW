@@ -17,7 +17,7 @@ class PROJECTMHW_API UMHDamageTextWidget : public UUserWidget
 	GENERATED_BODY()
 	
 public:
-	UMHDamageTextWidget();
+	UMHDamageTextWidget(const FObjectInitializer& ObjectInitializer);
 	
 protected:
 	// 대미지 텍스트

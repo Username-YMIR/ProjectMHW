@@ -2,3 +2,10 @@
 
 
 #include "Widgets/MHDamageTextWidget.h"
+
+
+
+UMHDamageTextWidget::UMHDamageTextWidget(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+}

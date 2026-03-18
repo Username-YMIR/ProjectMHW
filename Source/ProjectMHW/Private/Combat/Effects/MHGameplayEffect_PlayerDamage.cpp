@@ -2,4 +2,5 @@
 
 UMHGameplayEffect_PlayerDamage::UMHGameplayEffect_PlayerDamage()
 {
+
 }

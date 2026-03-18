@@ -9,12 +9,15 @@
 #include "MonsterType/MHMonsterType.h"
 #include "GameplayTagContainer.h"
 #include "GameplayEffectTypes.h"
+#include "Combat/Attributes/MHHealthAttributeSet.h"
 #include "MHMonsterCharacterBase.generated.h"
 
 class UMHMonsterAttributeSet;
 class UAnimMontage;
 class AMHMonsterAIController;
 class UGameplayEffect;
+class UMHHealthAttributeSet;
+class UMHCombatAttributeSet;
 
 DECLARE_LOG_CATEGORY_EXTERN(MHMonsterCharacterBase, Log, All);
 
@@ -143,6 +146,18 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|State")
     bool bHasRoared = false;
+    
+    UFUNCTION(BlueprintPure, Category="Monster|State")
+    bool HasDeadTag() const;
+    
+    UFUNCTION(Blueprintable , Category="Monster|State")
+    bool IsMonsterDead() const;
+    
+    UFUNCTION(BlueprintCallable, Category="Monster|Death")
+    void PlayDeathAnimation();
+    
+    UPROPERTY(EditDefaultsOnly, Category="Monster|Dead")
+    TObjectPtr<UAnimMontage> DeathMontage = nullptr;
     
     
 
@@ -274,6 +289,12 @@ protected:
     // =========================
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Attribute")
     TObjectPtr<UMHMonsterAttributeSet> MonsterAttributes;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Attribute")
+    TObjectPtr<UMHCombatAttributeSet> CombatAttributeSets;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Attribute")
+    TObjectPtr<UMHHealthAttributeSet> HealthAttributeSets;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|GAS")
     bool bMonsterGASInitialized = false;
