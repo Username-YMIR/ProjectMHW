@@ -349,6 +349,8 @@ bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag
     {
         EndMonsterAttackWindow();
     }
+    
+    
 
     return HitAck.bAcceptedHit;
 }
@@ -737,7 +739,7 @@ float AMHMonsterCharacterBase::GetMonsterAbilityCooldownRemaining(FGameplayTag A
 
 float AMHMonsterCharacterBase::FindMonsterAbilityCooldownSeconds(FGameplayTag AbilityTag) const
 {
-    const UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
+    /*const UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
     if (!MonsterDataAsset || !AbilityTag.IsValid())
     {
         return 0.f;
@@ -760,8 +762,14 @@ float AMHMonsterCharacterBase::FindMonsterAbilityCooldownSeconds(FGameplayTag Ab
                 return Entry.CooldownSeconds;
             }
         }
+    }*/
+    FMonsterAbilityEntry Entry;
+    
+    if (FindMonsterAbilityEntryByTag(AbilityTag, Entry))
+    {
+        return Entry.CooldownSeconds;
     }
-
+    
     return 0.f;
 }
 
@@ -791,10 +799,83 @@ void AMHMonsterCharacterBase::StartMonsterAbilityCooldown(FGameplayTag AbilityTa
 bool AMHMonsterCharacterBase::FindMonsterAbilityEntryByTag(FGameplayTag AbilityTag,
     FMonsterAbilityEntry& OutEntry) const
 {
+    OutEntry = FMonsterAbilityEntry();
+
+    const UMHMonsterDataAsset* MonsterDataAsset = Cast<UMHMonsterDataAsset>(GASAsset);
+    if (!MonsterDataAsset)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("FindMonsterAbilityEntryByTag | MonsterDataAsset null | GASAsset=%s"),
+            *GetNameSafe(GASAsset));
+        return false;
+    }
+    
+    UE_LOG(MHMonsterCharacterBase, Warning,
+    TEXT("FindMonsterAbilityEntryByTag | GASAsset=%s"),
+    *GetNameSafe(GASAsset));
     
     
-    
-    return nullptr;
+
+    if (!AbilityTag.IsValid())
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("FindMonsterAbilityEntryByTag | AbilityTag invalid"));
+        return false;
+    }
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("FindMonsterAbilityEntryByTag | Search Tag=%s"),
+        *AbilityTag.ToString());
+
+    for (const FMonsterAbilityEntry& Entry : MonsterDataAsset->AbilityEntries)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("  Check AbilityEntries Tag=%s Cooldown=%.2f"),
+            *Entry.AbilityTag.ToString(),
+            Entry.CooldownSeconds);
+
+        if (Entry.AbilityTag == AbilityTag)
+        {
+            OutEntry = Entry;
+
+            UE_LOG(MHMonsterCharacterBase, Warning,
+                TEXT("FindMonsterAbilityEntryByTag | Found in AbilityEntries | Tag=%s Cooldown=%.2f"),
+                *OutEntry.AbilityTag.ToString(),
+                OutEntry.CooldownSeconds);
+
+            return true;
+        }
+    }
+
+    for (const FPhaseAbilitySet& PhaseEntry : MonsterDataAsset->PhaseSet)
+    {
+        for (const FMonsterAbilityEntry& Entry : PhaseEntry.AbilityEntries)
+        {
+            UE_LOG(MHMonsterCharacterBase, Warning,
+                TEXT("  Check PhaseSet Phase=%s Tag=%s Cooldown=%.2f"),
+                *PhaseEntry.PhaseTag.ToString(),
+                *Entry.AbilityTag.ToString(),
+                Entry.CooldownSeconds);
+
+            if (Entry.AbilityTag == AbilityTag)
+            {
+                OutEntry = Entry;
+
+                UE_LOG(MHMonsterCharacterBase, Warning,
+                    TEXT("FindMonsterAbilityEntryByTag | Found in PhaseSet | Tag=%s Cooldown=%.2f"),
+                    *OutEntry.AbilityTag.ToString(),
+                    OutEntry.CooldownSeconds);
+
+                return true;
+            }
+        }
+    }
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("FindMonsterAbilityEntryByTag | Not Found | Tag=%s"),
+        *AbilityTag.ToString());
+
+    return false;
 }
 
 
