@@ -65,6 +65,8 @@ namespace MHCombatDataPopulatorLibrary_Private
 		float InPartBreakMultiplier,
 		float InHitStopSeconds,
 		const TCHAR* InAttackType,
+		float InSpiritGaugeGain = 0.0f,
+		float InSpiritGaugeConsume = 0.0f,
 		bool bInCanSever = true)
 	{
 		if (!IsValid(InAttackMetaTable))
@@ -78,6 +80,8 @@ namespace MHCombatDataPopulatorLibrary_Private
 		AttackMetaRow.PartBreakMultiplier = InPartBreakMultiplier;
 		AttackMetaRow.HitStopSeconds = InHitStopSeconds;
 		AttackMetaRow.AttackType = FName(InAttackType);
+		AttackMetaRow.SpiritGaugeGain = InSpiritGaugeGain;
+		AttackMetaRow.SpiritGaugeConsume = InSpiritGaugeConsume;
 		AttackMetaRow.bCanSever = bInCanSever;
 
 		InAttackMetaTable->AddRow(MakeRowNameFromTag(InMoveTag), AttackMetaRow);
@@ -176,29 +180,29 @@ bool UMHCombatDataPopulatorLibrary::PopulateLongSwordAttackMetaTable(UObject* At
 
 	AttackMetaTable->EmptyTable();
 
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.DrawOnly"), 0.0f, 0.0f, 0.00f, TEXT("Utility"), false);
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.DrawAdvancingSlash"), 1.00f, 1.00f, 0.04f, TEXT("Draw"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.DrawSpiritSlash1"), 1.05f, 1.05f, 0.05f, TEXT("DrawSpirit"));
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.DrawOnly"), 0.0f, 0.0f, 0.00f, TEXT("Utility"), 0.0f, 0.0f, false);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.DrawAdvancingSlash"), 1.00f, 1.00f, 0.04f, TEXT("Draw"), 8.0f, 0.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.DrawSpiritSlash1"), 1.05f, 1.05f, 0.05f, TEXT("DrawSpirit"), 10.0f, 0.0f);
 
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.AdvancingSlash"), 1.00f, 1.00f, 0.04f, TEXT("Normal"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.VerticalSlash"), 1.00f, 1.00f, 0.04f, TEXT("Normal"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.Thrust"), 0.95f, 0.95f, 0.03f, TEXT("Normal"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.RisingSlash"), 1.00f, 1.00f, 0.04f, TEXT("Normal"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.FadeSlash"), 0.95f, 0.95f, 0.04f, TEXT("Normal"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.LateralFadeSlash"), 1.00f, 1.00f, 0.04f, TEXT("Normal"));
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.AdvancingSlash"), 1.00f, 1.00f, 0.04f, TEXT("Normal"), 10.0f, 0.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.VerticalSlash"), 1.00f, 1.00f, 0.04f, TEXT("Normal"), 8.0f, 0.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.Thrust"), 0.95f, 0.95f, 0.03f, TEXT("Normal"), 7.0f, 0.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.RisingSlash"), 1.00f, 1.00f, 0.04f, TEXT("Normal"), 9.0f, 0.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.FadeSlash"), 0.95f, 0.95f, 0.04f, TEXT("Normal"), 8.0f, 0.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.LateralFadeSlash"), 1.00f, 1.00f, 0.04f, TEXT("Normal"), 8.0f, 0.0f);
 
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritSlash1"), 1.05f, 1.05f, 0.05f, TEXT("Spirit"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritSlash2"), 1.10f, 1.10f, 0.05f, TEXT("Spirit"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritSlash3"), 1.15f, 1.10f, 0.06f, TEXT("Spirit"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritRoundslash"), 1.25f, 1.20f, 0.07f, TEXT("Spirit"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritAdvancingSlash"), 1.10f, 1.05f, 0.05f, TEXT("Spirit"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritThrust"), 1.00f, 1.00f, 0.04f, TEXT("Spirit"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritHelmbreaker"), 2.00f, 1.50f, 0.10f, TEXT("SpiritFinisher"));
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritSlash1"), 1.05f, 1.05f, 0.05f, TEXT("Spirit"), 0.0f, 10.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritSlash2"), 1.10f, 1.10f, 0.05f, TEXT("Spirit"), 0.0f, 10.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritSlash3"), 1.15f, 1.10f, 0.06f, TEXT("Spirit"), 0.0f, 10.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritRoundslash"), 1.25f, 1.20f, 0.07f, TEXT("Spirit"), 0.0f, 10.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritAdvancingSlash"), 1.10f, 1.05f, 0.05f, TEXT("Spirit"), 0.0f, 10.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritThrust"), 1.00f, 1.00f, 0.04f, TEXT("Spirit"), 5.0f, 0.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpiritHelmbreaker"), 2.00f, 1.50f, 0.10f, TEXT("SpiritFinisher"), 0.0f, 0.0f);
 
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpecialSheathe"), 0.0f, 0.0f, 0.00f, TEXT("Utility"), false);
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.IaiSlash"), 1.30f, 1.20f, 0.06f, TEXT("Special"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.IaiSpiritSlash"), 1.60f, 1.30f, 0.08f, TEXT("Special"));
-	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.ForesightSlash"), 0.95f, 1.00f, 0.05f, TEXT("Counter"));
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.SpecialSheathe"), 0.0f, 0.0f, 0.00f, TEXT("Utility"), 0.0f, 0.0f, false);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.IaiSlash"), 1.30f, 1.20f, 0.06f, TEXT("Special"), 8.0f, 0.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.IaiSpiritSlash"), 1.60f, 1.30f, 0.08f, TEXT("Special"), 0.0f, 0.0f);
+	AddAttackMetaRow(AttackMetaTable, TEXT("Move.LS.ForesightSlash"), 0.95f, 1.00f, 0.05f, TEXT("Counter"), 0.0f, 10.0f);
 
 	AttackMetaTable->MarkPackageDirty();
 	return true;

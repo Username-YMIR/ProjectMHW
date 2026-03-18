@@ -21,6 +21,16 @@ enum class EMHLongSwordCounterWindowType : uint8
     SpecialSheatheSpirit    UMETA(DisplayName = "SpecialSheatheSpirit")
 };
 
+// 태도 기술별 자원 반영 시점을 구분하기 위한 내부 enum
+UENUM()
+enum class EMHLongSwordResourceCommitType : uint8
+{
+    None,
+    FirstValidHit,
+    FinisherHit,
+    CounterSuccess
+};
+
 class UMHHealthAttributeSet;
 class UMHCombatAttributeSet;
 class UMHResistanceAttributeSet;
@@ -38,6 +48,7 @@ class UDataTable;
 class AMHWeaponInstance;
 struct FInputActionValue;
 struct FMHAttackDefinitionRow;
+struct FMHAttackMetaRow;
 
 UCLASS()
 class PROJECTMHW_API AMHPlayerCharacter : public AMHCharacterBase
@@ -52,7 +63,6 @@ protected:
 
     void InitializeCapsuleSettings();
     
-    void InitializeMeshCollisionSettings();
     
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
     // 종료 처리
@@ -77,9 +87,6 @@ protected:
     // 회피 입력
     void Input_Dodge(const FInputActionValue& InputActionValue);
 
-    // 상호작용 입력
-    void Input_Interact(const FInputActionValue& InputActionValue);
-
     // 기본 공격 입력
     void Input_AttackPrimary(const FInputActionValue& InputActionValue);
 
@@ -88,9 +95,6 @@ protected:
 
     // 무기 특수 입력
     void Input_WeaponSpecial(const FInputActionValue& InputActionValue); //손승우 추가
-
-    // 디버그 자기 대미지 입력(키보드 1)
-    void Input_DebugSelfDamage();
 
     void Input_AttackPrimaryCompleted(const FInputActionValue& InputActionValue);
     void Input_AttackSecondaryCompleted(const FInputActionValue& InputActionValue);
@@ -105,11 +109,6 @@ protected:
 
     // 조준/홀드 종료
     void Input_AimHoldCompleted(const FInputActionValue& InputActionValue); //손승우 추가
-
-public:
-    // 상호작용
-    UFUNCTION(BlueprintCallable, Category = "Player")
-    virtual void Interact();
 
 protected:
     /** 플레이어는 공통 DamageSpec을 직접 적용하지 않고, 플레이어 전용 Damage GE로 재구성해 적용한다. */
@@ -126,9 +125,6 @@ public:
     // 기본 공격
     UFUNCTION(BlueprintCallable, Category = "Player")
     virtual void UsePrimaryAction();
-
-    UFUNCTION(BlueprintCallable, Category = "Debug|Damage")
-    void ApplyDebugDamageToSelf();
 
     void ApplyDebugDamageFromSource(AActor* InSourceActor, float InPhysicalDamage);
 
@@ -192,6 +188,67 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Combo")
     bool HasLongSwordSpecialSheatheSpiritCounterSuccess() const { return bLongSwordSpecialSheatheSpiritCounterSuccess; }
 
+    // 태도 공격이 실제 유효 타격으로 확정된 순간 자원 반영을 처리한다.
+    void Notify_LongSwordAttackHitConfirmed(const FGameplayTag& InMoveTag);
+
+    // 태도 카운터 성공 시점에 자원 반영이 필요한 기술을 처리한다.
+    void Notify_LongSwordCounterCommitSuccess(EMHLongSwordCounterWindowType InCounterWindowType);
+
+    // 현재 기인 레벨과 공격 메타를 반영한 최종 배율을 계산한다.
+    float ResolveLongSwordDamageMultiplier(const FGameplayTag& InMoveTag) const;
+
+    // UI/HUD에서 현재 체력 값을 조회할 때 사용한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    float GetCurrentHealthValue() const;
+
+    // UI/HUD에서 최대 체력 값을 조회할 때 사용한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    float GetMaxHealthValue() const;
+
+    // UI/HUD에서 체력 비율을 바로 사용할 수 있게 반환한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    float GetHealthRatio() const;
+
+    // UI/HUD에서 현재 스태미너 값을 조회할 때 사용한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    float GetCurrentStaminaValue() const;
+
+    // UI/HUD에서 최대 스태미너 값을 조회할 때 사용한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    float GetMaxStaminaValue() const;
+
+    // UI/HUD에서 스태미너 비율을 바로 사용할 수 있게 반환한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    float GetStaminaRatio() const;
+
+    // UI/HUD에서 현재 기인 게이지 값을 조회할 때 사용한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    float GetCurrentSpiritGaugeValue() const;
+
+    // UI/HUD에서 최대 기인 게이지 값을 조회할 때 사용한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    float GetMaxSpiritGaugeValue() const;
+
+    // UI/HUD에서 기인 게이지 비율을 바로 사용할 수 있게 반환한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    float GetSpiritGaugeRatio() const;
+
+    // UI/HUD에서 현재 기인 레벨을 조회할 때 사용한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    int32 GetCurrentSpiritLevelValue() const;
+
+    // UI/HUD에서 최대 기인 레벨을 조회할 때 사용한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    int32 GetMaxSpiritLevelValue() const;
+
+    // UI/HUD에서 한 번에 체력/스태미너 값을 가져올 때 사용한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    void GetPlayerVitalStatus(float& OutCurrentHealth, float& OutMaxHealth, float& OutCurrentStamina, float& OutMaxStamina) const;
+
+    // UI/HUD에서 한 번에 기인 게이지/레벨 값을 가져올 때 사용한다.
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    void GetLongSwordSpiritStatus(float& OutCurrentSpiritGauge, float& OutMaxSpiritGauge, int32& OutCurrentSpiritLevel, int32& OutMaxSpiritLevel) const;
+
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_BeginLongSwordCounterWindow(EMHLongSwordCounterWindowType InCounterWindowType);
 
@@ -237,8 +294,6 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stamina", meta = (AllowPrivateAccess = "true"))
     FMHPlayerStaminaConfig StaminaConfig; // 스태미나 설정
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stamina", meta = (AllowPrivateAccess = "true"))
-    float CurrentStamina = 0.0f; // 현재 스태미나
     // ===== End Stamina =====
 
     // ===== Inputs =====
@@ -271,6 +326,32 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
     TSoftObjectPtr<UAnimMontage> SheathedRollMontage; // 납도 구르기 몽타주(루트모션)
     // ===== End Weapon =====
+
+    // ===== LongSword Runtime =====
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UDataTable> LongSwordAttackMetaTable;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
+    float MaxSpiritGauge = 100.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true"))
+    float CurrentSpiritGauge = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0", ClampMax = "3", AllowPrivateAccess = "true"))
+    int32 CurrentSpiritLevel = 0;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
+    float SpiritLevelMultiplierLv0 = 1.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
+    float SpiritLevelMultiplierLv1 = 1.05f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
+    float SpiritLevelMultiplierLv2 = 1.10f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
+    float SpiritLevelMultiplierLv3 = 1.20f;
+    // ===== End LongSword Runtime =====
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true"))
     TSubclassOf<UGameplayEffect> PlayerIncomingDamageEffectClass;
@@ -377,11 +458,16 @@ private:
     // 스프린트 시작 가능 여부
     bool CanStartSprint() const;
 
+    // 스프린트 설정값을 ASC 스태미나 속성에 동기화한다.
+    void SyncStaminaAttributesFromConfig();
+
+    // 현재 스태미나 값을 ASC 스태미나 속성에 반영한다.
+    void SetCurrentStaminaAttributeValue(float InNewValue);
+
+    // 최대 스태미나 값을 ASC 스태미나 속성에 반영한다.
+    void SetMaxStaminaAttributeValue(float InNewValue);
+
     // ===== Terrain Hooks =====
-    bool TryEnterSlide();
-    bool TryStartClimb();
-    bool TryJumpOffLedge();
-    void HandleLandingState();
     // ===== End Terrain Hooks =====
 
     // 무기 메쉬 적용
@@ -434,6 +520,19 @@ private:
     bool IsAttackAllowedForForesightCounter(const FGameplayTag& InAttackTag) const;
     bool IsAttackAllowedForSpecialSheatheCounter(const FGameplayTag& InAttackTag) const;
     const FMHAttackDefinitionRow* FindAttackDefinitionRow(const FGameplayTag& InAttackTag) const;
+    bool FindAttackMetaRow(const FGameplayTag& InMoveTag, FMHAttackMetaRow& OutAttackMetaRow) const;
+
+    // 기술 태그를 기준으로 자원을 언제 확정할지 결정한다.
+    EMHLongSwordResourceCommitType ResolveLongSwordResourceCommitType(const FGameplayTag& InMoveTag) const;
+
+    // 확정 시점이 도달했을 때 게이지/기인 레벨 변화를 한곳에서 적용한다.
+    void CommitLongSwordResourceDelta(const FGameplayTag& InMoveTag, EMHLongSwordResourceCommitType InCommitType);
+
+    float GetCurrentSpiritDamageMultiplier() const;
+    void AddSpiritGauge(float InAmount);
+    void ConsumeSpiritGauge(float InAmount);
+    void IncreaseSpiritLevel(int32 InAmount = 1);
+    void DecreaseSpiritLevel(int32 InAmount = 1);
     FMHHitAcknowledge BuildLongSwordInvulnerableHitAcknowledge() const;
 
     // 발도 상태에서 첫 시작 공격을 선택하는 문맥인지 확인한다.
@@ -445,6 +544,7 @@ private:
     // 베어내리기 계열에서 좌우 이동베기 Variant를 사용할 수 있는지 확인한다.
     bool ShouldUseDirectionalLateralFadeSlash() const;
     bool ShouldUseLateralFadeSlashPattern() const;
+
 
     //롤 입력 차단을 위한
     bool bRollMontagePlaying = false;

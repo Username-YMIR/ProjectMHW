@@ -3,6 +3,7 @@
 #include "Items/Instance/MHMeleeWeaponInstance.h"
 
 #include "Components/BoxComponent.h"
+#include "Character/Player/MHPlayerCharacter.h"
 #include "Interfaces/MHDamageableInterface.h"
 #include "Interfaces/MHDamageSpecReceiverInterface.h"
 
@@ -13,6 +14,7 @@ AMHMeleeWeaponInstance::AMHMeleeWeaponInstance()
 {
 	// 액터 틱은 사용하지 않으므로 비활성화
 	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 
 	// 무기 타격 판정용 박스 콜리전 생성
 	HitBox = CreateDefaultSubobject<UBoxComponent>(TEXT("HitBox"));
@@ -49,6 +51,7 @@ void AMHMeleeWeaponInstance::ResetMeleeAttack()
 	SetAttackCollisionEnabled(false);
 	ClearHitActors();
 	ClearCurrentAttackData();
+	bResolvedConfirmedHitForCurrentAttack = false;
 }
 
 void AMHMeleeWeaponInstance::SetAttackCollisionEnabled(bool bEnabled)
@@ -90,6 +93,7 @@ void AMHMeleeWeaponInstance::ClearCurrentAttackData()
 {
 	CurrentDamageSpecHandle = FGameplayEffectSpecHandle();
 	CurrentAttackTag = FGameplayTag();
+	bResolvedConfirmedHitForCurrentAttack = false;
 }
 
 bool AMHMeleeWeaponInstance::HasValidCurrentDamageSpec() const
@@ -278,6 +282,19 @@ void AMHMeleeWeaponInstance::OnWeaponBeginOverlap(
 			*GetNameSafe(OtherActor)
 		);
 		return;
+	}
+
+	// 실제 유효 타격이 처음 성립한 순간에만 소유자 자원을 반영한다.
+	if (!bResolvedConfirmedHitForCurrentAttack
+		&& HitAcknowledge.bAcceptedHit
+		&& HitAcknowledge.ResultType == EMHHitResultType::NormalHit)
+	{
+		if (AMHPlayerCharacter* PlayerOwner = Cast<AMHPlayerCharacter>(OwnerActor))
+		{
+			PlayerOwner->Notify_LongSwordAttackHitConfirmed(CurrentAttackTag);
+		}
+
+		bResolvedConfirmedHitForCurrentAttack = true;
 	}
 
 	// 피격자가 이번 판정을 1회 소비 대상으로 인정하면 목록에 등록
