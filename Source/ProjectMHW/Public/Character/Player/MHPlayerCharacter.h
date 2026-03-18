@@ -110,6 +110,9 @@ protected:
     // 조준/홀드 종료
     void Input_AimHoldCompleted(const FInputActionValue& InputActionValue); //손승우 추가
 
+    // 키보드 4번 입력으로 플레이어에게 디버그 피격을 발생시켜 카운터 동작을 검증한다.
+    void Input_DebugIncomingDamageKeyPressed();
+
 protected:
     /** 플레이어는 공통 DamageSpec을 직접 적용하지 않고, 플레이어 전용 Damage GE로 재구성해 적용한다. */
     virtual bool ApplyIncomingDamageSpec(

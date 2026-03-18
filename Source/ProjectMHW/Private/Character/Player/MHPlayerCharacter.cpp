@@ -130,6 +130,7 @@ AMHPlayerCharacter::AMHPlayerCharacter()
 
     DebugDamageEffectClass = UMHGameplayEffect_Damage::StaticClass();
     PlayerIncomingDamageEffectClass = UMHGameplayEffect_PlayerDamage::StaticClass();
+    DebugIncomingAttackTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Attack.Debug.Counterable")), false);
 }
 
 void AMHPlayerCharacter::BeginPlay()
@@ -223,6 +224,9 @@ void AMHPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AimHold, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_AimHoldStarted); //손승우 추가
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AimHold, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_AimHoldCompleted); //손승우 추가
     }
+
+    // 입력 액션 자산과 별개로 디버그 피격 키를 직접 바인딩해서 간파/거합 검증에 사용한다.
+    PlayerInputComponent->BindKey(EKeys::Four, IE_Pressed, this, &AMHPlayerCharacter::Input_DebugIncomingDamageKeyPressed);
 }
 
 void AMHPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -361,6 +365,30 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
 void AMHPlayerCharacter::Input_DodgeCompleted(const FInputActionValue& InputActionValue)
 {
     bDodgeHeld = false;
+}
+
+void AMHPlayerCharacter::Input_DebugIncomingDamageKeyPressed()
+{
+    const FGameplayTag AttackTagToUse = DebugIncomingAttackTag.IsValid()
+        ? DebugIncomingAttackTag
+        : FGameplayTag::RequestGameplayTag(FName(TEXT("Attack.Debug.Counterable")), false);
+
+    if (!AttackTagToUse.IsValid())
+    {
+        UE_LOG(LogMHPlayerCharacter, Warning, TEXT("%s : 디버그 피격 키 입력을 처리할 수 없습니다. Attack.Debug.Counterable 태그를 찾지 못했습니다."), *GetName());
+        return;
+    }
+
+    ApplyDebugDamageFromSource(this, DebugIncomingPhysicalDamage, AttackTagToUse);
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Log,
+        TEXT("%s : 디버그 피격 키 입력 처리. Physical=%.2f AttackTag=%s"),
+        *GetName(),
+        DebugIncomingPhysicalDamage,
+        *AttackTagToUse.ToString()
+    );
 }
 
 void AMHPlayerCharacter::ApplyDebugDamageFromSource(AActor* InSourceActor, float InPhysicalDamage)
