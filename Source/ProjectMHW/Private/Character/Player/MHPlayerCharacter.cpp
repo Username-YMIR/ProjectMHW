@@ -489,6 +489,7 @@ void AMHPlayerCharacter::UsePrimaryAction()
     TryResolveAndHandleLongSwordPattern(ResolveLongSwordPatternForPrimaryInput());
 }
 
+#pragma region WeaponAndLongSwordRuntime
 void AMHPlayerCharacter::HandleComboMontageStateTransition(bool bInterrupted)
 {
     if (!bPendingUnsheatheFromComboEntry)
@@ -750,6 +751,7 @@ bool AMHPlayerCharacter::TryStartAutoSheatheAfterLongSwordMove(const FGameplayTa
     return true;
 }
 
+#pragma region WeaponRuntimeFunctions
 void AMHPlayerCharacter::SpawnAndEquipDefaultWeapon()
 {
     if (!DefaultWeaponClass)
@@ -840,6 +842,9 @@ void AMHPlayerCharacter::AttachWeaponToHand()
     BladeMesh->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocketConfig.HandSocketName);
 }
 
+#pragma endregion
+
+#pragma region LongSwordRuntimeFunctions
 bool AMHPlayerCharacter::IsLongSwordEquipped() const
 {
     return CurrentWeaponType == EMHWeaponType::LongSword && Cast<AMHLongSwordInstance>(EquippedWeapon) != nullptr;
@@ -1064,6 +1069,8 @@ float AMHPlayerCharacter::ResolveLongSwordDamageMultiplier(const FGameplayTag& I
 
     return MetaDamageMultiplier * GetCurrentSpiritDamageMultiplier();
 }
+
+#pragma endregion
 
 float AMHPlayerCharacter::GetCurrentHealthValue() const
 {
@@ -2081,6 +2088,9 @@ void AMHPlayerCharacter::HandleRollMontageEnded(UAnimMontage* Montage, bool bInt
     UpdateLocomotionState();
 }
 
+#pragma endregion
+
+#pragma region WeaponAnimationLayerFunctions
 void AMHPlayerCharacter::RefreshWeaponAnimationLayerState()
 {
     if (!EquippedWeapon)
@@ -2153,6 +2163,7 @@ TSoftClassPtr<UAnimInstance> AMHPlayerCharacter::GetCurrentWeaponLinkedAnimLayer
     const FMHWeaponAnimConfig* AnimConfig = GetEquippedWeaponAnimConfig();
     return AnimConfig ? AnimConfig->LinkedWeaponAnimLayerClass : TSoftClassPtr<UAnimInstance>();
 }
+#pragma endregion
 
 void AMHPlayerCharacter::ApplyPlayerVisuals()
 {
