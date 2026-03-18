@@ -65,6 +65,7 @@ namespace MHGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(State_Monster_Combat, "State.Monster.Combat");
 	UE_DEFINE_GAMEPLAY_TAG(State_Monster_Attacking, "State.Monster.Attacking");
 	UE_DEFINE_GAMEPLAY_TAG(State_Monster_Charging, "State.Monster.Charging");
+	UE_DEFINE_GAMEPLAY_TAG(State_Monster_Dead, "State.Monster.Dead");
 
 	UE_DEFINE_GAMEPLAY_TAG(Event_Monster_DetectedBySight, "Event.Monster.DetectedBySight");
 	UE_DEFINE_GAMEPLAY_TAG(Event_Monster_AttackedFromUnaware, "Event.Monster.AttackedFromUnaware");

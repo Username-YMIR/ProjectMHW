@@ -21,6 +21,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
+#include "Combat/Attributes/MHCombatAttributeSet.h"
 
 DEFINE_LOG_CATEGORY(MHMonsterCharacterBase)
 
@@ -37,6 +38,8 @@ AMHMonsterCharacterBase::AMHMonsterCharacterBase()
     bUseControllerRotationYaw = false;
 
     MonsterAttributes = CreateDefaultSubobject<UMHMonsterAttributeSet>(TEXT("MonsterAttributeSet"));
+    CombatAttributeSets = CreateDefaultSubobject<UMHCombatAttributeSet>(TEXT("CombatAttributeSet"));
+    HealthAttributeSets = CreateDefaultSubobject<UMHHealthAttributeSet>(TEXT("HealthAttributeSet"));
     
     MonsterDamageEffectClass = UMHGameplayEffect_Damage::StaticClass();
 }
@@ -69,6 +72,15 @@ void AMHMonsterCharacterBase::BeginPlay()
 
 bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag AbilityTag)
 {
+    
+    if (HasDeadTag())
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("TryActivateMonsterAbilityByTag | blocked, dead | Tag=%s"),
+            *AbilityTag.ToString());
+        return false;
+    }
+    
     if (!AbilitySystemComponent)
     {
         UE_LOG(MHMonsterCharacterBase, Warning, TEXT("TryActivateMonsterAbilityByTag | ASC is null"));
@@ -276,9 +288,6 @@ void AMHMonsterCharacterBase::FaceCombatTargetInterp(float DeltaSeconds, float T
 
 bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag)
 {
-    
-    
-    
     if (!bMonsterAttackWindowOpen)
     {
         UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | Window closed"));
@@ -302,16 +311,45 @@ bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag
         UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | Target has no damage receiver interface"));
         return false;
     }
-    
-    const float Dist = FVector::Dist(GetActorLocation(), CombatTarget->GetActorLocation());
-    if (Dist > 220.f)
+
+    FMonsterAbilityEntry AbilityEntry;
+
+    float FinalPhysicalDamage = MonsterBasicPhysicalDamage;
+    float FinalAttackRange = 220.f;
+
+    if (FindMonsterAbilityEntryByTag(AttackTag, AbilityEntry))
     {
-        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | Out of range"));
+        FinalPhysicalDamage = AbilityEntry.PhysicalDamage;
+        FinalAttackRange = AbilityEntry.AttackRange;
+
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("ConsumeMonsterAttackHitOnce | Entry Found | Tag=%s Damage=%.1f Range=%.1f Cooldown=%.1f"),
+            *AbilityEntry.AbilityTag.ToString(),
+            FinalPhysicalDamage,
+            FinalAttackRange,
+            AbilityEntry.CooldownSeconds);
+    }
+    else
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("ConsumeMonsterAttackHitOnce | Entry Not Found | Tag=%s Fallback Damage=%.1f Range=%.1f"),
+            *AttackTag.ToString(),
+            FinalPhysicalDamage,
+            FinalAttackRange);
+    }
+
+    const float Dist = FVector::Dist(GetActorLocation(), CombatTarget->GetActorLocation());
+    if (Dist > FinalAttackRange)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("ConsumeMonsterAttackHitOnce | Out of range | Dist=%.1f Range=%.1f"),
+            Dist,
+            FinalAttackRange);
         return false;
     }
 
     FGameplayEffectSpecHandle DamageSpecHandle;
-    if (!BuildMonsterDamageSpec(MonsterBasicPhysicalDamage, DamageSpecHandle))
+    if (!BuildMonsterDamageSpec(FinalPhysicalDamage, DamageSpecHandle))
     {
         UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | BuildMonsterDamageSpec failed"));
         return false;
@@ -349,8 +387,6 @@ bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag
     {
         EndMonsterAttackWindow();
     }
-    
-    
 
     return HitAck.bAcceptedHit;
 }
@@ -406,13 +442,21 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
     const FHitResult& HitResult
 )
 {
+    FMHHitAcknowledge Result;
+    if (HasDeadTag())
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("ReceiveDamageSpec_Implementation | ignored, already dead"));
+       return Result;
+    }
+    
     UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ReceiveDamageSpec_Implementation"));
     UE_LOG(MHMonsterCharacterBase, Log, TEXT("SourceActor : %s, SourceWeapon : %s, AttackTag : %s")
         , *SourceActor->GetName()
         , *SourceActor->GetName()
         , *AttackTag.GetTagName().ToString());
     
-    FMHHitAcknowledge Result;
+   
 
     // 1. 전달받은 DamageSpec 유효성 검사
     if (!DamageSpecHandle.IsValid() || !DamageSpecHandle.Data.IsValid())
@@ -447,7 +491,7 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
 
         HandleDamageAccepted(SourceActor, SourceWeapon, AttackTag, HitResult);
 
-        if (IsDead())
+        if (IsMonsterDead())
         {
             HandleDeath();
         }
@@ -482,11 +526,58 @@ void AMHMonsterCharacterBase::HandleDeath()
 {
 	Super::HandleDeath();
 
-	// TODO:
-	// - 사망 애니메이션
-	// - AI 정지
-	// - 드랍 처리
-	// - 전투 종료 처리
+    if (HasDeadTag())
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("HandleDeath | already dead"));
+        return;
+    }
+
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("HandleDeath | start"));
+
+    if (AbilitySystemComponent)
+    {
+        AbilitySystemComponent->AddLooseGameplayTag(MHGameplayTags::State_Monster_Dead);
+
+        AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Alert);
+        AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Roaring);
+        AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Combat);
+        AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Unaware);
+    }
+
+    StopAmbientBehavior();
+    StopSightDetection();
+    SetMonsterAttacking(false);
+
+    bInCombat = false;
+    CombatTarget = nullptr;
+
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        MonsterAI->SetAttacking(false);
+        MonsterAI->SetInCombat(false);
+        MonsterAI->SetIsRoaring(false);
+        MonsterAI->SetCombatTarget(nullptr);
+        MonsterAI->StopMovement();
+    }
+
+    if (GetCharacterMovement())
+    {
+        GetCharacterMovement()->DisableMovement();
+        GetCharacterMovement()->StopMovementImmediately();
+    }
+
+    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+    {
+        Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+
+    if (USkeletalMeshComponent* MeshComp = GetMesh())
+    {
+        MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("HandleDeath | Dead tag applied"));
+
 }
 
 void AMHMonsterCharacterBase::PlayHitImpactFXByAttackTag(
@@ -574,6 +665,60 @@ void AMHMonsterCharacterBase::PlayHitSoundByAttackTag(
 
 }
 
+
+bool AMHMonsterCharacterBase::HasDeadTag() const
+{
+    if (!AbilitySystemComponent)
+    {
+        return false;
+    }
+
+    return AbilitySystemComponent->HasMatchingGameplayTag(MHGameplayTags::State_Monster_Dead);
+
+}
+
+bool AMHMonsterCharacterBase::IsMonsterDead() const
+{
+    if (HasDeadTag())
+    {
+        return true;
+        
+    }
+    return HealthAttributeSets && HealthAttributeSets->GetHealth() <= 0.f;
+
+    
+}
+
+void AMHMonsterCharacterBase::PlayDeathAnimation()
+{
+    if (!DeathMontage)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | DeathMontage null"));
+        return;
+    }
+
+    USkeletalMeshComponent* MeshComp = GetMesh();
+    if (!MeshComp)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | MeshComp null"));
+        return;
+    }
+
+    UAnimInstance* Anim = MeshComp->GetAnimInstance();
+    if (!Anim)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | AnimInstance null"));
+        return;
+    }
+
+    const float PlayedLen = Anim->Montage_Play(DeathMontage, 1.0f);
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("PlayDeathAnimation | PlayedLen=%.2f Montage=%s"),
+        PlayedLen,
+        *GetNameSafe(DeathMontage));
+    
+}
 
 AMHMonsterAIController* AMHMonsterCharacterBase::GetMonsterAIController() const
 {

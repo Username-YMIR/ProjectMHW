@@ -70,6 +70,8 @@ namespace MHGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Alert);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Roaring);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Combat);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Dead);
+	
 	
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Attacking);	// 근거리 패턴
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Charging);		// 원거리 돌진 
