@@ -6,6 +6,7 @@
 
 #include "CoreMinimal.h"
 #include "Character/MHCharacterBase.h"
+#include "MonsterType/MHMonsterType.h"
 #include "GameplayTagContainer.h"
 #include "GameplayEffectTypes.h"
 #include "MHMonsterCharacterBase.generated.h"
