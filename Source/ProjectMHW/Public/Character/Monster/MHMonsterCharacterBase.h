@@ -36,6 +36,8 @@ public:
     UFUNCTION(BlueprintPure , Category="Monster|Combat")
     AActor* GetCombatTarget() const {return CombatTarget;}
     
+    
+    
     UFUNCTION(BlueprintPure , Category="Monster|Combat")
     bool IsInCombat() const { return bInCombat;}
     
@@ -44,6 +46,9 @@ public:
     
     UFUNCTION(BlueprintCallable, Category="Monster|Combat")
     bool TryActivateMonsterAbilityByTag(FGameplayTag AbilityTag);
+    
+    UFUNCTION(BlueprintPure, Category="Monster|Combat")
+    bool GetMonsterAbilityEntryByTag(FGameplayTag AbilityTag, FMonsterAbilityEntry& OutEntry) const;
     
     UFUNCTION(BlueprintPure, Category="Monster|Combat")
     float GetDistanceToCombatTarget() const;
@@ -63,8 +68,10 @@ public:
     
     UFUNCTION(BlueprintCallable , Category="Monster|Combat")
     void FaceCombatTargetInterp(float DeltaSeconds , float TurnSpeedDeg = 720.f);
-
-   
+    
+    // 거리체크 몬스터마다 다른값
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Combat")
+    float CombatDistanceOffset = 0.f;
     
     // 노티파이 용 체크 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Attack")
@@ -182,17 +189,22 @@ protected:
     float CombatWalkSpeed = 260.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Ambient")
-    float AmbientMoveRadius = 500.f;
+    float AmbientMoveRadius = 1000.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Ambient")
-    float AmbientDecisionIntervalMin = 2.0f;
+    float AmbientDecisionIntervalMin = 3.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Ambient")
-    float AmbientDecisionIntervalMax = 4.0f;
+    float AmbientDecisionIntervalMax = 5.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Ambient")
-    float AmbientIdleChance = 0.5f;
+    float AmbientIdleChance = 0.8f;
     
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Ambient")
+    float AmbientMinMoveDistance = 200.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Ambient")
+    int32 AmbientMoveLocationTryCount = 20;
 protected:
     
     FTimerHandle AmbientBehaviorTimer;
