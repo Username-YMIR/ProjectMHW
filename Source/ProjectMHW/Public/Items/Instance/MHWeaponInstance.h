@@ -5,10 +5,12 @@
 #include "CoreMinimal.h"
 #include "MHEquipItemInstance.h"
 #include "GameplayAbilitySpecHandle.h"
+#include "Items/Data/MHWeaponItemData.h"
 #include "Type/MHItemStructType.h" // 손승우 추가
 #include "Type/MHWeaponAnimStructType.h" // 손승우 추가
 #include "MHWeaponInstance.generated.h"
 
+class UMHWeaponItemData;
 class USceneComponent; // 손승우 추가
 class UAbilitySystemComponent; // 손승우 추가
 class UGameplayAbility; // 손승우 추가
@@ -21,9 +23,12 @@ class PROJECTMHW_API AMHWeaponInstance : public AMHEquipItemInstance
 public:
 	// Sets default values for this actor's properties
 	AMHWeaponInstance();
-
+	virtual void BeginPlay() override;
 
 protected:
+	
+	virtual void ApplyItemData() override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
 	USceneComponent* WeaponRoot; // 손승우 추가
 
@@ -45,6 +50,14 @@ protected:
 	//TODO: 프로젝트용 구조체로 변경하기 _ 이건주 
 	// UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="WeaponData")
 	// FHeroWeaponData HeroWeaponData;
+	
+protected:
+	// =============================
+	// Getter
+	// =============================
+
+public:
+	const FMHAttackStats& GetAttackStats() const;
 
 public:
 	FORCEINLINE USkeletalMeshComponent* GetWeaponMeshComponent() const { return WeaponMesh; } // 손승우 추가
@@ -62,4 +75,12 @@ public:
 
 	// 기본 공격 어빌리티
 	FORCEINLINE TSubclassOf<UGameplayAbility> GetPrimaryAttackAbilityClass() const { return PrimaryAttackAbilityClass; } // 손승우 추가
+	
+private:
+	FORCEINLINE const UMHWeaponItemData* GetWeaponData() const
+	{
+		const UMHWeaponItemData* Data = Cast<UMHWeaponItemData>(CachedItemData);
+		ensure(Data);
+		return Data;
+	}
 };

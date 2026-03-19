@@ -89,6 +89,9 @@ namespace MHGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Data_Damage_Thunder,  "Data.Damage.Thunder");
 	UE_DEFINE_GAMEPLAY_TAG(Data_Damage_Ice,      "Data.Damage.Ice");
 	UE_DEFINE_GAMEPLAY_TAG(Data_Damage_Dragon,   "Data.Damage.Dragon");
+	
+	UE_DEFINE_GAMEPLAY_TAG(Data_Weapon_AttackPower, "Data.Weapon.AttackPower");
+	UE_DEFINE_GAMEPLAY_TAG(Data_Weapon_Affinity,	"Data.Weapon.Affinity");
 #pragma endregion
 
 	

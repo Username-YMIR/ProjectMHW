@@ -19,18 +19,9 @@ class PROJECTMHW_API UMHWeaponItemData : public UMHEquipItemData
 public:
 	UMHWeaponItemData();
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Weapon", meta=(ClampMin="0.0"))
-	float AttackPower = 0.f;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Stats")
+	FMHAttackStats AttackStats;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Weapon", meta=(ClampMin="0.0"))
-	EMHSharpnessColor MaxSharpnessColor = EMHSharpnessColor::Red;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Weapon", meta=(ClampMin="0", UIMin="0"))
-	FMHSharpnessData SharpnessLength; 
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Weapon", meta=(ClampMin="0.0", ClampMax="1.0", UIMin="0.0", UIMax="1.0"))
-	float Affinity = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Weapon", meta=(Categories="Element"))
-	FGameplayTag AttackElementTag;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon")
+	TSoftObjectPtr<USkeletalMesh> WeaponMeshData;
 };
