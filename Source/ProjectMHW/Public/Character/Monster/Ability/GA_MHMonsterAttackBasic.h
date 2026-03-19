@@ -44,4 +44,7 @@ protected:
 
 	void ClearTask();
 	
+	FGameplayTag ResolveAttackTag(const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo) const;
+	
 };

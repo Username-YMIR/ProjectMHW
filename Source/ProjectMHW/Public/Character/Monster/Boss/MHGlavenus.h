@@ -5,7 +5,7 @@
 #include "MHGlavenus.generated.h"
 
 UCLASS()
-class PROJECTMHW_API AMHGlavenus : public AMHBossMonsterBase
+class PROJECTMHW_API AMHGlavenus : public AMHMonsterCharacterBase
 {
     GENERATED_BODY()
 

@@ -80,7 +80,7 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
             *AbilityTag.ToString());
         return false;
     }
-    
+
     if (!AbilitySystemComponent)
     {
         UE_LOG(MHMonsterCharacterBase, Warning, TEXT("TryActivateMonsterAbilityByTag | ASC is null"));
@@ -92,7 +92,7 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
         UE_LOG(MHMonsterCharacterBase, Warning, TEXT("TryActivateMonsterAbilityByTag | AbilityTag invalid"));
         return false;
     }
-    
+
     if (IsMonsterAbilityOnCooldown(AbilityTag))
     {
         UE_LOG(MHMonsterCharacterBase, Warning,
@@ -101,9 +101,7 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
             GetMonsterAbilityCooldownRemaining(AbilityTag));
         return false;
     }
-    
 
-    // 1) 현재 ASC가 가진 Ability 전부 출력
     for (const FGameplayAbilitySpec& Spec : AbilitySystemComponent->GetActivatableAbilities())
     {
         if (Spec.Ability)
@@ -113,27 +111,44 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
 
             UE_LOG(MHMonsterCharacterBase, Warning, TEXT("  Ability Tags = %s"),
                 *Spec.Ability->AbilityTags.ToStringSimple());
+
+            UE_LOG(MHMonsterCharacterBase, Warning, TEXT("  Dynamic Tags = %s"),
+                *Spec.DynamicAbilityTags.ToStringSimple());
         }
     }
-    
-    
-    FGameplayTagContainer TagContainer;
-    TagContainer.AddTag(AbilityTag);
-    
-   // TArray<FGameplayAbilitySpec*> MatchingSpecs;
-    /*for (FGameplayAbilitySpec* Spec : MatchingSpecs)
+
+    FaceCombatTargetInstant();
+
+    bool bActivated = false;
+
+    for (FGameplayAbilitySpec& Spec : AbilitySystemComponent->GetActivatableAbilities())
     {
-        if (Spec && Spec->Ability)
+        if (!Spec.Ability)
         {
-            
-            const bool bTryByHandle = AbilitySystemComponent->TryActivateAbility(Spec->Handle);
-           
+            continue;
         }
-    }*/
-    
-    FaceCombatTargetInstant();  // 타겟 위치 추적 
-    
-    const bool bActivated = AbilitySystemComponent->TryActivateAbilitiesByTag(TagContainer);
+
+        const bool bMatchAssetTag = Spec.Ability->AbilityTags.HasTagExact(AbilityTag);
+        const bool bMatchDynamicTag = Spec.DynamicAbilityTags.HasTagExact(AbilityTag);
+
+        if (!bMatchAssetTag && !bMatchDynamicTag)
+        {
+            continue;
+        }
+
+        bActivated = AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("TryActivateMonsterAbilityByTag | Try Spec=%s | DynamicTags=%s | Result=%s"),
+            *GetNameSafe(Spec.Ability),
+            *Spec.DynamicAbilityTags.ToStringSimple(),
+            bActivated ? TEXT("Success") : TEXT("Fail"));
+
+        if (bActivated)
+        {
+            break;
+        }
+    }
 
     UE_LOG(MHMonsterCharacterBase, Warning,
         TEXT("TryActivateMonsterAbilityByTag | Tag=%s Result=%s"),
@@ -145,8 +160,13 @@ bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag Abilit
     {
         StartMonsterAbilityCooldown(AbilityTag);
     }
-    
+
     return bActivated;
+}
+
+bool AMHMonsterCharacterBase::GetMonsterAbilityEntryByTag(FGameplayTag AbilityTag, FMonsterAbilityEntry& OutEntry) const
+{
+    return FindMonsterAbilityEntryByTag(AbilityTag, OutEntry);
 }
 
 float AMHMonsterCharacterBase::GetDistanceToCombatTarget() const
@@ -156,7 +176,29 @@ float AMHMonsterCharacterBase::GetDistanceToCombatTarget() const
         return TNumericLimits<float>::Max();
     }
 
-    return FVector::Dist(GetActorLocation(), CombatTarget->GetActorLocation());
+    const float CenterDist = FVector::Dist2D(GetActorLocation(), CombatTarget->GetActorLocation());
+
+    float SelfRadius = 0.f;
+    if (const UCapsuleComponent* MyCapsule = GetCapsuleComponent())
+    {
+        SelfRadius = MyCapsule->GetScaledCapsuleRadius();
+    }
+
+    float TargetRadius = 0.f;
+    if (const ACharacter* TargetCharacter = Cast<ACharacter>(CombatTarget))
+    {
+        if (const UCapsuleComponent* TargetCapsule = TargetCharacter->GetCapsuleComponent())
+        {
+            TargetRadius = TargetCapsule->GetScaledCapsuleRadius();
+        }
+    }
+    else if (const UCapsuleComponent* TargetCapsule = CombatTarget->FindComponentByClass<UCapsuleComponent>())
+    {
+        TargetRadius = TargetCapsule->GetScaledCapsuleRadius();
+    }
+
+    const float AdjustedDist = CenterDist - SelfRadius - TargetRadius - CombatDistanceOffset;
+    return FMath::Max(0.f, AdjustedDist);
 }
 
 bool AMHMonsterCharacterBase::IsCombatTargetInRange(float Range) const
@@ -777,10 +819,10 @@ void AMHMonsterCharacterBase::DecideNextAmbientAction()
         return;
     }
 
-    if (AAIController* AICon = Cast<AAIController>(GetController()))
+    /*if (AAIController* AICon = Cast<AAIController>(GetController()))
     {
         AICon->StopMovement();
-    }
+    }*/
 
     SetMonsterMoveSpeed(AmbientWalkSpeed);
 
@@ -788,13 +830,19 @@ void AMHMonsterCharacterBase::DecideNextAmbientAction()
 
     if (RandValue < AmbientIdleChance)
     {
+        if (AAIController* AICon = Cast<AAIController>(GetController()))
+        {
+            AICon->StopMovement();
+        }
+        
+        
         UE_LOG(MHMonsterCharacterBase, Warning, TEXT("[Ambient] Look Around"));
         ScheduleNextAmbientDecision();
         return;
     }
 
     MoveToRandomAmbientLocation();
-    ScheduleNextAmbientDecision();
+    //ScheduleNextAmbientDecision();
 }
 
 // 랜덤 이동 
@@ -817,22 +865,56 @@ void AMHMonsterCharacterBase::MoveToRandomAmbientLocation()
         return;
     }
 
+    const FVector Origin = GetActorLocation();
     FNavLocation RandomLocation;
-    const bool bFound = NavSys->GetRandomReachablePointInRadius(
-        GetActorLocation(),
-        AmbientMoveRadius,
-        RandomLocation
-    );
+    bool bFoundValidLocation = false;
 
-    if (!bFound)
+    for (int32 TryIndex = 0; TryIndex < AmbientMoveLocationTryCount; ++TryIndex)
     {
-        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("[Ambient] Random reachable point not found"));
+        const bool bFound = NavSys->GetRandomReachablePointInRadius(
+            Origin,
+            AmbientMoveRadius,
+            RandomLocation
+        );
+
+        if (!bFound)
+        {
+            continue;
+        }
+
+        const float MoveDist2D = FVector::Dist2D(Origin, RandomLocation.Location);
+        if (MoveDist2D >= AmbientMinMoveDistance)
+        {
+            bFoundValidLocation = true;
+            break;
+        }
+    }
+
+    if (!bFoundValidLocation)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("[Ambient] Valid random location not found (MinDist=%.1f Radius=%.1f)"),
+            AmbientMinMoveDistance, AmbientMoveRadius);
         return;
     }
 
-    AICon->MoveToLocation(RandomLocation.Location, 20.f);
+    AICon->MoveToLocation(RandomLocation.Location, 50.f);
+    // 타이머 추가 ?
+    const float MoveDist = FVector::Dist2D(Origin, RandomLocation.Location);
+    const float Speed = FMath::Max(1.f, AmbientWalkSpeed);
+    const float ExpectedMoveTime = MoveDist / Speed;
 
-    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("[Ambient] Move To Random Location"));
+    GetWorldTimerManager().SetTimer(
+        AmbientBehaviorTimer,
+        this,
+        &AMHMonsterCharacterBase::DecideNextAmbientAction,
+        ExpectedMoveTime + 0.5f,
+        false
+    );
+    
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("[Ambient] Move To Random Location | Dist=%.1f"),
+        FVector::Dist2D(Origin, RandomLocation.Location));
 
 }
 
@@ -1624,18 +1706,67 @@ void AMHMonsterCharacterBase::GrantStartupAbilities()
         return;
     }
 
+    // 1) 기존 StartupAbilities 부여
     for (const TSubclassOf<UGameplayAbility>& AbilityClass : MonsterDataAsset->StartupAbilities)
     {
         if (!AbilityClass)
         {
-            // todo 로그 제거 
             UE_LOG(MHMonsterCharacterBase, Warning, TEXT("GrantStartupAbilities | AbilityClass = NULL"));
-            
             continue;
         }
-        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("GrantStartupAbilities | GiveAbility = %s"),
+
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("GrantStartupAbilities | Give StartupAbility = %s"),
             *AbilityClass->GetName());
+
         AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
+    }
+
+    // 2) AbilityEntries 기반 Ability Spec 부여
+    auto GiveEntryAbility = [this](const FMonsterAbilityEntry& Entry)
+    {
+        if (!AbilitySystemComponent)
+        {
+            return;
+        }
+
+        if (!Entry.AbilityClass)
+        {
+            UE_LOG(MHMonsterCharacterBase, Warning,
+                TEXT("GrantStartupAbilities | Entry AbilityClass null | Tag=%s"),
+                *Entry.AbilityTag.ToString());
+            return;
+        }
+
+        if (!Entry.AbilityTag.IsValid())
+        {
+            UE_LOG(MHMonsterCharacterBase, Warning,
+                TEXT("GrantStartupAbilities | Entry AbilityTag invalid | Class=%s"),
+                *GetNameSafe(Entry.AbilityClass));
+            return;
+        }
+
+        FGameplayAbilitySpec Spec(Entry.AbilityClass, 1, INDEX_NONE, this);
+        Spec.DynamicAbilityTags.AddTag(Entry.AbilityTag);
+
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("GrantStartupAbilities | Give EntryAbility = %s | DynamicTag=%s"),
+            *GetNameSafe(Entry.AbilityClass),
+            *Entry.AbilityTag.ToString());
+
+        AbilitySystemComponent->GiveAbility(Spec);
+    };
+
+    for (const FMonsterAbilityEntry& Entry : MonsterDataAsset->AbilityEntries)
+    {
+        GiveEntryAbility(Entry);
+    }
+
+    for (const FPhaseAbilitySet& PhaseEntry : MonsterDataAsset->PhaseSet)
+    {
+        for (const FMonsterAbilityEntry& Entry : PhaseEntry.AbilityEntries)
+        {
+            GiveEntryAbility(Entry);
+        }
     }
 }
 
