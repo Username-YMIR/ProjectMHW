@@ -339,6 +339,53 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
     TSoftObjectPtr<UAnimMontage> SheathedRollMontage; // 납도 구르기 몽타주(루트모션)
 #pragma endregion
+    
+#pragma region Weapon Stat (GAS)_이건주
+    // === Weapon Stat (GAS) ===
+public:
+    void HandleWeaponAttackHit(AActor* Target, AMHWeaponInstance* Weapon);
+protected:
+
+    // 현재 장착 무기 스탯 GE 핸들
+    UPROPERTY(Transient)
+    FActiveGameplayEffectHandle EquippedWeaponStatEffectHandle;
+
+    // 공통 무기 스탯 GameplayEffect 클래스
+    UPROPERTY(EditDefaultsOnly, Category="Weapon|Stat")
+    TSubclassOf<UGameplayEffect> WeaponStatEffectClass;
+    
+    // 현재 예리도 상태
+    UPROPERTY(Transient)
+    EMHSharpnessColor CurrentSharpnessColor;
+
+    UPROPERTY(Transient)
+    float CurrentSharpnessValue;
+    
+    UPROPERTY(Transient)
+    FGameplayTag CurrentWeaponElementTag;
+
+
+    // === Weapon Stat Functions ===
+protected:
+
+    // 현재 EquippedWeapon 기준으로 GE 적용
+    void ApplyEquippedWeaponStatEffect();
+
+    // 기존 GE 제거
+    void RemoveEquippedWeaponStatEffect();
+
+    // 교체/초기 장착 시 호출
+    void RefreshEquippedWeaponStatEffect();
+    // 예리도 값
+    float GetMaxSharpnessValueFromColor(const FMHSharpnessData& Data, EMHSharpnessColor Color) const;
+    
+    // 예리도 소모
+    void ConsumeSharpness(float Amount);
+    // 예리도 단계 하락
+    bool DowngradeSharpnessColor();
+    
+
+#pragma endregion
 
 #pragma region LongSwordRuntimeState
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true"))
@@ -494,12 +541,30 @@ private:
     // 최대 스태미나 값을 ASC 스태미나 속성에 반영한다.
     void SetMaxStaminaAttributeValue(float InNewValue);
 
+    // 플레이어 기본 체력, 방어력, 스태미나 값을 ASC 속성에 하드코딩 적용한다.
+    void ApplyDefaultPlayerAttributes();
+
+    // 현재 체력 값을 ASC 체력 속성에 반영한다.
+    void SetCurrentHealthAttributeValue(float InNewValue);
+
+    // 최대 체력 값을 ASC 체력 속성에 반영한다.
+    void SetMaxHealthAttributeValue(float InNewValue);
+
+    // 방어력 값을 ASC 전투 속성에 반영한다.
+    void SetDefenseAttributeValue(float InNewValue);
+
     // ===== Terrain Hooks =====
     // ===== End Terrain Hooks =====
 
 #pragma region WeaponRuntimeFunctions
     // 무기 메쉬 적용
     void SpawnAndEquipDefaultWeapon();
+    
+    //============================
+    // 무기 장착/해제 함수 _ 이건주
+    bool EquipWeaponInstance(AMHWeaponInstance* InWeapon, bool bDestroyPreviousWeapon = true);
+    void UnequipCurrentWeapon(bool bDestroyWeapon = true);
+    //============================
 
     // 무기 액터를 등 소켓에 부착
     void AttachWeaponActorToBack();
