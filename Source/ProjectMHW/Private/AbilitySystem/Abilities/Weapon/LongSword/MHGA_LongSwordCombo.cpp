@@ -10,6 +10,7 @@
 #include "GameplayTags/MHLongSwordGameplayTags.h"
 #include "Items/Instance/MHLongSwordInstance.h"
 #include "TimerManager.h"
+#include "Combat/Attributes/MHCombatAttributeSet.h"
 #include "Combat/Effects/MHGameplayEffect_Damage.h"
 #include "Weapons/LongSword/MHLongSwordComboComponent.h"
 #include "Weapons/LongSword/MHLongSwordComboGraph.h"
@@ -32,8 +33,8 @@ UMHGA_LongSwordCombo::UMHGA_LongSwordCombo()
     ElementDamageDataTag = FGameplayTag();
 
     // 실제 프로젝트 AttributeSet에 맞게 에디터 또는 C++에서 지정
-    SourcePhysicalAttackAttribute = FGameplayAttribute();
-    SourceElementAttackAttribute = FGameplayAttribute();
+    SourcePhysicalAttackAttribute = UMHCombatAttributeSet::GetAttackPowerAttribute(); // 
+    SourceElementAttackAttribute = FGameplayAttribute(); // TODO: 현재 어트리뷰트에 속성값이 없음. 추후 수정
     //===================================
 }
 
@@ -207,6 +208,14 @@ bool UMHGA_LongSwordCombo::BuildDamageSpecForNode(
 
     const float FinalPhysicalDamage = SourcePhysicalAttack * GlobalPhysicalScale * NodeDamageMultiplier;
     const float FinalElementDamage = SourceElementAttack * GlobalElementScale * NodeDamageMultiplier;
+    
+    // 대미지 로그 _이건주
+    UE_LOG(LogTemp, Warning, TEXT("[DamageSpec Build] SourceAP=%.2f SourceElement=%.2f Move=%s FinalPhysical=%.2f FinalElement=%.2f"),
+    SourcePhysicalAttack,
+    SourceElementAttack,
+    *InNode.MoveTag.ToString(),
+    FinalPhysicalDamage,
+    FinalElementDamage);
 
     if (PhysicalDamageDataTag.IsValid())
     {

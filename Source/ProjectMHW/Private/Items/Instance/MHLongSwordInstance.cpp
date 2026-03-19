@@ -3,6 +3,7 @@
 
 #include "Items/Instance/MHLongSwordInstance.h"
 
+#include "Character/Player/MHPlayerCharacter.h"
 #include "Weapons/LongSword/MHLongSwordComboGraph.h" // 손승우 추가
 #include "Weapons/LongSword/MHLongSwordComboComponent.h" // 손승우 추가
 
@@ -24,8 +25,25 @@ AMHLongSwordInstance::AMHLongSwordInstance()
 	ComboComponent = CreateDefaultSubobject<UMHLongSwordComboComponent>(TEXT("ComboComponent")); // 손승우 수정
 }
 
+void AMHLongSwordInstance::ApplyItemData()
+{
+	Super::ApplyItemData();
 
+	const UMHLongSwordItemData* LongSwordData = GetLongSwordData();
+	if (!LongSwordData) return;
 
+	if (!SayaMesh) return;
+	
+	if (LongSwordData->SayaMeshData.IsNull())
+	{
+		SayaMesh->SetSkeletalMesh(nullptr);
+		return;
+	}
+	
+
+	USkeletalMesh* SayaMeshData = LongSwordData->SayaMeshData.LoadSynchronous();
+	SayaMesh->SetSkeletalMesh(SayaMeshData);
+}
 
 void AMHLongSwordInstance::BeginPlay() // 손승우 추가
 {
@@ -40,5 +58,7 @@ void AMHLongSwordInstance::BeginPlay() // 손승우 추가
 
 UMHLongSwordComboGraph* AMHLongSwordInstance::GetComboGraph() const // 손승우 추가
 {
-	return ComboGraphAsset.IsNull() ? nullptr : ComboGraphAsset.LoadSynchronous(); // 손승우 추가
+	return ComboGraphAsset.IsNull() 
+			? nullptr 
+			: ComboGraphAsset.LoadSynchronous(); // 손승우 추가
 }
