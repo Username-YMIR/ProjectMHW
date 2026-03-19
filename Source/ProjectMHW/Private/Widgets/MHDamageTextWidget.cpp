@@ -6,4 +6,5 @@
 UMHDamageTextWidget::UMHDamageTextWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	
 }
