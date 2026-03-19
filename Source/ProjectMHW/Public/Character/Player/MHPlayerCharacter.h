@@ -161,6 +161,14 @@ public:
     // 노티파이: 조기 전환 윈도우 종료
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_EndEarlyTransitionWindow();
+
+    // 노티파이: 입력 방향 기준 회전 조정 윈도우 시작
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_BeginDirectionalTurnWindow(float InMaxYawDeltaDegrees, float InRotationInterpSpeed);
+
+    // 노티파이: 입력 방향 기준 회전 조정 윈도우 종료
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_EndDirectionalTurnWindow();
     
     // 현재 장착 중인 무기 인스턴스 반환
     AMHWeaponInstance* GetEquippedWeapon() const { return EquippedWeapon; }
@@ -489,6 +497,20 @@ private:
     /** 마지막으로 해석된 회피 방향 Variant */
     EMHDirectionalVariant LastResolvedDodgeVariant = EMHDirectionalVariant::None;
 
+#pragma region DirectionalTurnWindow
+    // 회전 조정 노티파이 스테이트 활성 여부
+    bool bDirectionalTurnWindowActive = false;
+
+    // 회전 조정 시작 시점 기준 최대 허용 yaw 편차
+    float DirectionalTurnWindowMaxYawDeltaDegrees = 0.0f;
+
+    // 회전 조정 속도(도/초). 0 이하면 목표 각도로 즉시 반영
+    float DirectionalTurnWindowRotationInterpSpeed = 0.0f;
+
+    // 회전 조정이 시작될 때의 기준 yaw
+    float DirectionalTurnWindowBaseYaw = 0.0f;
+#pragma endregion
+
     // 납도 상태 특수 진입 후 첫 몽타주 종료 대기 여부
     bool bPendingUnsheatheFromComboEntry = false; //손승우 추가
 
@@ -625,6 +647,12 @@ protected:
 
     /** 납도 롤 / 발도 중립 롤에서 방향 입력 쪽으로 캐릭터를 회전시킨다. */
     bool TryRotateActorTowardsMoveInput();
+
+    /** 노티파이 스테이트로 열어둔 회전 조정 구간에서 입력 방향 기준 회전을 갱신한다. */
+    void UpdateDirectionalTurnWindow(float DeltaSeconds);
+
+    /** 입력 방향과 회전 제한값을 이용해 실제 회전을 적용한다. */
+    bool TryApplyDirectionalTurnWindowRotation(float DeltaSeconds);
 
     /** 공격 후 연계 회피 컨텍스트인지 판정한다. */
     bool IsLongSwordAttackChainDodgeContext() const;
