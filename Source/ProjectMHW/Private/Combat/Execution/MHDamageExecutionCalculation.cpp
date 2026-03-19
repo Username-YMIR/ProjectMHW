@@ -195,6 +195,14 @@ void UMHDamageExecutionCalculation::Execute_Implementation(
 			)
 		);
 	}
+	
+	// 최종 대미지 로그 _이건주
+	UE_LOG(LogTemp, Warning, TEXT("[DamageExec] AP=%.2f CR=%.2f Sharp=%.2f BasePhys=%.2f Final=%.2f"),
+	AttackPower,
+	CriticalRate,
+	SharpnessModifier,
+	BasePhysicalDamage,
+	FinalDamage);
 }
 
 float UMHDamageExecutionCalculation::CalculatePhysicalDamage(

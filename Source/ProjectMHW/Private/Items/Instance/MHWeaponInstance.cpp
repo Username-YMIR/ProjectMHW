@@ -6,6 +6,10 @@
 #include "Components/SceneComponent.h" // 손승우 추가
 #include "AbilitySystemComponent.h" // 손승우 추가
 #include "Abilities/GameplayAbility.h" // 손승우 추가
+#include "Items/Data/MHItemDataBase.h"
+#include "Items/Data/MHWeaponItemData.h"
+#include "Items/Data/ItemDataRegistry.h"
+
 
 
 // Sets default values
@@ -28,9 +32,39 @@ AMHWeaponInstance::AMHWeaponInstance()
 	
 }
 
+void AMHWeaponInstance::BeginPlay()
+{
+	Super::BeginPlay();
+}
+
+void AMHWeaponInstance::ApplyItemData()
+{
+	Super::ApplyItemData();
+
+	const UMHWeaponItemData* WeaponData = GetWeaponData();
+	if (!WeaponData) return;
+
+	if (!WeaponMesh) return;
+
+	if (WeaponData->WeaponMeshData.IsNull())
+	{
+		WeaponMesh->SetSkeletalMesh(nullptr);
+		return;
+	}
+
+	USkeletalMesh* WeaponMeshData = WeaponData->WeaponMeshData.LoadSynchronous();
+	WeaponMesh->SetSkeletalMesh(WeaponMeshData);
+}
 
 
+const FMHAttackStats& AMHWeaponInstance::GetAttackStats() const
+{
+	static FMHAttackStats EmptyStat;
 
+	return GetWeaponData()
+		? GetWeaponData()->AttackStats
+		: EmptyStat;
+}
 
 void AMHWeaponInstance::GrantWeaponAbilities(UAbilitySystemComponent* ASC) // 손승우 추가
 {

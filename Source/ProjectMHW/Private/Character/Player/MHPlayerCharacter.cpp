@@ -36,6 +36,7 @@
 #include "Combat/mh_attack_definition_library.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "InputCoreTypes.h"
+#include "Items/Effects/MHGameplayEffect_WeaponStat.h"
 
 DEFINE_LOG_CATEGORY(LogMHPlayerCharacter);
 
@@ -130,6 +131,7 @@ AMHPlayerCharacter::AMHPlayerCharacter()
 
     DebugDamageEffectClass = UMHGameplayEffect_Damage::StaticClass();
     PlayerIncomingDamageEffectClass = UMHGameplayEffect_PlayerDamage::StaticClass();
+    WeaponStatEffectClass = UMHGameplayEffect_WeaponStat::StaticClass();
 }
 
 void AMHPlayerCharacter::BeginPlay()
@@ -233,11 +235,14 @@ void AMHPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
         OnCharacterMovementUpdated.RemoveDynamic(this, &AMHPlayerCharacter::HandleMovementUpdated);
     }
 
-    // 무기 어빌리티 해제
-    if (EquippedWeapon && AbilitySystemComponent)
-    {
-        EquippedWeapon->ClearWeaponAbilities(AbilitySystemComponent);
-    }
+    // 무기 해제 함수화 _ 이건주
+    UnequipCurrentWeapon(false);
+    
+    // // 무기 어빌리티 해제
+    // if (EquippedWeapon && AbilitySystemComponent)
+    // {
+    //     EquippedWeapon->ClearWeaponAbilities(AbilitySystemComponent);
+    // }
 
     UnlinkCurrentWeaponAnimLayer();
 
@@ -769,24 +774,104 @@ void AMHPlayerCharacter::SpawnAndEquipDefaultWeapon()
     SpawnParams.Owner = this;
     SpawnParams.Instigator = this;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-    EquippedWeapon = World->SpawnActor<AMHWeaponInstance>(DefaultWeaponClass, SpawnParams);
-    if (!EquippedWeapon)
+    
+    // ==========================
+    // 무기 장착 로직 함수화 (무기 교체 기능 지원)_이건주
+    AMHWeaponInstance* SpawnedWeapon = World->SpawnActor<AMHWeaponInstance>(DefaultWeaponClass, SpawnParams);
+    if (!SpawnedWeapon)
     {
         return;
     }
 
-    // 무기 어빌리티 부여
+    EquipWeaponInstance(SpawnedWeapon, true);
+
+    // 장착GE_장착 직후 _이건주
+    UE_LOG(LogTemp, Warning, TEXT("[Equip] Weapon=%s AP=%.2f CR=%.2f"),
+    *GetNameSafe(EquippedWeapon),
+    CombatAttributeSet ? CombatAttributeSet->GetAttackPower() : -1.f,
+    CombatAttributeSet ? CombatAttributeSet->GetCriticalRate() : -1.f);
+
+    
+    //===========================
+    
+    // EquippedWeapon = World->SpawnActor<AMHWeaponInstance>(DefaultWeaponClass, SpawnParams);
+    // if (!EquippedWeapon)
+    // {
+    //     return;
+    // }
+    //
+    // // 무기 어빌리티 부여
+    // if (AbilitySystemComponent)
+    // {
+    //     EquippedWeapon->GrantWeaponAbilities(AbilitySystemComponent);
+    // }
+    //
+    // CurrentWeaponType = EquippedWeapon->GetWeaponType();
+    // CurrentWeaponTag = GetCurrentWeaponTypeGameplayTag();
+    //
+    // AttachWeaponActorToBack();
+    // AttachWeaponToBack();
+    // RefreshWeaponAnimationLayerState();
+    //
+    // //무기 스탯 GE 적용 _ 이건주
+    // RefreshEquippedWeaponStatEffect();
+}
+
+bool AMHPlayerCharacter::EquipWeaponInstance(AMHWeaponInstance* InWeapon, bool bDestroyPreviousWeapon)
+{
+    if (!IsValid(InWeapon))
+    {
+        return false;
+    }
+
+    // 현제 무기 해제
+    UnequipCurrentWeapon(bDestroyPreviousWeapon);
+
+    // 새 무기 캐싱
+    EquippedWeapon = InWeapon;
+    EquippedWeapon->SetOwner(this);
+
     if (AbilitySystemComponent)
     {
+        // 새 무기의 어빌리티 적용
         EquippedWeapon->GrantWeaponAbilities(AbilitySystemComponent);
     }
 
+    WeaponSheathState = EMHWeaponSheathState::Sheathed;
     CurrentWeaponType = EquippedWeapon->GetWeaponType();
     CurrentWeaponTag = GetCurrentWeaponTypeGameplayTag();
 
     AttachWeaponActorToBack();
     AttachWeaponToBack();
+    RefreshWeaponAnimationLayerState();
+    
+    // 무기 스탯 GE 적용
+    RefreshEquippedWeaponStatEffect();
+
+    return true;
+}
+
+void AMHPlayerCharacter::UnequipCurrentWeapon(bool bDestroyWeapon)
+{
+    RemoveEquippedWeaponStatEffect();
+
+    if (EquippedWeapon && AbilitySystemComponent)
+    {
+        EquippedWeapon->ClearWeaponAbilities(AbilitySystemComponent);
+    }
+
+    if (bDestroyWeapon && EquippedWeapon)
+    {
+        EquippedWeapon->Destroy();
+    }
+
+    EquippedWeapon = nullptr;
+    CurrentWeaponType = EMHWeaponType::None;
+    CurrentWeaponTag = FGameplayTag();
+    CurrentWeaponElementTag = FGameplayTag();
+    CurrentSharpnessColor = EMHSharpnessColor::Red;
+    CurrentSharpnessValue = 0.0f;
+
     RefreshWeaponAnimationLayerState();
 }
 
@@ -1405,6 +1490,192 @@ UAnimMontage* AMHPlayerCharacter::ResolveLongSwordMoveMontageOverride(const FGam
     }
 
     return InDefaultMontage;
+}
+
+
+
+void AMHPlayerCharacter::ApplyEquippedWeaponStatEffect()
+{
+    // 스탯 적용 실패 원인 분석_이건주
+    UE_LOG(LogTemp, Warning, TEXT("[WeaponGE Apply:State] HasAuthority=%d bGASInitialized=%d ASC=%d ActorInfoValid=%d WeaponClass=%s Weapon=%s"),
+    HasAuthority() ? 1 : 0,
+    bGASInitialized ? 1 : 0,
+    AbilitySystemComponent ? 1 : 0,
+    (AbilitySystemComponent && AbilitySystemComponent->AbilityActorInfo.IsValid()) ? 1 : 0,
+    *GetNameSafe(WeaponStatEffectClass),
+    *GetNameSafe(EquippedWeapon));
+
+    
+    if (!ensure(AbilitySystemComponent))
+    {
+        return;
+    }
+    
+    if (!ensure(WeaponStatEffectClass))
+    {
+        return;
+    }
+    
+    if (!ensure(EquippedWeapon))
+    {
+        return;
+    }
+
+    const FMHAttackStats& Stat = EquippedWeapon->GetAttackStats();
+
+    // -----------------------
+    // 1. GE 적용 (순수 수치)
+    // -----------------------
+
+    FGameplayEffectContextHandle ContextHandle = AbilitySystemComponent->MakeEffectContext();
+    ContextHandle.AddInstigator(this, this); // 추가
+    ContextHandle.AddSourceObject(EquippedWeapon);
+
+    FGameplayEffectSpecHandle SpecHandle =
+        AbilitySystemComponent->MakeOutgoingSpec(WeaponStatEffectClass, 1.0f, ContextHandle);
+
+    if (!SpecHandle.IsValid() || !SpecHandle.Data.IsValid())
+    {
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[WeaponGE Apply:Spec] SpecValid=%d DataValid=%d ItemAP=%.2f ItemAffinity=%.2f"),
+    SpecHandle.IsValid() ? 1 : 0,
+    (SpecHandle.IsValid() && SpecHandle.Data.IsValid()) ? 1 : 0,
+    Stat.AttackPower,
+    Stat.Affinity);
+
+
+    // 어트리뷰트 셋에 무기 스탯 적용
+    SpecHandle.Data->SetSetByCallerMagnitude(
+        MHGameplayTags::Data_Weapon_AttackPower,
+        Stat.AttackPower);
+
+    SpecHandle.Data->SetSetByCallerMagnitude(
+        MHGameplayTags::Data_Weapon_Affinity,
+        Stat.Affinity);
+
+    EquippedWeaponStatEffectHandle =
+        AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+    // -----------------------
+    // 2. Sharpness 초기화
+    // -----------------------
+
+    CurrentSharpnessColor = Stat.MaxSharpnessColor;
+
+    CurrentSharpnessValue = GetMaxSharpnessValueFromColor(
+        Stat.SharpnessLength,
+        Stat.MaxSharpnessColor
+    );
+
+    // -----------------------
+    // 3. Element 저장
+    // -----------------------
+
+    CurrentWeaponElementTag = Stat.AttackElementTag;
+    
+    // 장착GE_GE 적용 _이건주
+    UE_LOG(LogTemp, Warning, TEXT("[WeaponGE Apply] HandleValid=%d Weapon=%s ItemAP=%.2f ItemAffinity=%.2f ASC_AP=%.2f ASC_CR=%.2f"),
+    EquippedWeaponStatEffectHandle.IsValid() ? 1 : 0,
+    *GetNameSafe(EquippedWeapon),
+    Stat.AttackPower,
+    Stat.Affinity,
+    CombatAttributeSet ? CombatAttributeSet->GetAttackPower() : -1.f,
+    CombatAttributeSet ? CombatAttributeSet->GetCriticalRate() : -1.f);
+}
+
+void AMHPlayerCharacter::RemoveEquippedWeaponStatEffect()
+{
+    if (AbilitySystemComponent && EquippedWeaponStatEffectHandle.IsValid())
+    {
+        AbilitySystemComponent->RemoveActiveGameplayEffect(EquippedWeaponStatEffectHandle);
+        EquippedWeaponStatEffectHandle.Invalidate();
+    }
+    
+    // 장착GE_GE 제거 _이건주
+    UE_LOG(LogTemp, Warning, TEXT("[WeaponGE Remove] HandleValid=%d ASC_AP=%.2f ASC_CR=%.2f"),
+    EquippedWeaponStatEffectHandle.IsValid() ? 1 : 0,
+    CombatAttributeSet ? CombatAttributeSet->GetAttackPower() : -1.f,
+    CombatAttributeSet ? CombatAttributeSet->GetCriticalRate() : -1.f);
+}
+
+void AMHPlayerCharacter::RefreshEquippedWeaponStatEffect()
+{
+    RemoveEquippedWeaponStatEffect();
+    ApplyEquippedWeaponStatEffect();
+}
+
+float AMHPlayerCharacter::GetMaxSharpnessValueFromColor(
+    const FMHSharpnessData& Data,
+    EMHSharpnessColor Color) const
+{
+    switch (Color)
+    {
+    case EMHSharpnessColor::Red:    return Data.Red;
+    case EMHSharpnessColor::Orange: return Data.Orange;
+    case EMHSharpnessColor::Yellow: return Data.Yellow;
+    case EMHSharpnessColor::Green:  return Data.Green;
+    case EMHSharpnessColor::Blue:   return Data.Blue;
+    case EMHSharpnessColor::White:  return Data.White;
+    default: return 0.f;
+    }
+}
+
+void AMHPlayerCharacter::ConsumeSharpness(float Amount)
+{
+    if (!EquippedWeapon)
+        return;
+
+    const FMHAttackStats& Stat = EquippedWeapon->GetAttackStats();
+
+    CurrentSharpnessValue -= Amount;
+
+    while (CurrentSharpnessValue <= 0.f)
+    {
+        if (!DowngradeSharpnessColor())
+        {
+            CurrentSharpnessValue = 0.f;
+            break;
+        }
+
+        CurrentSharpnessValue = GetMaxSharpnessValueFromColor(
+            Stat.SharpnessLength,
+            CurrentSharpnessColor
+        );
+    }
+}
+
+bool AMHPlayerCharacter::DowngradeSharpnessColor()
+{
+    switch (CurrentSharpnessColor)
+    {
+    case EMHSharpnessColor::White:  CurrentSharpnessColor = EMHSharpnessColor::Blue; return true;
+    case EMHSharpnessColor::Blue:   CurrentSharpnessColor = EMHSharpnessColor::Green; return true;
+    case EMHSharpnessColor::Green:  CurrentSharpnessColor = EMHSharpnessColor::Yellow; return true;
+    case EMHSharpnessColor::Yellow: CurrentSharpnessColor = EMHSharpnessColor::Orange; return true;
+    case EMHSharpnessColor::Orange: CurrentSharpnessColor = EMHSharpnessColor::Red; return true;
+    case EMHSharpnessColor::Red:    return false;
+    }
+
+    return false;
+}
+
+void AMHPlayerCharacter::HandleWeaponAttackHit(
+    AActor* Target,
+    AMHWeaponInstance* Weapon)
+{
+    // 1. Sharpness
+    ConsumeSharpness(5.f);
+    
+    // 2. SpiritGuage
+    AddSpiritGauge(5.f);
+
+    // // 3. 무기별 처리
+    // if (Weapon)
+    // {
+    //     Weapon->OnAttackHit(Target);
+    // }
 }
 
 FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForPrimaryInput() const

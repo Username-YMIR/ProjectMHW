@@ -72,16 +72,19 @@ struct FMHAttackStats
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Weapon", meta=(ClampMin="0.0"))
 	float AttackPower = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0", ClampMax="1.0", UIMin="0.0", UIMax="1.0"))
-	float Sharpness = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0", UIMin="0"))
-	float Affinity = 0.f;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(Categories="Element"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Weapon", meta=(ClampMin="0.0"))
+	EMHSharpnessColor MaxSharpnessColor = EMHSharpnessColor::Red;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Weapon", meta=(ClampMin="0", UIMin="0"))
+	FMHSharpnessData SharpnessLength; 
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Weapon", meta=(ClampMin="0.0", ClampMax="1.0", UIMin="0.0", UIMax="1.0"))
+	float Affinity = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item|Weapon", meta=(Categories="Element"))
 	FGameplayTag AttackElementTag;
 };
 
@@ -173,3 +176,23 @@ struct FMHMeleeAttackPayload
 	FGameplayTag AttakElementTag;
 };
 
+
+// 최종 대미지 예시
+// FinalDamage =
+// 	AttackPower
+// 	* SharpnessMultiplier
+// 	* CritMultiplier
+// 	* ElementMultiplier;
+inline float GetSharpnessMultiplier(EMHSharpnessColor Color)
+{
+	switch (Color)
+	{
+	case EMHSharpnessColor::Red:    return 0.5f;
+	case EMHSharpnessColor::Orange: return 0.75f;
+	case EMHSharpnessColor::Yellow: return 1.0f;
+	case EMHSharpnessColor::Green:  return 1.05f;
+	case EMHSharpnessColor::Blue:   return 1.2f;
+	case EMHSharpnessColor::White:  return 1.32f;
+	default: return 1.0f;
+	}
+}

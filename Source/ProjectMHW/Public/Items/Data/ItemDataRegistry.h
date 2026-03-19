@@ -19,6 +19,8 @@ class PROJECTMHW_API UItemDataRegistry : public UDataAsset
 	GENERATED_BODY()
 	
 public:
+	const UMHItemDataBase* GetItemData(FName KeyName) const;
+
 	UPROPERTY(EditAnywhere, Instanced, BlueprintReadOnly)
 	TMap<FName, UMHItemDataBase*> ItemDataMap;
 };

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MHMeleeWeaponInstance.h"
+#include "Items/Data/MHLongSwordItemData.h"
 #include "MHLongSwordInstance.generated.h"
 
 class UMHLongSwordComboGraph; // 손승우 추가
@@ -19,6 +20,7 @@ public:
 	AMHLongSwordInstance();
 
 protected:
+	virtual void ApplyItemData() override;
 	virtual void BeginPlay() override; // 손승우 추가
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon", meta=(AllowPrivateAccess="true"))
@@ -38,4 +40,11 @@ public:
 
 	// 태도 콤보 그래프
 	UMHLongSwordComboGraph* GetComboGraph() const; // 손승우 추가
+private:
+	FORCEINLINE const UMHLongSwordItemData* GetLongSwordData() const
+	{
+		const UMHLongSwordItemData* Data = Cast<UMHLongSwordItemData>(CachedItemData);
+		ensure(Data);
+		return Data;
+	}
 };
