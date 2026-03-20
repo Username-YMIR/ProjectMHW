@@ -2524,6 +2524,8 @@ TSoftClassPtr<UAnimInstance> AMHPlayerCharacter::GetCurrentWeaponLinkedAnimLayer
     const FMHWeaponAnimConfig* AnimConfig = GetEquippedWeaponAnimConfig();
     return AnimConfig ? AnimConfig->LinkedWeaponAnimLayerClass : TSoftClassPtr<UAnimInstance>();
 }
+
+
 #pragma endregion
 
 void AMHPlayerCharacter::ApplyPlayerVisuals()
@@ -2777,4 +2779,91 @@ bool AMHPlayerCharacter::ApplyIncomingPlayerDamageSpec(
         TargetASC->ApplyGameplayEffectSpecToSelf(*PlayerDamageSpecHandle.Data.Get());
 
     return ActiveHandle.WasSuccessfullyApplied();
+    
+    
 }
+
+#pragma region Attribute Delegate _이건주
+
+void AMHPlayerCharacter::InitializeAbilitySystem()
+{
+    Super::InitializeAbilitySystem();
+    BindAttributeDelegates();
+}
+
+void AMHPlayerCharacter::BindAttributeDelegates()
+{
+    if (!AbilitySystemComponent || bAttributeDelegatesBound)
+    {
+        return;
+    }
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHHealthAttributeSet::GetHealthAttribute()
+    ).AddUObject(this, &ThisClass::HandleHealthAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHHealthAttributeSet::GetMaxHealthAttribute()
+    ).AddUObject(this, &ThisClass::HandleMaxHealthAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHPlayerAttributeSet::GetStaminaAttribute()
+    ).AddUObject(this, &ThisClass::HandleStaminaAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHPlayerAttributeSet::GetMaxStaminaAttribute()
+    ).AddUObject(this, &ThisClass::HandleMaxStaminaAttributeChanged);
+
+    bAttributeDelegatesBound = true;
+}
+
+void AMHPlayerCharacter::BroadcastInitialAttributeSnapshot()
+{
+    //TODO: 이건주
+}
+
+void AMHPlayerCharacter::HandleHealthAttributeChanged(const FOnAttributeChangeData& ChangeData)
+{
+    OnHealthChanged.Broadcast(ChangeData.NewValue, GetMaxHealthValue());
+}
+
+void AMHPlayerCharacter::HandleMaxHealthAttributeChanged(const FOnAttributeChangeData& ChangeData)
+{
+    OnHealthChanged.Broadcast(GetCurrentHealthValue(), ChangeData.NewValue);
+}
+
+void AMHPlayerCharacter::HandleStaminaAttributeChanged(const FOnAttributeChangeData& ChangeData)
+{
+    OnStaminaChanged.Broadcast(ChangeData.NewValue, GetMaxStaminaValue());
+}
+
+void AMHPlayerCharacter::HandleMaxStaminaAttributeChanged(const FOnAttributeChangeData& ChangeData)
+{
+    OnStaminaChanged.Broadcast(GetCurrentStaminaValue(), ChangeData.NewValue);
+}
+
+void AMHPlayerCharacter::HandleShapnessAttributeChanged(const FOnAttributeChangeData& ChangeData)
+{
+    //TODO: Getter 함수 추가 _이건주
+    // OnSharpnessChanged.Broadcast(ChangeData.NewValue, GetCurrentSharpnessGaugeValue());
+}
+
+void AMHPlayerCharacter::HandleMaxShapnessAttributeChanged(const FOnAttributeChangeData& ChangeData)
+{
+    //TODO: Getter 함수 추가 _이건주
+    // OnSharpnessChanged.Broadcast(ChangeData.NewValue, GetMaxSharpnessGaugeValue());
+}
+
+void AMHPlayerCharacter::HandleSpiritAttributeChanged(const FOnAttributeChangeData& ChangeData)
+{
+    OnSpiritGaugeChanged.Broadcast(ChangeData.NewValue, GetCurrentSpiritGaugeValue());
+
+}
+
+void AMHPlayerCharacter::HandleMaxSpiritAttributeChanged(const FOnAttributeChangeData& ChangeData)
+{
+    OnSpiritGaugeChanged.Broadcast(ChangeData.NewValue, GetMaxSpiritGaugeValue());
+}
+
+
+#pragma endregion

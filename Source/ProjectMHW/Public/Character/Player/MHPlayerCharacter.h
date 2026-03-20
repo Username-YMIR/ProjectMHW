@@ -12,6 +12,9 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMHPlayerCharacter, Log, All);
 
+// 어트리뷰트셋 값 변경 시 사용하는 델리게이트 _이건주
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMHOnVitalChanged, float, CurrentValue, float, MaxValue);
+
 UENUM(BlueprintType)
 enum class EMHLongSwordCounterWindowType : uint8
 {
@@ -362,6 +365,12 @@ protected:
     float CurrentSharpnessValue;
     
     UPROPERTY(Transient)
+    float CurrentSharpnessLength;
+    
+    float GetCurrentSharpnessValue() const { return CurrentSharpnessValue; }
+    float GetCurrentSharpnessLength() const { return CurrentSharpnessLength; }    
+    
+    UPROPERTY(Transient)
     FGameplayTag CurrentWeaponElementTag;
 
 
@@ -699,4 +708,41 @@ protected:
 
     UPROPERTY(Transient)
     bool bWeaponAnimLayerLinked = false;
+    
+    
+    
+#pragma region Attribute Delegate _이건주
+public:
+    UPROPERTY(BlueprintAssignable, Category="UI|Attributes")
+    FMHOnVitalChanged OnHealthChanged;
+
+    UPROPERTY(BlueprintAssignable, Category="UI|Attributes")
+    FMHOnVitalChanged OnStaminaChanged;
+    
+    UPROPERTY(BlueprintAssignable, Category="UI|Attributes")
+    FMHOnVitalChanged OnSpiritGaugeChanged;
+    
+    UPROPERTY(BlueprintAssignable, Category="UI|Attributes")
+    FMHOnVitalChanged OnSharpnessChanged;
+
+protected:
+    virtual void InitializeAbilitySystem() override;
+
+    
+    void BindAttributeDelegates();
+    void BroadcastInitialAttributeSnapshot();
+
+    void HandleHealthAttributeChanged(const FOnAttributeChangeData& ChangeData);
+    void HandleMaxHealthAttributeChanged(const FOnAttributeChangeData& ChangeData);
+    void HandleStaminaAttributeChanged(const FOnAttributeChangeData& ChangeData);
+    void HandleMaxStaminaAttributeChanged(const FOnAttributeChangeData& ChangeData);
+    
+    void HandleShapnessAttributeChanged(const FOnAttributeChangeData& ChangeData);
+    void HandleMaxShapnessAttributeChanged(const FOnAttributeChangeData& ChangeData);
+    void HandleSpiritAttributeChanged(const FOnAttributeChangeData& ChangeData);
+    void HandleMaxSpiritAttributeChanged(const FOnAttributeChangeData& ChangeData);
+
+    // 중복 바인딩 가드 플래그
+    bool bAttributeDelegatesBound = false;
+#pragma endregion
 };
