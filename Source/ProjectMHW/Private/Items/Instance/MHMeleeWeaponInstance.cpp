@@ -47,22 +47,18 @@ void AMHMeleeWeaponInstance::BeginPlay()
 
 void AMHMeleeWeaponInstance::BeginAttackWindow()
 {
-	// 새로운 타격 판정 구간이 시작될 때 현재 윈도우 기준 히트 기록만 초기화한다.
 	ClearHitActors();
-	bResolvedConfirmedHitForCurrentAttack = false;
 	SetAttackCollisionEnabled(true);
 }
 
 void AMHMeleeWeaponInstance::EndAttackWindow()
 {
-	// 노티파이 종료 시에는 콜리전과 히트 기록만 정리하고, 현재 공격 데이터는 유지한다.
 	SetAttackCollisionEnabled(false);
 	ClearHitActors();
 }
 
 void AMHMeleeWeaponInstance::ResetMeleeAttack()
 {
-	// 공격이 완전히 종료되는 시점에서만 현재 공격 데이터까지 모두 초기화한다.
 	EndAttackWindow();
 	ClearCurrentAttackData();
 	bResolvedConfirmedHitForCurrentAttack = false;
@@ -149,6 +145,17 @@ bool AMHMeleeWeaponInstance::TryDeliverDamageSpecToTarget(
 	);
 
 	return true;
+}
+
+void AMHMeleeWeaponInstance::PlayAcceptedHitCameraShake()
+{
+	AMHPlayerCharacter* PlayerOwner = Cast<AMHPlayerCharacter>(GetOwner());
+	if (!IsValid(PlayerOwner))
+	{
+		return;
+	}
+
+	PlayerOwner->PlayLongSwordHitCameraShake(CurrentAttackTag);
 }
 
 FVector AMHMeleeWeaponInstance::ResolveImpactPoint(
@@ -308,6 +315,7 @@ void AMHMeleeWeaponInstance::OnWeaponBeginOverlap(
 			PlayerOwner->Notify_LongSwordAttackHitConfirmed(CurrentAttackTag);
 		}
 
+		PlayAcceptedHitCameraShake();
 		bResolvedConfirmedHitForCurrentAttack = true;
 	}
 

@@ -8,6 +8,9 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/mh_hit_enemy_camera_shake.h"
+#include "Camera/PlayerCameraManager.h"
+#include "GameFramework/PlayerController.h"
 #include "Items/Instance/MHWeaponInstance.h"
 #include "Items/Instance/MHLongSwordInstance.h"
 #include "Weapons/LongSword/MHLongSwordComboComponent.h"
@@ -707,7 +710,6 @@ void AMHPlayerCharacter::Notify_LongSwordAttackHitConfirmed(const FGameplayTag& 
 
     CommitLongSwordResourceDelta(InMoveTag, CommitType);
 
-    // 특수납도 파생 카운터 성공 플래그는 실제 적중 처리 이후 바로 정리한다.
     if (InMoveTag == MHLongSwordGameplayTags::Move_LS_IaiSlash)
     {
         ClearLongSwordSpecialSheatheSlashCounterSuccess();
@@ -1157,6 +1159,44 @@ bool AMHPlayerCharacter::CanStartLongSwordMove(const FGameplayTag& InMoveTag) co
     }
 
     return CurrentSpiritGauge + KINDA_SMALL_NUMBER >= RequiredSpiritGauge;
+}
+
+void AMHPlayerCharacter::PlayLongSwordHitCameraShake(const FGameplayTag& InMoveTag) const
+{
+    if (!Controller)
+    {
+        return;
+    }
+
+    const APlayerController* PC = Cast<APlayerController>(Controller);
+    if (!PC || !PC->IsLocalController() || !PC->PlayerCameraManager)
+    {
+        return;
+    }
+
+    FMHAttackMetaRow AttackMetaRow;
+    TSubclassOf<UCameraShakeBase> ShakeClass = UMHHitEnemyCameraShake::StaticClass();
+    float ShakeScale = 1.0f;
+
+    if (FindAttackMetaRow(InMoveTag, AttackMetaRow))
+    {
+        if (!AttackMetaRow.CameraShakeClass.IsNull())
+        {
+            if (UClass* LoadedShakeClass = AttackMetaRow.CameraShakeClass.LoadSynchronous())
+            {
+                ShakeClass = LoadedShakeClass;
+            }
+        }
+
+        ShakeScale = FMath::Max(0.0f, AttackMetaRow.CameraShakeScale);
+    }
+
+    if (!ShakeClass || ShakeScale <= 0.0f)
+    {
+        return;
+    }
+
+    PC->PlayerCameraManager->StartCameraShake(ShakeClass, ShakeScale);
 }
 
 EMHLongSwordResourceCommitType AMHPlayerCharacter::ResolveLongSwordResourceCommitType(const FGameplayTag& InMoveTag) const
@@ -1732,9 +1772,6 @@ void AMHPlayerCharacter::ApplyEquippedWeaponStatEffect()
     // -----------------------
 
     CurrentWeaponElementTag = Stat.AttackElementTag;
-
-    // 현재 예리도 단계에 대응하는 보정값을 전투 어트리뷰트에도 반영한다.
-    SyncSharpnessModifierAttribute();
     
     // 장착GE_GE 적용 _이건주
     UE_LOG(LogTemp, Warning, TEXT("[WeaponGE Apply] HandleValid=%d Weapon=%s ItemAP=%.2f ItemAffinity=%.2f ASC_AP=%.2f ASC_CR=%.2f"),
@@ -1759,9 +1796,6 @@ void AMHPlayerCharacter::RemoveEquippedWeaponStatEffect()
     EquippedWeaponStatEffectHandle.IsValid() ? 1 : 0,
     CombatAttributeSet ? CombatAttributeSet->GetAttackPower() : -1.f,
     CombatAttributeSet ? CombatAttributeSet->GetCriticalRate() : -1.f);
-
-    CurrentWeaponElementTag = FGameplayTag();
-    SetSharpnessModifierAttributeValue(1.0f);
 }
 
 void AMHPlayerCharacter::RefreshEquippedWeaponStatEffect()
@@ -1808,8 +1842,6 @@ void AMHPlayerCharacter::ConsumeSharpness(float Amount)
             CurrentSharpnessColor
         );
     }
-
-    SyncSharpnessModifierAttribute();
 }
 
 bool AMHPlayerCharacter::DowngradeSharpnessColor()
@@ -2669,47 +2701,6 @@ void AMHPlayerCharacter::UpdateLocomotionState()
     LocomotionState = (Speed2D < 3.0f) ? EMHPlayerLocomotionState::Idle : EMHPlayerLocomotionState::Move;
 }
 
-void AMHPlayerCharacter::SetSharpnessModifierAttributeValue(float InNewValue)
-{
-    const float ClampedValue = FMath::Max(0.0f, InNewValue);
-
-    if (AbilitySystemComponent)
-    {
-        AbilitySystemComponent->SetNumericAttributeBase(UMHCombatAttributeSet::GetSharpnessModifierAttribute(), ClampedValue);
-        return;
-    }
-
-    if (CombatAttributeSet)
-    {
-        CombatAttributeSet->SetSharpnessModifier(ClampedValue);
-    }
-}
-
-void AMHPlayerCharacter::SyncSharpnessModifierAttribute()
-{
-    SetSharpnessModifierAttributeValue(ResolveSharpnessModifierFromColor(CurrentSharpnessColor));
-}
-
-float AMHPlayerCharacter::ResolveSharpnessModifierFromColor(const EMHSharpnessColor InColor) const
-{
-    switch (InColor)
-    {
-    case EMHSharpnessColor::White:
-        return 1.32f;
-    case EMHSharpnessColor::Blue:
-        return 1.20f;
-    case EMHSharpnessColor::Green:
-        return 1.05f;
-    case EMHSharpnessColor::Yellow:
-        return 1.00f;
-    case EMHSharpnessColor::Orange:
-        return 0.75f;
-    case EMHSharpnessColor::Red:
-    default:
-        return 0.50f;
-    }
-}
-
 void AMHPlayerCharacter::ApplyDefaultPlayerAttributes()
 {
     // 현재 프로젝트 기준 플레이어 기본 체력, 방어력, 스태미나는 하드코딩 값으로 고정한다.
@@ -2722,7 +2713,6 @@ void AMHPlayerCharacter::ApplyDefaultPlayerAttributes()
     SetMaxHealthAttributeValue(DefaultMaxHealth);
     SetCurrentHealthAttributeValue(DefaultCurrentHealth);
     SetDefenseAttributeValue(DefaultDefense);
-    SetSharpnessModifierAttributeValue(1.0f);
     SetMaxStaminaAttributeValue(DefaultMaxStamina);
     SetCurrentStaminaAttributeValue(DefaultCurrentStamina);
 }

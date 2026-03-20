@@ -41,7 +41,7 @@ void UMHAnimNotifyState_MeleeAttackHitWindow::NotifyBegin(
         return;
     }
 
-    // 타격 판정 구간 시작 시 윈도우 상태만 초기화하고 현재 공격 데이터는 유지한다.
+    // 공격 판정 윈도우 시작
     MeleeWeapon->BeginAttackWindow();
 }
 
@@ -64,7 +64,7 @@ void UMHAnimNotifyState_MeleeAttackHitWindow::NotifyEnd(
         return;
     }
 
-    // 노티파이 종료 시에는 윈도우만 닫고 현재 공격 데이터는 유지한다.
+    // 공격 판정 윈도우 종료
     MeleeWeapon->EndAttackWindow();
 }
 

@@ -8,9 +8,9 @@
 
 UMHHealthAttributeSet::UMHHealthAttributeSet()
 {
-	InitHealth(100.f);
 	InitMaxHealth(100.f);
-
+	InitHealth(100.f);
+	
 	InitIncomingDamage(0.f);
 	InitIncomingHeal(0.f);
 }
@@ -19,15 +19,16 @@ void UMHHealthAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribu
 {
 	Super::PreAttributeChange(Attribute, NewValue);
 
-	if (Attribute == GetHealthAttribute())
-	{
-		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxHealth());
-	}
-
 	if (Attribute == GetMaxHealthAttribute())
 	{
 		NewValue = FMath::Max(0.f, NewValue);
 	}
+	
+	if (Attribute == GetHealthAttribute())
+	{
+		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxHealth());
+	}
+	
 }
 
 void UMHHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)

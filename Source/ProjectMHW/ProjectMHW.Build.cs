@@ -24,7 +24,8 @@ public class ProjectMHW : ModuleRules
 			"GameplayTasks",
 			"Niagara",
 			"AIModule",
-			"NavigationSystem"
+			"NavigationSystem",
+			"GameplayCameras", "EngineCameras",
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
