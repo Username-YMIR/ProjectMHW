@@ -40,5 +40,9 @@ protected:
 
 	/** Input mapping context setup */
 	virtual void SetupInputComponent() override;
+	
+	//디버그용 대미지 적용 Exec 함수
+	UFUNCTION(Exec)
+	void DebugPlayerDamage(float PhysicalDamage = 10.0f, const FString& AttackTagName = TEXT("Attack.Debug.Counterable"));
 
 };

@@ -416,7 +416,7 @@ protected:
     float MaxSpiritGauge = 100.0f;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true"))
-    float CurrentSpiritGauge = 0.0f;
+    float CurrentSpiritGauge = 50.f;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0", ClampMax = "3", AllowPrivateAccess = "true"))
     int32 CurrentSpiritLevel = 0;
@@ -645,6 +645,13 @@ private:
     void CommitLongSwordResourceDelta(const FGameplayTag& InMoveTag, EMHLongSwordResourceCommitType InCommitType);
 
     float GetCurrentSpiritDamageMultiplier() const;
+    
+    
+    // 기인 게이지 브로드캐스트 포함
+    void SetSpiritGaugeValues(const float InSpiritValue, const float InMaxSpiritValue);
+    void SetCurrentSpiritGauge(const float InSpiritValue);
+    void SetMaxSpiritGuage(const float InMaxSpiritValue);
+    
     void AddSpiritGauge(float InAmount);
     void ConsumeSpiritGauge(float InAmount);
     void IncreaseSpiritLevel(int32 InAmount = 1);

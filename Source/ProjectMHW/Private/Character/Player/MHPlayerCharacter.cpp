@@ -1305,6 +1305,28 @@ float AMHPlayerCharacter::GetCurrentSpiritDamageMultiplier() const
     }
 }
 
+void AMHPlayerCharacter::SetSpiritGaugeValues(const float InSpiritValue, const float InMaxSpiritValue)
+{
+    MaxSpiritGauge = FMath::Max(0.f, InMaxSpiritValue);
+    CurrentSpiritGauge = FMath::Clamp(InSpiritValue, 0.0f, MaxSpiritGauge);
+    
+    OnSpiritGaugeChanged.Broadcast(GetCurrentSpiritGaugeValue(), GetMaxSpiritGaugeValue());
+}
+
+void AMHPlayerCharacter::SetCurrentSpiritGauge(const float InSpiritValue)
+{
+    CurrentSpiritGauge = FMath::Clamp(InSpiritValue, 0.0f, MaxSpiritGauge);
+    
+    OnSpiritGaugeChanged.Broadcast(GetCurrentSpiritGaugeValue(), GetMaxSpiritGaugeValue());
+}
+
+void AMHPlayerCharacter::SetMaxSpiritGuage(const float InMaxSpiritValue)
+{
+    MaxSpiritGauge = FMath::Max(0.f, InMaxSpiritValue);
+    
+    OnSpiritGaugeChanged.Broadcast(GetCurrentSpiritGaugeValue(), GetMaxSpiritGaugeValue());
+}
+
 float AMHPlayerCharacter::ResolveLongSwordDamageMultiplier(const FGameplayTag& InMoveTag) const
 {
     FMHAttackMetaRow AttackMetaRow;
@@ -1414,7 +1436,8 @@ void AMHPlayerCharacter::AddSpiritGauge(const float InAmount)
         return;
     }
 
-    CurrentSpiritGauge = FMath::Clamp(CurrentSpiritGauge + InAmount, 0.0f, FMath::Max(0.0f, MaxSpiritGauge));
+    const float NewSpiritGauge = FMath::Clamp(CurrentSpiritGauge + InAmount, 0.0f, FMath::Max(0.0f, MaxSpiritGauge));
+    SetCurrentSpiritGauge(NewSpiritGauge);
 }
 
 void AMHPlayerCharacter::ConsumeSpiritGauge(const float InAmount)
@@ -1424,7 +1447,8 @@ void AMHPlayerCharacter::ConsumeSpiritGauge(const float InAmount)
         return;
     }
 
-    CurrentSpiritGauge = FMath::Clamp(CurrentSpiritGauge - InAmount, 0.0f, FMath::Max(0.0f, MaxSpiritGauge));
+    const float NewSpiritGauge = FMath::Clamp(CurrentSpiritGauge - InAmount, 0.0f, FMath::Max(0.0f, MaxSpiritGauge));
+    SetCurrentSpiritGauge(NewSpiritGauge);
 }
 
 void AMHPlayerCharacter::IncreaseSpiritLevel(const int32 InAmount)
@@ -2972,16 +2996,18 @@ void AMHPlayerCharacter::BindAttributeDelegates()
     ).AddUObject(this, &ThisClass::HandleHealthAttributeChanged);
 
     AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
-        UMHHealthAttributeSet::GetMaxHealthAttribute()
-    ).AddUObject(this, &ThisClass::HandleMaxHealthAttributeChanged);
-
-    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
         UMHPlayerAttributeSet::GetStaminaAttribute()
     ).AddUObject(this, &ThisClass::HandleStaminaAttributeChanged);
-
-    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
-        UMHPlayerAttributeSet::GetMaxStaminaAttribute()
-    ).AddUObject(this, &ThisClass::HandleMaxStaminaAttributeChanged);
+    
+    //TODO: 예리도 기인 게이지  
+    
+    // AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+    //     UMHHealthAttributeSet::GetMaxHealthAttribute()
+    // ).AddUObject(this, &ThisClass::HandleMaxHealthAttributeChanged);
+    //
+    // AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+    //     UMHPlayerAttributeSet::GetMaxStaminaAttribute()
+    // ).AddUObject(this, &ThisClass::HandleMaxStaminaAttributeChanged);
 
     bAttributeDelegatesBound = true;
 }

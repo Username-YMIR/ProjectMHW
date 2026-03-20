@@ -5,8 +5,10 @@
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "InputMappingContext.h"
+#include "MHGameplayTags.h"
 #include "Blueprint/UserWidget.h"
 #include "ProjectMHW.h"
+#include "Character/Player/MHPlayerCharacter.h"
 #include "Widgets/Input/SVirtualJoystick.h"
 
 void AProjectMHWPlayerController::BeginPlay()
@@ -58,4 +60,44 @@ void AProjectMHWPlayerController::SetupInputComponent()
 			}
 		}
 	}
+}
+
+void AProjectMHWPlayerController::DebugPlayerDamage(float PhysicalDamage, const FString& AttackTagName)
+{
+	AMHPlayerCharacter* PlayerCharacter = Cast<AMHPlayerCharacter>(GetPawn());
+	if (!IsValid(PlayerCharacter))
+	{
+		UE_LOG(LogProjectMHW, Warning, TEXT("DebugPlayerDamage failed: player pawn is not AMHPlayerCharacter."));
+		return;
+	}
+
+	FGameplayTag AttackTag = AttackTagName.IsEmpty()
+		? MHGameplayTags::Attack_Debug_Counterable
+		: FGameplayTag::RequestGameplayTag(FName(*AttackTagName), false);
+
+	if (!AttackTag.IsValid())
+	{
+		AttackTag = MHGameplayTags::Attack_Debug_Counterable;
+	}
+
+	if (!AttackTag.IsValid())
+	{
+		UE_LOG(LogProjectMHW, Warning, TEXT("DebugPlayerDamage failed: invalid attack tag."));
+		return;
+	}
+
+	PlayerCharacter->ApplyDebugDamageFromSource(
+		PlayerCharacter,
+		FMath::Max(0.0f, PhysicalDamage),
+		AttackTag
+	);
+
+	UE_LOG(
+		LogProjectMHW,
+		Log,
+		TEXT("DebugPlayerDamage executed. Damage=%.2f AttackTag=%s Target=%s"),
+		PhysicalDamage,
+		*AttackTag.ToString(),
+		*GetNameSafe(PlayerCharacter)
+	);
 }
