@@ -265,6 +265,11 @@ void AMHPlayerCharacter::Input_Move(const FInputActionValue& InputActionValue)
     const FVector2D MovementVector = InputActionValue.Get<FVector2D>();
     CachedMoveInput2D = MovementVector;
 
+    if (UWorld* World = GetWorld())
+    {
+        UpdateDirectionalTurnWindow(World->GetDeltaSeconds());
+    }
+
     // 방향 입력이 들어온 프레임만 마지막 유효 입력으로 갱신한다.
     if (!MovementVector.IsNearlyZero())
     {
@@ -598,6 +603,26 @@ void AMHPlayerCharacter::Notify_EndEarlyTransitionWindow()
             ComboComp->EndEarlyTransitionWindow();
         }
     }
+}
+
+void AMHPlayerCharacter::Notify_BeginDirectionalTurnWindow(float InMaxYawDeltaDegrees, float InRotationInterpSpeed)
+{
+    bDirectionalTurnWindowActive = true;
+    DirectionalTurnWindowBaseYaw = GetActorRotation().Yaw;
+    DirectionalTurnWindowMaxYawDeltaDegrees = FMath::Max(0.0f, InMaxYawDeltaDegrees);
+    DirectionalTurnWindowRotationInterpSpeed = FMath::Max(0.0f, InRotationInterpSpeed);
+
+    if (UWorld* World = GetWorld())
+    {
+        UpdateDirectionalTurnWindow(World->GetDeltaSeconds());
+    }
+}
+
+void AMHPlayerCharacter::Notify_EndDirectionalTurnWindow()
+{
+    bDirectionalTurnWindowActive = false;
+    DirectionalTurnWindowMaxYawDeltaDegrees = 0.0f;
+    DirectionalTurnWindowRotationInterpSpeed = 0.0f;
 }
 
 void AMHPlayerCharacter::Notify_LongSwordForesightCounterSuccess()
@@ -1393,6 +1418,43 @@ bool AMHPlayerCharacter::TryRotateActorTowardsMoveInput()
 
     const FRotator NewActorRotation = WorldMoveDirection.Rotation();
     SetActorRotation(FRotator(0.0f, NewActorRotation.Yaw, 0.0f));
+    return true;
+}
+
+void AMHPlayerCharacter::UpdateDirectionalTurnWindow(const float DeltaSeconds)
+{
+    if (!bDirectionalTurnWindowActive)
+    {
+        return;
+    }
+
+    TryApplyDirectionalTurnWindowRotation(DeltaSeconds);
+}
+
+bool AMHPlayerCharacter::TryApplyDirectionalTurnWindowRotation(const float DeltaSeconds)
+{
+    const FVector WorldMoveDirection = ResolveWorldMoveDirection(Controller, GetPreferredMoveInput2D());
+    if (WorldMoveDirection.IsNearlyZero())
+    {
+        return false;
+    }
+
+    const float DesiredYaw = WorldMoveDirection.Rotation().Yaw;
+    const float ClampedYawDelta = FMath::Clamp(
+        FMath::FindDeltaAngleDegrees(DirectionalTurnWindowBaseYaw, DesiredYaw),
+        -DirectionalTurnWindowMaxYawDeltaDegrees,
+        DirectionalTurnWindowMaxYawDeltaDegrees);
+
+    const float TargetYaw = DirectionalTurnWindowBaseYaw + ClampedYawDelta;
+    const float CurrentYaw = GetActorRotation().Yaw;
+
+    float NewYaw = TargetYaw;
+    if (DirectionalTurnWindowRotationInterpSpeed > 0.0f && DeltaSeconds > 0.0f)
+    {
+        NewYaw = FMath::FixedTurn(CurrentYaw, TargetYaw, DirectionalTurnWindowRotationInterpSpeed * DeltaSeconds);
+    }
+
+    SetActorRotation(FRotator(0.0f, NewYaw, 0.0f));
     return true;
 }
 
