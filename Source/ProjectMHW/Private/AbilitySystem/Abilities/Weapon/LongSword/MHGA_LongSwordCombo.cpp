@@ -283,10 +283,9 @@ bool UMHGA_LongSwordCombo::PlayNextMove(
         return false;
     }
 
-    // 기인 게이지가 부족하면 현재 기술은 시작하지 않는다.
     if (!Player->CanStartLongSwordMove(Node->MoveTag))
     {
-        UE_LOG(LogMHGALSCombo, Verbose, TEXT("기인 게이지 부족으로 기술 시작이 차단되었습니다. Move=%s"), *Node->MoveTag.ToString());
+        UE_LOG(LogMHGALSCombo, Verbose, TEXT("기인 게이지가 부족해 기술을 시작할 수 없습니다. Move=%s"), *Node->MoveTag.ToString());
         return false;
     }
 
@@ -312,7 +311,6 @@ bool UMHGA_LongSwordCombo::PlayResolvedNode(const FMHLongSwordComboNode& InNode,
         return false;
     }
 
-    // 이전 기술에서 남은 일시 카운터 성공 플래그는 다음 기술 진입 시점에 정리한다.
     CachedPlayer->ClearLongSwordCounterSuccessFlagsForMoveExit(InPreviousMoveTag);
 
     // 이전 드로우 엔트리 기술에서 조기 전환이 일어나면, 발도 상태 전환을 여기서 확정한다.
@@ -330,7 +328,6 @@ bool UMHGA_LongSwordCombo::PlayResolvedNode(const FMHLongSwordComboNode& InNode,
     // 현재 콤보 노드 기준 공격 Spec을 무기 인스턴스에 전달한다.
     if (!PushDamageSpecToWeapon(InNode))
     {
-        UE_LOG(LogMHGALSCombo, Warning, TEXT("PushDamageSpecToWeapon failed. Move=%s"), *InNode.MoveTag.ToString());
         return false;
     }
 
@@ -447,12 +444,6 @@ bool UMHGA_LongSwordCombo::TryCommitQueuedComboTransition()
         return false;
     }
 
-    if (!CachedPlayer->CanStartLongSwordMove(NextNode->MoveTag))
-    {
-        UE_LOG(LogMHGALSCombo, Verbose, TEXT("기인 게이지 부족으로 조기 전환이 차단되었습니다. Move=%s"), *NextNode->MoveTag.ToString());
-        return false;
-    }
-
     // 1) 다음 몽타주가 실제로 재생 가능한지 먼저 확인
     UAnimMontage* NextMontage = NextNode->Montage.IsNull() ? nullptr : NextNode->Montage.LoadSynchronous();
     NextMontage = CachedPlayer->ResolveLongSwordMoveMontageOverride(NextNode->MoveTag, NextMontage);
@@ -463,6 +454,12 @@ bool UMHGA_LongSwordCombo::TryCommitQueuedComboTransition()
     }
 
     // 값 보존
+    if (!CachedPlayer->CanStartLongSwordMove(NextNode->MoveTag))
+    {
+        UE_LOG(LogMHGALSCombo, Verbose, TEXT("기인 게이지가 부족해 조기 전환을 시작할 수 없습니다. Move=%s"), *NextNode->MoveTag.ToString());
+        return false;
+    }
+
     const FMHLongSwordComboNode NextNodeCopy = *NextNode;
 
     // 2) 인터럽트 콜백 무시를 먼저 켠다

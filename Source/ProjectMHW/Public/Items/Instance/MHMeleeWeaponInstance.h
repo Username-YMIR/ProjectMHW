@@ -28,15 +28,15 @@ public:
 	AMHMeleeWeaponInstance();
 
 public:
-	/** 공격 윈도우를 시작한다. */
+	/** 공격 판정 윈도우 시작 */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	void BeginAttackWindow();
 
-	/** 공격 윈도우를 종료한다. */
+	/** 공격 판정 윈도우 종료 */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	void EndAttackWindow();
 
-	/** 공격 종료 시 현재 공격 상태를 전체 초기화한다. */
+	/** 공격 시작 혹은 끝에서 호출 */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	void ResetMeleeAttack();
 
@@ -65,6 +65,9 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+
+	/** 실제 히트가 수락된 순간 공격자 로컬 카메라 쉐이크를 재생 */
+	void PlayAcceptedHitCameraShake();
 
 	/** 피격자에게 DamageSpec 전달 */
 	bool TryDeliverDamageSpecToTarget(
