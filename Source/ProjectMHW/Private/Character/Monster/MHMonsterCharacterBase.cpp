@@ -48,12 +48,18 @@ void AMHMonsterCharacterBase::BeginPlay()
 {
     Super::BeginPlay();
 
+    
+    
     UE_LOG(MHMonsterCharacterBase, Warning, TEXT("BeginPlay | Enter"));
 
     InitMonsterGAS();
 
     UE_LOG(MHMonsterCharacterBase, Warning, TEXT("BeginPlay | After InitMonsterGAS"));
 
+    UE_LOG(LogTemp, Warning, TEXT("After StartupGE | Health=%.1f MaxHealth=%.1f"),
+    HealthAttributeSets ? HealthAttributeSets->GetHealth() : -1.f,
+    HealthAttributeSets ? HealthAttributeSets->GetMaxHealth() : -1.f);
+    
 
     // 시작 상태: Unaware
     if (AbilitySystemComponent)
@@ -357,7 +363,7 @@ bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag
     FMonsterAbilityEntry AbilityEntry;
 
     float FinalPhysicalDamage = MonsterBasicPhysicalDamage;
-    float FinalAttackRange = 220.f;
+    float FinalAttackRange = 500.f;
 
     if (FindMonsterAbilityEntryByTag(AttackTag, AbilityEntry))
     {
@@ -522,6 +528,11 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
     // 4. 전달받은 Spec을 자기 자신에게 적용
     const FActiveGameplayEffectHandle ActiveHandle =
         TargetASC->ApplyGameplayEffectSpecToSelf(*DamageSpecHandle.Data.Get());
+    
+    UE_LOG(MHMonsterCharacterBase, Warning,
+    TEXT("AFTER HIT | ApplySuccess=%d | HealthSet HP=%.1f"),
+    ActiveHandle.WasSuccessfullyApplied() ? 1 : 0,
+    HealthAttributeSets ? HealthAttributeSets->GetHealth() : -1.f);
 
     // 5. 적용 성공 시 후처리 및 응답 작성
     if (ActiveHandle.WasSuccessfullyApplied())
@@ -724,6 +735,11 @@ bool AMHMonsterCharacterBase::HasDeadTag() const
 
 bool AMHMonsterCharacterBase::IsMonsterDead() const
 {
+    UE_LOG(MHMonsterCharacterBase, Warning,
+    TEXT("IsMonsterDead | HasDeadTag=%d Health=%.1f"),
+    HasDeadTag() ? 1 : 0,
+    HealthAttributeSets ? HealthAttributeSets->GetHealth() : -1.f);
+    
     if (HasDeadTag())
     {
         return true;
@@ -1648,6 +1664,8 @@ void AMHMonsterCharacterBase::NotifyDamagedFrom(AActor* InstigatorActor)
 
 void AMHMonsterCharacterBase::InitMonsterGAS()
 {
+    
+    
     if (bMonsterGASInitialized)
     {
         UE_LOG(MHMonsterCharacterBase, Warning, TEXT("InitMonsterGAS | already initialized"));
