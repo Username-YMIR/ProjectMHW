@@ -22,21 +22,21 @@ void UMHAnimNotifyState_MeleeAttackHitWindow::NotifyBegin(
     float TotalDuration,
     const FAnimNotifyEventReference& EventReference)
 {
-    UE_LOG(MHANS_MeleeAttackHitWindow, Warning, TEXT("NotifyBegin"))
+    UE_LOG(MHANS_MeleeAttackHitWindow, Warning, TEXT("NotifyBegin"));
     
     Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
 
     AActor* OwnerActor = ResolveOwnerActor(MeshComp);
     if (!OwnerActor)
     {
-        UE_LOG(MHANS_MeleeAttackHitWindow, Warning, TEXT("OwnerActor is not Valid"))
+        UE_LOG(MHANS_MeleeAttackHitWindow, Warning, TEXT("OwnerActor is not Valid"));
         return;
     }
 
     AMHMeleeWeaponInstance* MeleeWeapon = ResolveMeleeWeapon(OwnerActor);
     if (!MeleeWeapon)
     {
-        UE_LOG(MHANS_MeleeAttackHitWindow, Warning, TEXT("MeleeWeapon is not Valid"))
+        UE_LOG(MHANS_MeleeAttackHitWindow, Warning, TEXT("MeleeWeapon is not Valid"));
 
         return;
     }

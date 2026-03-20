@@ -678,7 +678,7 @@ void AMHMonsterCharacterBase::PlayHitImpactFXByAttackTag(
 		SpawnRotation
 	);
     
-    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("SpawnSystemAtLocation"))
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("SpawnSystemAtLocation"));
 }
 
 void AMHMonsterCharacterBase::PlayHitSoundByAttackTag(
@@ -717,7 +717,7 @@ void AMHMonsterCharacterBase::PlayHitSoundByAttackTag(
 		HitResult.ImpactPoint
 	);
     
-    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlaySoundAtLocation"))
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlaySoundAtLocation"));
 
 }
 

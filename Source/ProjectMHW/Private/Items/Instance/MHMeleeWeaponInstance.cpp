@@ -49,6 +49,7 @@ void AMHMeleeWeaponInstance::BeginAttackWindow()
 {
 	ClearHitActors();
 	SetAttackCollisionEnabled(true);
+	ProcessExistingOverlapsAtAttackWindowBegin();
 }
 
 void AMHMeleeWeaponInstance::EndAttackWindow()
@@ -92,6 +93,7 @@ void AMHMeleeWeaponInstance::ClearHitActors()
 void AMHMeleeWeaponInstance::SetCurrentDamageSpec(const FGameplayEffectSpecHandle& InDamageSpecHandle)
 {
 	CurrentDamageSpecHandle = InDamageSpecHandle;
+	ResetPerAttackRuntimeState();
 }
 
 void AMHMeleeWeaponInstance::SetCurrentAttackTag(const FGameplayTag& InAttackTag)
@@ -104,6 +106,52 @@ void AMHMeleeWeaponInstance::ClearCurrentAttackData()
 	CurrentDamageSpecHandle = FGameplayEffectSpecHandle();
 	CurrentAttackTag = FGameplayTag();
 	bResolvedConfirmedHitForCurrentAttack = false;
+}
+
+void AMHMeleeWeaponInstance::ResetPerAttackRuntimeState()
+{
+	// 새 기술의 DamageSpec이 들어오면 이전 타격의 확정 상태를 초기화한다.
+	bResolvedConfirmedHitForCurrentAttack = false;
+
+	UE_LOG(
+		LogMHMeleeWeaponInstance,
+		Verbose,
+		TEXT("새 공격 데이터로 교체됨. AttackTag=%s"),
+		*CurrentAttackTag.ToString()
+	);
+}
+
+void AMHMeleeWeaponInstance::ProcessExistingOverlapsAtAttackWindowBegin()
+{
+	if (!HitBox)
+	{
+		return;
+	}
+
+	HitBox->UpdateOverlaps();
+
+	TArray<AActor*> OverlappingActors;
+	HitBox->GetOverlappingActors(OverlappingActors);
+
+	UE_LOG(
+		LogMHMeleeWeaponInstance,
+		Verbose,
+		TEXT("공격 윈도우 시작 시 기존 겹침 재검사. Count=%d AttackTag=%s"),
+		OverlappingActors.Num(),
+		*CurrentAttackTag.ToString()
+	);
+
+	for (AActor* OverlappingActor : OverlappingActors)
+	{
+		if (!IsValid(OverlappingActor))
+		{
+			continue;
+		}
+
+		UPrimitiveComponent* OverlapComp = Cast<UPrimitiveComponent>(OverlappingActor->GetRootComponent());
+		FHitResult EmptySweepResult;
+		OnWeaponBeginOverlap(HitBox, OverlappingActor, OverlapComp, INDEX_NONE, false, EmptySweepResult);
+	}
 }
 
 bool AMHMeleeWeaponInstance::HasValidCurrentDamageSpec() const

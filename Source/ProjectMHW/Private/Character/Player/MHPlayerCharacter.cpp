@@ -40,6 +40,7 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "InputCoreTypes.h"
 #include "Items/Effects/MHGameplayEffect_WeaponStat.h"
+#include "Engine/Engine.h"
 
 DEFINE_LOG_CATEGORY(LogMHPlayerCharacter);
 
@@ -83,6 +84,56 @@ namespace
         default:
             return TEXT("None");
         }
+    }
+
+    // PIE 화면에 기인 게이지 변경 내용을 출력하는 헬퍼 함수
+    static void ShowSpiritGaugeScreenLog(
+        const UObject* InWorldContextObject,
+        const TCHAR* InChangeTypeText,
+        const float InDeltaValue,
+        const float InPreviousValue,
+        const float InCurrentValue,
+        const float InMaxValue)
+    {
+        if (!GEngine || !InWorldContextObject)
+        {
+            return;
+        }
+
+        UWorld* World = InWorldContextObject->GetWorld();
+        if (!World || World->WorldType != EWorldType::PIE)
+        {
+            return;
+        }
+
+        const FString ScreenMessage = FString::Printf(
+            TEXT("[기인게이지][%s] 변화량 %.2f | 현재 %.2f / %.2f | 이전 %.2f"),
+            InChangeTypeText,
+            InDeltaValue,
+            InCurrentValue,
+            InMaxValue,
+            InPreviousValue
+        );
+
+        GEngine->AddOnScreenDebugMessage(-1, 4.0f, FColor::Cyan, ScreenMessage);
+    }
+
+    // 로그 창과 PIE 화면에 같이 남길 기인 게이지 요약 문자열을 만든다.
+    static FString BuildSpiritGaugeSummaryText(
+        const TCHAR* InChangeTypeText,
+        const float InDeltaValue,
+        const float InPreviousValue,
+        const float InCurrentValue,
+        const float InMaxValue)
+    {
+        return FString::Printf(
+            TEXT("[기인게이지][%s] 변화량 %.2f | 현재 %.2f / %.2f | 이전 %.2f"),
+            InChangeTypeText,
+            InDeltaValue,
+            InCurrentValue,
+            InMaxValue,
+            InPreviousValue
+        );
     }
 }
 
@@ -1243,24 +1294,35 @@ void AMHPlayerCharacter::CommitLongSwordResourceDelta(const FGameplayTag& InMove
 
     const float PreviousSpiritGauge = CurrentSpiritGauge;
     const int32 PreviousSpiritLevel = CurrentSpiritLevel;
+    const float SpiritGaugeGainAmount =
+        InCommitType != EMHLongSwordResourceCommitType::CounterSuccess
+        ? FMath::Max(0.0f, AttackMetaRow.SpiritGaugeGain)
+        : 0.0f;
 
     const bool bShouldIgnoreSpiritConsume =
         bLongSwordForesightCounterSuccess
         || bLongSwordSpecialSheatheSlashCounterSuccess
         || bLongSwordSpecialSheatheSpiritCounterSuccess;
 
-    if (InCommitType != EMHLongSwordResourceCommitType::CounterSuccess)
+    float SpiritGaugeConsumeAmount = 0.0f;
+
+    if (SpiritGaugeGainAmount > 0.0f)
     {
-        AddSpiritGauge(FMath::Max(0.0f, AttackMetaRow.SpiritGaugeGain));
+        AddSpiritGauge(SpiritGaugeGainAmount);
     }
 
     if (InCommitType == EMHLongSwordResourceCommitType::CounterSuccess)
     {
-        ConsumeSpiritGauge(FMath::Max(0.0f, AttackMetaRow.SpiritGaugeConsume));
+        SpiritGaugeConsumeAmount = FMath::Max(0.0f, AttackMetaRow.SpiritGaugeConsume);
     }
     else if (!bShouldIgnoreSpiritConsume)
     {
-        ConsumeSpiritGauge(FMath::Max(0.0f, AttackMetaRow.SpiritGaugeConsume));
+        SpiritGaugeConsumeAmount = FMath::Max(0.0f, AttackMetaRow.SpiritGaugeConsume);
+    }
+
+    if (SpiritGaugeConsumeAmount > 0.0f)
+    {
+        ConsumeSpiritGauge(SpiritGaugeConsumeAmount);
     }
 
     if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritRoundslash)
@@ -1279,10 +1341,12 @@ void AMHPlayerCharacter::CommitLongSwordResourceDelta(const FGameplayTag& InMove
     UE_LOG(
         LogMHPlayerCharacter,
         Verbose,
-        TEXT("%s : LongSword resource committed. Move=%s CommitType=%s Gauge=%.2f->%.2f Level=%d->%d"),
+        TEXT("%s : LongSword resource committed. Move=%s CommitType=%s Gain=%.2f Consume=%.2f Gauge=%.2f->%.2f Level=%d->%d"),
         *GetName(),
         *InMoveTag.ToString(),
         ResolveLongSwordResourceCommitTypeText(InCommitType),
+        SpiritGaugeGainAmount,
+        SpiritGaugeConsumeAmount,
         PreviousSpiritGauge,
         CurrentSpiritGauge,
         PreviousSpiritLevel,
@@ -1414,7 +1478,19 @@ void AMHPlayerCharacter::AddSpiritGauge(const float InAmount)
         return;
     }
 
+    const float PreviousSpiritGauge = CurrentSpiritGauge;
     CurrentSpiritGauge = FMath::Clamp(CurrentSpiritGauge + InAmount, 0.0f, FMath::Max(0.0f, MaxSpiritGauge));
+
+    const FString SpiritGaugeSummaryText = BuildSpiritGaugeSummaryText(
+        TEXT("획득"),
+        InAmount,
+        PreviousSpiritGauge,
+        CurrentSpiritGauge,
+        GetMaxSpiritGaugeValue()
+    );
+
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("%s : %s"), *GetName(), *SpiritGaugeSummaryText);
+    ShowSpiritGaugeScreenLog(this, TEXT("획득"), InAmount, PreviousSpiritGauge, CurrentSpiritGauge, GetMaxSpiritGaugeValue());
 }
 
 void AMHPlayerCharacter::ConsumeSpiritGauge(const float InAmount)
@@ -1424,7 +1500,19 @@ void AMHPlayerCharacter::ConsumeSpiritGauge(const float InAmount)
         return;
     }
 
+    const float PreviousSpiritGauge = CurrentSpiritGauge;
     CurrentSpiritGauge = FMath::Clamp(CurrentSpiritGauge - InAmount, 0.0f, FMath::Max(0.0f, MaxSpiritGauge));
+
+    const FString SpiritGaugeSummaryText = BuildSpiritGaugeSummaryText(
+        TEXT("소모"),
+        InAmount,
+        PreviousSpiritGauge,
+        CurrentSpiritGauge,
+        GetMaxSpiritGaugeValue()
+    );
+
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("%s : %s"), *GetName(), *SpiritGaugeSummaryText);
+    ShowSpiritGaugeScreenLog(this, TEXT("소모"), InAmount, PreviousSpiritGauge, CurrentSpiritGauge, GetMaxSpiritGaugeValue());
 }
 
 void AMHPlayerCharacter::IncreaseSpiritLevel(const int32 InAmount)

@@ -123,10 +123,10 @@ void UMHGA_LongSwordCombo::RequestExternalEndAbility(bool bInWasCancelled)
 /** 현재 콤보 노드 기준 DamageSpec을 생성해서 무기 인스턴스에 전달 _이건주*/
 bool UMHGA_LongSwordCombo::PushDamageSpecToWeapon(const FMHLongSwordComboNode& InNode)
 {
-    UE_LOG(LogMHGALSCombo, Warning, TEXT("PushDamageSpecToWeapon"))
+    UE_LOG(LogMHGALSCombo, Warning, TEXT("PushDamageSpecToWeapon"));
     if (!CachedWeapon)
     {
-        UE_LOG(LogMHGALSCombo, Warning, TEXT("CachedWeapon is not Valid"))
+        UE_LOG(LogMHGALSCombo, Warning, TEXT("CachedWeapon is not Valid"));
         return false;
     }
 
