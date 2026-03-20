@@ -200,6 +200,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Combo")
     bool HasLongSwordSpecialSheatheSpiritCounterSuccess() const { return bLongSwordSpecialSheatheSpiritCounterSuccess; }
 
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void ClearLongSwordCounterSuccessFlagsForMoveExit(FGameplayTag InMoveTag);
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void ClearAllLongSwordCounterSuccessFlags();
+
     // 태도 공격이 실제 유효 타격으로 확정된 순간 자원 반영을 처리한다.
     void Notify_LongSwordAttackHitConfirmed(const FGameplayTag& InMoveTag);
 
@@ -208,6 +214,10 @@ public:
 
     // 현재 기인 레벨과 공격 메타를 반영한 최종 배율을 계산한다.
     float ResolveLongSwordDamageMultiplier(const FGameplayTag& InMoveTag) const;
+
+    // 기술 시작 전에 현재 기인 게이지로 진입 가능한지 확인한다.
+    bool CanStartLongSwordMove(const FGameplayTag& InMoveTag) const;
+
 #pragma endregion
 
     // UI/HUD에서 현재 체력 값을 조회할 때 사용한다.
@@ -553,6 +563,11 @@ private:
     // 방어력 값을 ASC 전투 속성에 반영한다.
     void SetDefenseAttributeValue(float InNewValue);
 
+    // 현재 예리도 단계에 대응하는 보정값을 ASC 전투 속성에 반영한다.
+    void SetSharpnessModifierAttributeValue(float InNewValue);
+    void SyncSharpnessModifierAttribute();
+    float ResolveSharpnessModifierFromColor(EMHSharpnessColor InColor) const;
+
     // ===== Terrain Hooks =====
     // ===== End Terrain Hooks =====
 
@@ -639,6 +654,7 @@ private:
     // 베어내리기 계열에서 좌우 이동베기 Variant를 사용할 수 있는지 확인한다.
     bool ShouldUseDirectionalLateralFadeSlash() const;
     bool ShouldUseLateralFadeSlashPattern() const;
+
 #pragma endregion
 
 
