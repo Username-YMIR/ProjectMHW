@@ -158,10 +158,9 @@ void UMHDamageExecutionCalculation::Execute_Implementation(
 	const float BaseIceDamage = Spec.GetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Ice, false, 0.f);
 	const float BaseDragonDamage = Spec.GetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Dragon, false, 0.f);
 
-	// 물리 대미지 계산
+	// 물리 대미지는 공격 생성 단계에서 이미 기술 배율과 공격력이 반영된 값으로 전달한다.
 	const float PhysicalDamage = CalculatePhysicalDamage(
 		BasePhysicalDamage,
-		AttackPower,
 		SharpnessModifier,
 		Defense
 	);
@@ -207,14 +206,12 @@ void UMHDamageExecutionCalculation::Execute_Implementation(
 
 float UMHDamageExecutionCalculation::CalculatePhysicalDamage(
 	float InBasePhysicalDamage,
-	float InAttackPower,
 	float InSharpnessModifier,
 	float InDefense
 ) const
 {
-	// 기본 공식 예시:
-	// (기본 공격값 + 공격력) * 예리도보정 * 방어보정
-	const float RawDamage = (InBasePhysicalDamage + InAttackPower) * InSharpnessModifier;
+	// 기본 물리 대미지는 공격 생성 단계에서 이미 계산된 값으로 보고 예리도/방어만 적용한다.
+	const float RawDamage = InBasePhysicalDamage * InSharpnessModifier;
 
 	// 간단한 방어식
 	const float DefenseMultiplier = 100.f / (100.f + InDefense);

@@ -41,11 +41,8 @@ void UMHAnimNotifyState_MeleeAttackHitWindow::NotifyBegin(
         return;
     }
 
-    // 새로운 타격 판정 구간 시작 시, 이번 공격에서 이미 맞은 액터 목록 초기화
-    MeleeWeapon->ClearHitActors();
-
-    // 공격 판정 콜리전 활성화
-    MeleeWeapon->SetAttackCollisionEnabled(true);
+    // 타격 판정 구간 시작 시 윈도우 상태만 초기화하고 현재 공격 데이터는 유지한다.
+    MeleeWeapon->BeginAttackWindow();
 }
 
 void UMHAnimNotifyState_MeleeAttackHitWindow::NotifyEnd(
@@ -67,8 +64,8 @@ void UMHAnimNotifyState_MeleeAttackHitWindow::NotifyEnd(
         return;
     }
 
-    // 공격 판정 콜리전 비활성화
-    MeleeWeapon->ResetMeleeAttack();
+    // 노티파이 종료 시에는 윈도우만 닫고 현재 공격 데이터는 유지한다.
+    MeleeWeapon->EndAttackWindow();
 }
 
 AActor* UMHAnimNotifyState_MeleeAttackHitWindow::ResolveOwnerActor(USkeletalMeshComponent* MeshComp) const

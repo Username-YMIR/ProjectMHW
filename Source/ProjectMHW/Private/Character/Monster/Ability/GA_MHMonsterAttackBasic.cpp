@@ -5,6 +5,7 @@
 
 #include "MHGameplayTags.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
+#include "AbilitySystemComponent.h"
 #include "Character/Monster/MHMonsterCharacterBase.h"
 
 DEFINE_LOG_CATEGORY(GAMonsterAttack)
@@ -32,58 +33,86 @@ void UGA_MHMonsterAttackBasic::ActivateAbility(const FGameplayAbilitySpecHandle 
                                                const FGameplayEventData* TriggerEventData)
 {
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
-	
-	if (!ActorInfo || !ActorInfo->AvatarActor.IsValid())
-	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
-	}
 
-	if (!AttackMontage)
-	{
-		UE_LOG(GAMonsterAttack, Warning, TEXT("MHGA_MonsterAttackBasic | AttackMontage is null"));
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
-	}
-	
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
-	{
-		UE_LOG(GAMonsterAttack, Warning, TEXT("MHGA_MonsterAttackBasic | CommitAbility failed"));
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
-	}
-	
-	if (AMHMonsterCharacterBase* Monster = Cast<AMHMonsterCharacterBase>(ActorInfo->AvatarActor.Get()))
-	{
-		UE_LOG(GAMonsterAttack, Warning, TEXT("sssssssssssssssssss"));
-		Monster->SetMonsterAttacking(true);
-		Monster->FaceCombatTargetInstant();
-		// 타격 지점 윈도우 열기 
-		Monster->BeginMonsterAttackWindow();
-	}
+    if (!ActorInfo || !ActorInfo->AvatarActor.IsValid())
+    {
+        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+        return;
+    }
 
-	ClearTask();
+    AMHMonsterCharacterBase* Monster = Cast<AMHMonsterCharacterBase>(ActorInfo->AvatarActor.Get());
+    if (!Monster)
+    {
+        UE_LOG(GAMonsterAttack, Warning, TEXT("MHGA_MonsterAttackBasic | Monster cast failed"));
+        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+        return;
+    }
 
-	MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
-		this,
-		NAME_None,
-		AttackMontage,
-		1.0f,
-		NAME_None,
-		true
-	);
+    const FGameplayTag ResolvedAttackTag = ResolveAttackTag(Handle, ActorInfo);
 
-	if (!MontageTask)
-	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
-	}
+    FMonsterAbilityEntry AbilityEntry;
+    UAnimMontage* MontageToPlay = AttackMontage; // fallback
 
-	MontageTask->OnCompleted.AddDynamic(this, &UGA_MHMonsterAttackBasic::OnMontageCompleted);
-	MontageTask->OnInterrupted.AddDynamic(this, &UGA_MHMonsterAttackBasic::OnMontageInterrupted);
-	MontageTask->OnCancelled.AddDynamic(this, &UGA_MHMonsterAttackBasic::OnMontageInterrupted);
+    if (ResolvedAttackTag.IsValid() && Monster->GetMonsterAbilityEntryByTag(ResolvedAttackTag, AbilityEntry))
+    {
+        if (AbilityEntry.Montage)
+        {
+            MontageToPlay = AbilityEntry.Montage;
+        }
 
-	MontageTask->ReadyForActivation();
+        UE_LOG(GAMonsterAttack, Warning,
+            TEXT("MHGA_MonsterAttackBasic | ResolvedTag=%s Montage=%s"),
+            *ResolvedAttackTag.ToString(),
+            *GetNameSafe(MontageToPlay));
+    }
+    else
+    {
+        UE_LOG(GAMonsterAttack, Warning,
+            TEXT("MHGA_MonsterAttackBasic | Entry not found, fallback montage used | Tag=%s Montage=%s"),
+            *ResolvedAttackTag.ToString(),
+            *GetNameSafe(MontageToPlay));
+    }
+
+    if (!MontageToPlay)
+    {
+        UE_LOG(GAMonsterAttack, Warning, TEXT("MHGA_MonsterAttackBasic | MontageToPlay is null"));
+        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+        return;
+    }
+
+    if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+    {
+        UE_LOG(GAMonsterAttack, Warning, TEXT("MHGA_MonsterAttackBasic | CommitAbility failed"));
+        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+        return;
+    }
+
+    Monster->SetMonsterAttacking(true);
+    Monster->FaceCombatTargetInstant();
+    Monster->BeginMonsterAttackWindow();
+
+    ClearTask();
+
+    MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
+        this,
+        NAME_None,
+        MontageToPlay,
+        1.0f,
+        NAME_None,
+        true
+    );
+
+    if (!MontageTask)
+    {
+        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+        return;
+    }
+
+    MontageTask->OnCompleted.AddDynamic(this, &UGA_MHMonsterAttackBasic::OnMontageCompleted);
+    MontageTask->OnInterrupted.AddDynamic(this, &UGA_MHMonsterAttackBasic::OnMontageInterrupted);
+    MontageTask->OnCancelled.AddDynamic(this, &UGA_MHMonsterAttackBasic::OnMontageInterrupted);
+    MontageTask->ReadyForActivation();
+
 	
 }
 
@@ -131,5 +160,41 @@ void UGA_MHMonsterAttackBasic::ClearTask()
 		MontageTask->EndTask();
 		MontageTask = nullptr;
 	}
+	
+}
+
+FGameplayTag UGA_MHMonsterAttackBasic::ResolveAttackTag(const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo) const
+{
+	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid())
+	{
+		return FGameplayTag();
+	}
+
+	const FGameplayAbilitySpec* Spec =
+		ActorInfo->AbilitySystemComponent->FindAbilitySpecFromHandle(Handle);
+
+	if (!Spec || !Spec->Ability)
+	{
+		return FGameplayTag();
+	}
+
+	for (const FGameplayTag& DynamicTag : Spec->DynamicAbilityTags)
+	{
+		if (DynamicTag.IsValid())
+		{
+			return DynamicTag;
+		}
+	}
+
+	for (const FGameplayTag& AssetTag : Spec->Ability->AbilityTags)
+	{
+		if (AssetTag.IsValid())
+		{
+			return AssetTag;
+		}
+	}
+
+	return FGameplayTag();
 	
 }
