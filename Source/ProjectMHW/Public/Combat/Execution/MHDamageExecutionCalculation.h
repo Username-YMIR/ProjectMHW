@@ -28,7 +28,6 @@ public:
 protected:
 	float CalculatePhysicalDamage(
 		float InBasePhysicalDamage,
-		float InAttackPower,
 		float InSharpnessModifier,
 		float InDefense
 	) const;

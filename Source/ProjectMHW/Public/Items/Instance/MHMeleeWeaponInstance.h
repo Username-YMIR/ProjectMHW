@@ -28,7 +28,15 @@ public:
 	AMHMeleeWeaponInstance();
 
 public:
-	/** 공격 시작 혹은 끝에서 호출 */
+	/** 공격 윈도우를 시작한다. */
+	UFUNCTION(BlueprintCallable, Category="Weapon")
+	void BeginAttackWindow();
+
+	/** 공격 윈도우를 종료한다. */
+	UFUNCTION(BlueprintCallable, Category="Weapon")
+	void EndAttackWindow();
+
+	/** 공격 종료 시 현재 공격 상태를 전체 초기화한다. */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	void ResetMeleeAttack();
 
