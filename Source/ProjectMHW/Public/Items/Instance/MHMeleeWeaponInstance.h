@@ -91,6 +91,12 @@ protected:
 		const FHitResult& SweepResult
 	) const;
 
+	// 공격 윈도우 시작 순간 이미 겹쳐 있는 대상을 다시 검사하는 함수
+	void ProcessExistingOverlapsAtAttackWindowBegin();
+
+	// 현재 공격 데이터가 새 기술 기준으로 교체될 때 1회성 상태를 초기화하는 함수
+	void ResetPerAttackRuntimeState();
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon")
 	TObjectPtr<UBoxComponent> HitBox;
