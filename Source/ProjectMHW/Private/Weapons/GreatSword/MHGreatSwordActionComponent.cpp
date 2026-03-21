@@ -1,16 +1,56 @@
 #include "Weapons/GreatSword/MHGreatSwordActionComponent.h"
 
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemInterface.h"
 #include "Animation/AnimMontage.h"
 #include "Combat/Data/MHAttackMetaTypes.h"
 #include "Combat/Data/MHCombatDataLibrary.h"
 #include "GameplayTags/MHGreatSwordGameplayTags.h"
+#include "Items/Instance/MHGreatSwordInstance.h"
 
 DEFINE_LOG_CATEGORY(LogMHGreatSwordActionComponent);
 
+namespace
+{
+    // 일반 모아베기 계열인지 확인한다.
+    bool IsChargeSlashMove(const FGameplayTag& InMoveTag)
+    {
+        return InMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlash_Lv0
+            || InMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlash_Lv1
+            || InMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlash_Lv2;
+    }
+
+    // 강 모아베기 계열인지 확인한다.
+    bool IsStrongChargeSlashMove(const FGameplayTag& InMoveTag)
+    {
+        return InMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlash_Lv0
+            || InMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlash_Lv1
+            || InMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlash_Lv2;
+    }
+
+    // 참 모아베기 계열인지 확인한다.
+    bool IsTrueChargeSlashMove(const FGameplayTag& InMoveTag)
+    {
+        return InMoveTag == MHGreatSwordGameplayTags::Move_GS_TrueChargeSlash_Lv0
+            || InMoveTag == MHGreatSwordGameplayTags::Move_GS_TrueChargeSlash_Lv1
+            || InMoveTag == MHGreatSwordGameplayTags::Move_GS_TrueChargeSlash_Lv2;
+    }
+}
+
 UMHGreatSwordActionComponent::UMHGreatSwordActionComponent()
 {
-    PrimaryComponentTick.bCanEverTick = false;
+    PrimaryComponentTick.bCanEverTick = true;
     PrimaryComponentTick.bStartWithTickEnabled = false;
+}
+
+void UMHGreatSwordActionComponent::TickComponent(
+    const float DeltaTime,
+    const ELevelTick TickType,
+    FActorComponentTickFunction* ThisTickFunction)
+{
+    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+    TryAutoReleaseCharge();
 }
 
 bool UMHGreatSwordActionComponent::HandlePrimaryPressed(const bool bInForwardInput, const bool bInSheathed)
@@ -20,11 +60,16 @@ bool UMHGreatSwordActionComponent::HandlePrimaryPressed(const bool bInForwardInp
         return false;
     }
 
+    if (!bInSheathed && ActionState == EMHGreatSwordActionState::Acting)
+    {
+        return false;
+    }
+
     if (bInSheathed)
     {
         if (bInForwardInput)
         {
-            BeginCharging(EMHGreatSwordChargeFamily::Charge);
+            BeginCharging(EMHGreatSwordChargeFamily::Charge, true);
             return true;
         }
 
@@ -38,15 +83,56 @@ bool UMHGreatSwordActionComponent::HandlePrimaryPressed(const bool bInForwardInp
         return true;
     }
 
-    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_OverheadSlash && bInForwardInput)
+    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_JumpingWideSlash)
     {
-        BeginCharging(EMHGreatSwordChargeFamily::Strong);
+        QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
         return true;
     }
 
-    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_WideSlash
+    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_DrawForwardSlash)
+    {
+        if (bInForwardInput)
+        {
+            BeginCharging(EMHGreatSwordChargeFamily::Strong);
+            return true;
+        }
+
+        QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
+        return true;
+    }
+
+    if (IsChargeSlashMove(LastCommittedMoveTag))
+    {
+        if (bInForwardInput)
+        {
+            BeginCharging(EMHGreatSwordChargeFamily::Strong);
+            return true;
+        }
+
+        QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
+        return true;
+    }
+
+    if (IsStrongChargeSlashMove(LastCommittedMoveTag))
+    {
+        if (bInForwardInput)
+        {
+            BeginCharging(EMHGreatSwordChargeFamily::TrueCharge);
+            return true;
+        }
+
+        QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
+        return true;
+    }
+
+    if (IsTrueChargeSlashMove(LastCommittedMoveTag))
+    {
+        return false;
+    }
+
+    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_OverheadSlash
         || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_RisingSlash
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_JumpingWideSlash)
+        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_WideSlash)
     {
         BeginCharging(EMHGreatSwordChargeFamily::Charge);
         return true;
@@ -66,7 +152,17 @@ bool UMHGreatSwordActionComponent::HandlePrimaryReleased()
     const float CurrentWorldSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
     const float ElapsedSeconds = FMath::Max(0.0f, CurrentWorldSeconds - ChargeStartWorldSeconds);
     const int32 ChargeLevel = ResolveChargeLevelFromElapsedSeconds(ElapsedSeconds);
-    const FGameplayTag ReleaseMoveTag = ResolveChargeReleaseMoveTag(ChargeFamily, ChargeLevel);
+
+    FGameplayTag ReleaseMoveTag;
+    if (bForwardDrawChargeEntry && ChargeLevel == 0)
+    {
+        ReleaseMoveTag = MHGreatSwordGameplayTags::Move_GS_DrawForwardSlash;
+    }
+    else
+    {
+        ReleaseMoveTag = ResolveChargeReleaseMoveTag(ChargeFamily, ChargeLevel);
+    }
+
     EndCharging();
 
     if (!ReleaseMoveTag.IsValid())
@@ -87,10 +183,38 @@ bool UMHGreatSwordActionComponent::HandleSecondaryPressed()
         return true;
     }
 
+    if (ActionState == EMHGreatSwordActionState::Acting)
+    {
+        return false;
+    }
+
     if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_Tackle)
     {
         QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_JumpingWideSlash, EMHGreatSwordActionState::Acting);
         return true;
+    }
+
+    if (IsTrueChargeSlashMove(LastCommittedMoveTag)
+        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_JumpingWideSlash)
+    {
+        return false;
+    }
+
+    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_OverheadSlash)
+    {
+        QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_Tackle, EMHGreatSwordActionState::Acting);
+        return true;
+    }
+
+    QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_OverheadSlash, EMHGreatSwordActionState::Acting);
+    return true;
+}
+
+bool UMHGreatSwordActionComponent::HandleWeaponSpecialPressed()
+{
+    if (IsCharging())
+    {
+        return false;
     }
 
     if (ActionState == EMHGreatSwordActionState::Acting)
@@ -98,12 +222,6 @@ bool UMHGreatSwordActionComponent::HandleSecondaryPressed()
         return false;
     }
 
-    QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
-    return true;
-}
-
-bool UMHGreatSwordActionComponent::HandleWeaponSpecialPressed()
-{
     if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_Tackle)
     {
         QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
@@ -116,6 +234,23 @@ bool UMHGreatSwordActionComponent::HandleWeaponSpecialPressed()
 
 bool UMHGreatSwordActionComponent::HandleSimultaneousPressed()
 {
+    if (IsCharging())
+    {
+        return false;
+    }
+
+    if (ActionState == EMHGreatSwordActionState::Acting)
+    {
+        return false;
+    }
+
+    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_Tackle
+        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_JumpingWideSlash
+        || IsTrueChargeSlashMove(LastCommittedMoveTag))
+    {
+        return false;
+    }
+
     QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_RisingSlash, EMHGreatSwordActionState::Acting);
     return true;
 }
@@ -153,6 +288,11 @@ void UMHGreatSwordActionComponent::CommitExecutedMove(const FGameplayTag& InMove
 void UMHGreatSwordActionComponent::NotifyActionFinished()
 {
     if (IsCharging())
+    {
+        return;
+    }
+
+    if (PendingMoveTag.IsValid())
     {
         return;
     }
@@ -227,19 +367,12 @@ FGameplayTag UMHGreatSwordActionComponent::ResolveChargeReleaseMoveTag(const EMH
 
 EMHGreatSwordChargeFamily UMHGreatSwordActionComponent::ResolveNextChargeFamilyAfterTackle() const
 {
-    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlash_Lv0
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlash_Lv1
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlash_Lv2)
+    if (IsChargeSlashMove(LastCommittedMoveTag))
     {
         return EMHGreatSwordChargeFamily::Strong;
     }
 
-    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlash_Lv0
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlash_Lv1
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlash_Lv2
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_TrueChargeSlash_Lv0
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_TrueChargeSlash_Lv1
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_TrueChargeSlash_Lv2)
+    if (IsStrongChargeSlashMove(LastCommittedMoveTag) || IsTrueChargeSlashMove(LastCommittedMoveTag))
     {
         return EMHGreatSwordChargeFamily::TrueCharge;
     }
@@ -276,18 +409,21 @@ void UMHGreatSwordActionComponent::QueuePendingMove(const FGameplayTag& InMoveTa
     );
 }
 
-void UMHGreatSwordActionComponent::BeginCharging(const EMHGreatSwordChargeFamily InChargeFamily)
+void UMHGreatSwordActionComponent::BeginCharging(const EMHGreatSwordChargeFamily InChargeFamily, const bool bInForwardDrawEntry)
 {
     ChargeFamily = InChargeFamily;
     ChargeStartWorldSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
     ActionState = EMHGreatSwordActionState::Charging;
     PendingMoveTag = FGameplayTag();
+    bForwardDrawChargeEntry = bInForwardDrawEntry;
+    SetComponentTickEnabled(true);
 
     UE_LOG(
         LogMHGreatSwordActionComponent,
         Verbose,
-        TEXT("대검 차징 시작. Family=%d"),
-        static_cast<int32>(ChargeFamily)
+        TEXT("대검 차징 시작. Family=%d ForwardDraw=%d"),
+        static_cast<int32>(ChargeFamily),
+        bForwardDrawChargeEntry ? 1 : 0
     );
 }
 
@@ -295,4 +431,78 @@ void UMHGreatSwordActionComponent::EndCharging()
 {
     ChargeFamily = EMHGreatSwordChargeFamily::None;
     ChargeStartWorldSeconds = 0.0f;
+    bForwardDrawChargeEntry = false;
+    SetComponentTickEnabled(false);
+}
+
+bool UMHGreatSwordActionComponent::TryAutoReleaseCharge()
+{
+    if (!IsCharging())
+    {
+        return false;
+    }
+
+    const float CurrentWorldSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+    const float ElapsedSeconds = FMath::Max(0.0f, CurrentWorldSeconds - ChargeStartWorldSeconds);
+    if (ElapsedSeconds < ChargeAutoReleaseSeconds)
+    {
+        return false;
+    }
+
+    const int32 ChargeLevel = ResolveChargeLevelFromElapsedSeconds(ElapsedSeconds);
+
+    FGameplayTag ReleaseMoveTag;
+    if (bForwardDrawChargeEntry && ChargeLevel == 0)
+    {
+        ReleaseMoveTag = MHGreatSwordGameplayTags::Move_GS_DrawForwardSlash;
+    }
+    else
+    {
+        ReleaseMoveTag = ResolveChargeReleaseMoveTag(ChargeFamily, ChargeLevel);
+    }
+
+    EndCharging();
+
+    if (!ReleaseMoveTag.IsValid())
+    {
+        return false;
+    }
+
+    QueuePendingMove(ReleaseMoveTag, EMHGreatSwordActionState::Acting);
+    return TryActivateQueuedMoveFromOwner();
+}
+
+bool UMHGreatSwordActionComponent::TryActivateQueuedMoveFromOwner() const
+{
+    if (!PendingMoveTag.IsValid())
+    {
+        return false;
+    }
+
+    const AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(GetOwner());
+    if (!GreatSword)
+    {
+        return false;
+    }
+
+    const TSubclassOf<UGameplayAbility> AbilityClass = GreatSword->GetPrimaryAttackAbilityClass();
+    if (!AbilityClass)
+    {
+        return false;
+    }
+
+    const AActor* OwnerActor = GreatSword->GetOwner();
+    const IAbilitySystemInterface* AbilityOwner = Cast<IAbilitySystemInterface>(OwnerActor);
+    if (!AbilityOwner)
+    {
+        return false;
+    }
+
+    UAbilitySystemComponent* ASC = AbilityOwner->GetAbilitySystemComponent();
+    if (!ASC)
+    {
+        return false;
+    }
+
+    return ASC->TryActivateAbilityByClass(AbilityClass);
 }

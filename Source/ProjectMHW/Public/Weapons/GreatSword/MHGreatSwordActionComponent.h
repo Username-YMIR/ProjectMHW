@@ -37,6 +37,11 @@ class PROJECTMHW_API UMHGreatSwordActionComponent : public UActorComponent
 public:
     UMHGreatSwordActionComponent();
 
+    virtual void TickComponent(
+        float DeltaTime,
+        enum ELevelTick TickType,
+        FActorComponentTickFunction* ThisTickFunction) override;
+
     // 좌클릭 입력 시작 시 대검 기술을 결정한다.
     bool HandlePrimaryPressed(bool bInForwardInput, bool bInSheathed);
 
@@ -89,7 +94,7 @@ protected:
     // 차징 계열과 단계로 실제 발동 태그를 만든다.
     FGameplayTag ResolveChargeReleaseMoveTag(EMHGreatSwordChargeFamily InFamily, int32 InChargeLevel) const;
 
-    // 다음 차징 계열을 계산한다.
+    // 현재까지 확정한 기술 기준으로 다음 차징 계열을 계산한다.
     EMHGreatSwordChargeFamily ResolveNextChargeFamilyAfterTackle() const;
 
     // 현재 차징 시간을 기준으로 단계를 계산한다.
@@ -99,10 +104,16 @@ protected:
     void QueuePendingMove(const FGameplayTag& InMoveTag, EMHGreatSwordActionState InNextState);
 
     // 차징 시작 상태를 기록한다.
-    void BeginCharging(EMHGreatSwordChargeFamily InChargeFamily);
+    void BeginCharging(EMHGreatSwordChargeFamily InChargeFamily, bool bInForwardDrawEntry = false);
 
     // 차징 상태를 종료한다.
     void EndCharging();
+
+    // 현재 차징을 자동 발동해야 하는지 검사한다.
+    bool TryAutoReleaseCharge();
+
+    // 소유자 기준으로 대기 기술 어빌리티를 바로 실행한다.
+    bool TryActivateQueuedMoveFromOwner() const;
 
 protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GreatSword|Data")
@@ -134,4 +145,8 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
     float ChargeStartWorldSeconds = 0.0f;
+
+    // 발도 전방 입력으로 차징을 시작했는지 기록한다.
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
+    bool bForwardDrawChargeEntry = false;
 };

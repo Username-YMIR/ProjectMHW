@@ -1455,6 +1455,11 @@ bool AMHPlayerCharacter::TryHandleGreatSwordPrimaryInput()
         bPendingUnsheatheFromComboEntry = true;
     }
 
+    if (!GreatSword->GetActionComponent()->HasPendingMove())
+    {
+        return true;
+    }
+
     return TryActivateGreatSwordPrimaryAbility();
 }
 
@@ -1469,6 +1474,11 @@ bool AMHPlayerCharacter::TryHandleGreatSwordPrimaryRelease()
     if (!GreatSword->GetActionComponent()->HandlePrimaryReleased())
     {
         return false;
+    }
+
+    if (!GreatSword->GetActionComponent()->HasPendingMove())
+    {
+        return true;
     }
 
     return TryActivateGreatSwordPrimaryAbility();
@@ -1487,6 +1497,11 @@ bool AMHPlayerCharacter::TryHandleGreatSwordSecondaryInput()
         return false;
     }
 
+    if (!GreatSword->GetActionComponent()->HasPendingMove())
+    {
+        return true;
+    }
+
     return TryActivateGreatSwordPrimaryAbility();
 }
 
@@ -1503,6 +1518,11 @@ bool AMHPlayerCharacter::TryHandleGreatSwordWeaponSpecialInput()
         return false;
     }
 
+    if (!GreatSword->GetActionComponent()->HasPendingMove())
+    {
+        return true;
+    }
+
     return TryActivateGreatSwordPrimaryAbility();
 }
 
@@ -1517,6 +1537,11 @@ bool AMHPlayerCharacter::TryHandleGreatSwordSimultaneousInput()
     if (!GreatSword->GetActionComponent()->HandleSimultaneousPressed())
     {
         return false;
+    }
+
+    if (!GreatSword->GetActionComponent()->HasPendingMove())
+    {
+        return true;
     }
 
     return TryActivateGreatSwordPrimaryAbility();
