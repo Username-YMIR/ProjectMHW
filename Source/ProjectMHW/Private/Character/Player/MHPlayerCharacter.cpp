@@ -1147,6 +1147,11 @@ bool AMHPlayerCharacter::CanStartLongSwordMove(const FGameplayTag& InMoveTag) co
         return true;
     }
 
+    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_ForesightSlash)
+    {
+        return true;
+    }
+
     const float RequiredSpiritGauge = FMath::Max(0.0f, AttackMetaRow.SpiritGaugeConsume);
     if (RequiredSpiritGauge <= 0.0f)
     {
