@@ -340,6 +340,10 @@ bool UMHGA_LongSwordCombo::PlayResolvedNode(const FMHLongSwordComboNode& InNode,
     MontageTask->OnCompleted.AddDynamic(this, &UMHGA_LongSwordCombo::OnMontageCompleted);
     MontageTask->OnInterrupted.AddDynamic(this, &UMHGA_LongSwordCombo::OnMontageInterrupted);
     MontageTask->OnCancelled.AddDynamic(this, &UMHGA_LongSwordCombo::OnMontageInterrupted);
+
+    // 태도 자원 선소모와 후속 권한 소모는 기술 시작 시점에 확정한다.
+    CachedPlayer->Notify_LongSwordMoveStarted(InNode.MoveTag);
+
     MontageTask->ReadyForActivation();
 
     ClearTransitionPollingTimer();

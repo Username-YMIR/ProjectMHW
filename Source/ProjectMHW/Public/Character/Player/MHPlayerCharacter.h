@@ -24,16 +24,6 @@ enum class EMHLongSwordCounterWindowType : uint8
     SpecialSheatheSpirit    UMETA(DisplayName = "SpecialSheatheSpirit")
 };
 
-// 태도 기술별 자원 반영 시점을 구분하기 위한 내부 enum
-UENUM()
-enum class EMHLongSwordResourceCommitType : uint8
-{
-    None,
-    FirstValidHit,
-    FinisherHit,
-    CounterSuccess
-};
-
 class UMHHealthAttributeSet;
 class UMHCombatAttributeSet;
 class UMHResistanceAttributeSet;
@@ -210,10 +200,13 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void ClearAllLongSwordCounterSuccessFlags();
 
-    // 태도 공격이 실제 유효 타격으로 확정된 순간 자원 반영을 처리한다.
+    // 태도 기술이 실제로 시작될 때 선소모 비용과 후속 권한 소모를 처리한다.
+    void Notify_LongSwordMoveStarted(const FGameplayTag& InMoveTag);
+
+    // 태도 공격이 실제 유효 타격으로 확정된 순간 히트 보상을 처리한다.
     void Notify_LongSwordAttackHitConfirmed(const FGameplayTag& InMoveTag);
 
-    // 태도 카운터 성공 시점에 자원 반영이 필요한 기술을 처리한다.
+    // 태도 카운터 성공 시점에 기술별 성공 보상을 처리한다.
     void Notify_LongSwordCounterCommitSuccess(EMHLongSwordCounterWindowType InCounterWindowType);
 
     // 현재 기인 레벨과 공격 메타를 반영한 최종 배율을 계산한다.
@@ -357,8 +350,6 @@ protected:
     
 #pragma region Weapon Stat (GAS)_이건주
     // === Weapon Stat (GAS) ===
-public:
-    void HandleWeaponAttackHit(AActor* Target, AMHWeaponInstance* Weapon);
 protected:
 
     // 현재 장착 무기 스탯 GE 핸들
@@ -501,6 +492,8 @@ private:
     bool bLongSwordForesightCounterSuccess = false;
     bool bLongSwordSpecialSheatheSlashCounterSuccess = false;
     bool bLongSwordSpecialSheatheSpiritCounterSuccess = false;
+    bool bLongSwordSpiritThrustHelmbreakerReady = false;
+    bool bLongSwordForesightFreeSpiritRoundslashReady = false;
     bool bIgnoreDamageUntilCurrentActionEnd = false;
 
     EMHLongSwordCounterWindowType ActiveLongSwordCounterWindowType = EMHLongSwordCounterWindowType::None;
@@ -638,11 +631,14 @@ private:
     const FMHAttackDefinitionRow* FindAttackDefinitionRow(const FGameplayTag& InAttackTag) const;
     bool FindAttackMetaRow(const FGameplayTag& InMoveTag, FMHAttackMetaRow& OutAttackMetaRow) const;
 
-    // 기술 태그를 기준으로 자원을 언제 확정할지 결정한다.
-    EMHLongSwordResourceCommitType ResolveLongSwordResourceCommitType(const FGameplayTag& InMoveTag) const;
+    // 태도 기술 시작 시 선소모 게이지와 후속 권한 소모를 적용한다.
+    void ApplyLongSwordMoveStartCost(const FGameplayTag& InMoveTag);
 
-    // 확정 시점이 도달했을 때 게이지/기인 레벨 변화를 한곳에서 적용한다.
-    void CommitLongSwordResourceDelta(const FGameplayTag& InMoveTag, EMHLongSwordResourceCommitType InCommitType);
+    // 태도 공격 적중 시 기인 게이지 획득과 단계 보상을 적용한다.
+    void ApplyLongSwordMoveHitReward(const FGameplayTag& InMoveTag);
+
+    // 태도 카운터 성공 시 기술별 성공 보상을 적용한다.
+    void ApplyLongSwordCounterSuccessReward(const FGameplayTag& InMoveTag, EMHLongSwordCounterWindowType InCounterWindowType);
 
     float GetCurrentSpiritDamageMultiplier() const;
     

@@ -70,20 +70,6 @@ namespace
         return Result;
     }
 
-    static const TCHAR* ResolveLongSwordResourceCommitTypeText(const EMHLongSwordResourceCommitType InCommitType)
-    {
-        switch (InCommitType)
-        {
-        case EMHLongSwordResourceCommitType::FirstValidHit:
-            return TEXT("FirstValidHit");
-        case EMHLongSwordResourceCommitType::FinisherHit:
-            return TEXT("FinisherHit");
-        case EMHLongSwordResourceCommitType::CounterSuccess:
-            return TEXT("CounterSuccess");
-        default:
-            return TEXT("None");
-        }
-    }
 }
 
 AMHPlayerCharacter::AMHPlayerCharacter()
@@ -692,6 +678,18 @@ void AMHPlayerCharacter::ClearAllLongSwordCounterSuccessFlags()
     ClearLongSwordForesightCounterSuccess();
     ClearLongSwordSpecialSheatheSlashCounterSuccess();
     ClearLongSwordSpecialSheatheSpiritCounterSuccess();
+    bLongSwordSpiritThrustHelmbreakerReady = false;
+    bLongSwordForesightFreeSpiritRoundslashReady = false;
+}
+
+void AMHPlayerCharacter::Notify_LongSwordMoveStarted(const FGameplayTag& InMoveTag)
+{
+    if (!IsLongSwordEquipped() || !InMoveTag.IsValid())
+    {
+        return;
+    }
+
+    ApplyLongSwordMoveStartCost(InMoveTag);
 }
 
 void AMHPlayerCharacter::Notify_LongSwordAttackHitConfirmed(const FGameplayTag& InMoveTag)
@@ -701,14 +699,7 @@ void AMHPlayerCharacter::Notify_LongSwordAttackHitConfirmed(const FGameplayTag& 
         return;
     }
 
-    const EMHLongSwordResourceCommitType CommitType = ResolveLongSwordResourceCommitType(InMoveTag);
-    if (CommitType == EMHLongSwordResourceCommitType::None
-        || CommitType == EMHLongSwordResourceCommitType::CounterSuccess)
-    {
-        return;
-    }
-
-    CommitLongSwordResourceDelta(InMoveTag, CommitType);
+    ApplyLongSwordMoveHitReward(InMoveTag);
 
     if (InMoveTag == MHLongSwordGameplayTags::Move_LS_IaiSlash)
     {
@@ -722,7 +713,6 @@ void AMHPlayerCharacter::Notify_LongSwordAttackHitConfirmed(const FGameplayTag& 
 
 void AMHPlayerCharacter::Notify_LongSwordCounterCommitSuccess(const EMHLongSwordCounterWindowType InCounterWindowType)
 {
-    // 카운터 성공 시점에 확정해야 하는 기술만 여기서 자원을 처리한다.
     if (!IsLongSwordEquipped())
     {
         return;
@@ -734,22 +724,16 @@ void AMHPlayerCharacter::Notify_LongSwordCounterCommitSuccess(const EMHLongSword
         return;
     }
 
-    const EMHLongSwordResourceCommitType CommitType = ResolveLongSwordResourceCommitType(CurrentMoveTag);
-    if (CommitType != EMHLongSwordResourceCommitType::CounterSuccess)
-    {
-        return;
-    }
-
     UE_LOG(
         LogMHPlayerCharacter,
         Verbose,
-        TEXT("%s : LongSword counter commit resolved. Window=%d Move=%s"),
+        TEXT("%s : LongSword counter success resolved. Window=%d Move=%s"),
         *GetName(),
         static_cast<int32>(InCounterWindowType),
         *CurrentMoveTag.ToString()
     );
 
-    CommitLongSwordResourceDelta(CurrentMoveTag, CommitType);
+    ApplyLongSwordCounterSuccessReward(CurrentMoveTag, InCounterWindowType);
 }
 
 void AMHPlayerCharacter::Notify_BeginLongSwordCounterWindow(const EMHLongSwordCounterWindowType InCounterWindowType)
@@ -1146,8 +1130,19 @@ bool AMHPlayerCharacter::CanStartLongSwordMove(const FGameplayTag& InMoveTag) co
         return false;
     }
 
+    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker)
+    {
+        return bLongSwordSpiritThrustHelmbreakerReady && CurrentSpiritLevel >= 1;
+    }
+
     FMHAttackMetaRow AttackMetaRow;
     if (!FindAttackMetaRow(InMoveTag, AttackMetaRow))
+    {
+        return true;
+    }
+
+    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritRoundslash
+        && bLongSwordForesightFreeSpiritRoundslashReady)
     {
         return true;
     }
@@ -1199,37 +1194,62 @@ void AMHPlayerCharacter::PlayLongSwordHitCameraShake(const FGameplayTag& InMoveT
     PC->PlayerCameraManager->StartCameraShake(ShakeClass, ShakeScale);
 }
 
-EMHLongSwordResourceCommitType AMHPlayerCharacter::ResolveLongSwordResourceCommitType(const FGameplayTag& InMoveTag) const
+void AMHPlayerCharacter::ApplyLongSwordMoveStartCost(const FGameplayTag& InMoveTag)
 {
-    // 일반 기술은 첫 유효 타격, 일부 피니시 기술은 마지막 확정 타격, 간파는 카운터 성공 시점으로 분리한다.
     if (!InMoveTag.IsValid())
     {
-        return EMHLongSwordResourceCommitType::None;
+        return;
     }
+
+    FMHAttackMetaRow AttackMetaRow;
+    const bool bHasAttackMeta = FindAttackMetaRow(InMoveTag, AttackMetaRow);
+    const float PreviousSpiritGauge = CurrentSpiritGauge;
+    const int32 PreviousSpiritLevel = CurrentSpiritLevel;
+
+    if (InMoveTag != MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker)
+    {
+        bLongSwordSpiritThrustHelmbreakerReady = false;
+    }
+
+    bool bConsumedForesightReward = false;
 
     if (InMoveTag == MHLongSwordGameplayTags::Move_LS_ForesightSlash)
     {
-        return EMHLongSwordResourceCommitType::CounterSuccess;
+        SetCurrentSpiritGauge(0.0f);
     }
-
-    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritRoundslash
-        || InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker)
+    else if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritRoundslash
+        && bLongSwordForesightFreeSpiritRoundslashReady)
     {
-        return EMHLongSwordResourceCommitType::FinisherHit;
+        bLongSwordForesightFreeSpiritRoundslashReady = false;
+        bConsumedForesightReward = true;
     }
-
-    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_DrawOnly
-        || InMoveTag == MHLongSwordGameplayTags::Move_LS_SpecialSheathe)
+    else if (bHasAttackMeta)
     {
-        return EMHLongSwordResourceCommitType::None;
+        ConsumeSpiritGauge(FMath::Max(0.0f, AttackMetaRow.SpiritGaugeConsume));
     }
 
-    return EMHLongSwordResourceCommitType::FirstValidHit;
+    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker)
+    {
+        bLongSwordSpiritThrustHelmbreakerReady = false;
+        DecreaseSpiritLevel();
+    }
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Verbose,
+        TEXT("%s : LongSword move started. Move=%s Gauge=%.2f->%.2f Level=%d->%d ForesightRewardConsumed=%d"),
+        *GetName(),
+        *InMoveTag.ToString(),
+        PreviousSpiritGauge,
+        CurrentSpiritGauge,
+        PreviousSpiritLevel,
+        CurrentSpiritLevel,
+        bConsumedForesightReward ? 1 : 0
+    );
 }
 
-void AMHPlayerCharacter::CommitLongSwordResourceDelta(const FGameplayTag& InMoveTag, const EMHLongSwordResourceCommitType InCommitType)
+void AMHPlayerCharacter::ApplyLongSwordMoveHitReward(const FGameplayTag& InMoveTag)
 {
-    // 실제 수치 변화는 이 함수 한곳에서만 처리해서 기술별 예외를 모은다.
     if (!InMoveTag.IsValid())
     {
         return;
@@ -1244,32 +1264,15 @@ void AMHPlayerCharacter::CommitLongSwordResourceDelta(const FGameplayTag& InMove
     const float PreviousSpiritGauge = CurrentSpiritGauge;
     const int32 PreviousSpiritLevel = CurrentSpiritLevel;
 
-    const bool bShouldIgnoreSpiritConsume =
-        bLongSwordForesightCounterSuccess
-        || bLongSwordSpecialSheatheSlashCounterSuccess
-        || bLongSwordSpecialSheatheSpiritCounterSuccess;
-
-    if (InCommitType != EMHLongSwordResourceCommitType::CounterSuccess)
-    {
-        AddSpiritGauge(FMath::Max(0.0f, AttackMetaRow.SpiritGaugeGain));
-    }
-
-    if (InCommitType == EMHLongSwordResourceCommitType::CounterSuccess)
-    {
-        ConsumeSpiritGauge(FMath::Max(0.0f, AttackMetaRow.SpiritGaugeConsume));
-    }
-    else if (!bShouldIgnoreSpiritConsume)
-    {
-        ConsumeSpiritGauge(FMath::Max(0.0f, AttackMetaRow.SpiritGaugeConsume));
-    }
+    AddSpiritGauge(FMath::Max(0.0f, AttackMetaRow.SpiritGaugeGain));
 
     if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritRoundslash)
     {
         IncreaseSpiritLevel();
     }
-    else if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker)
+    else if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritThrust)
     {
-        DecreaseSpiritLevel();
+        bLongSwordSpiritThrustHelmbreakerReady = true;
     }
     else if (InMoveTag == MHLongSwordGameplayTags::Move_LS_IaiSpiritSlash && !bLongSwordSpecialSheatheSpiritCounterSuccess)
     {
@@ -1279,14 +1282,50 @@ void AMHPlayerCharacter::CommitLongSwordResourceDelta(const FGameplayTag& InMove
     UE_LOG(
         LogMHPlayerCharacter,
         Verbose,
-        TEXT("%s : LongSword resource committed. Move=%s CommitType=%s Gauge=%.2f->%.2f Level=%d->%d"),
+        TEXT("%s : LongSword hit reward applied. Move=%s Gauge=%.2f->%.2f Level=%d->%d HelmbreakerReady=%d"),
         *GetName(),
         *InMoveTag.ToString(),
-        ResolveLongSwordResourceCommitTypeText(InCommitType),
         PreviousSpiritGauge,
         CurrentSpiritGauge,
         PreviousSpiritLevel,
-        CurrentSpiritLevel
+        CurrentSpiritLevel,
+        bLongSwordSpiritThrustHelmbreakerReady ? 1 : 0
+    );
+}
+
+void AMHPlayerCharacter::ApplyLongSwordCounterSuccessReward(const FGameplayTag& InMoveTag, const EMHLongSwordCounterWindowType InCounterWindowType)
+{
+    if (!InMoveTag.IsValid())
+    {
+        return;
+    }
+
+    switch (InCounterWindowType)
+    {
+    case EMHLongSwordCounterWindowType::Foresight:
+        bLongSwordForesightFreeSpiritRoundslashReady = true;
+        break;
+
+    case EMHLongSwordCounterWindowType::SpecialSheatheSlash:
+        // 특수납도 베기는 성공 상태만 유지하고 별도 자원 보상은 주지 않는다.
+        break;
+
+    case EMHLongSwordCounterWindowType::SpecialSheatheSpirit:
+        // 특수납도 기인베기는 성공 상태를 유지해 기존 성공 분기 흐름을 이어간다.
+        break;
+
+    default:
+        break;
+    }
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Verbose,
+        TEXT("%s : LongSword counter reward applied. Move=%s Window=%d ForesightRewardReady=%d"),
+        *GetName(),
+        *InMoveTag.ToString(),
+        static_cast<int32>(InCounterWindowType),
+        bLongSwordForesightFreeSpiritRoundslashReady ? 1 : 0
     );
 }
 
@@ -1881,23 +1920,6 @@ bool AMHPlayerCharacter::DowngradeSharpnessColor()
     }
 
     return false;
-}
-
-void AMHPlayerCharacter::HandleWeaponAttackHit(
-    AActor* Target,
-    AMHWeaponInstance* Weapon)
-{
-    // 1. Sharpness
-    ConsumeSharpness(5.f);
-    
-    // 2. SpiritGuage
-    AddSpiritGauge(5.f);
-
-    // // 3. 무기별 처리
-    // if (Weapon)
-    // {
-    //     Weapon->OnAttackHit(Target);
-    // }
 }
 
 FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForPrimaryInput() const
