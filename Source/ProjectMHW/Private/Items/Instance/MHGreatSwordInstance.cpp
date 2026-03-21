@@ -3,14 +3,16 @@
 
 #include "Items/Instance/MHGreatSwordInstance.h"
 
+#include "Weapons/GreatSword/MHGreatSwordActionComponent.h"
 
 // Sets default values
 AMHGreatSwordInstance::AMHGreatSwordInstance()
 {
-	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = false;
-	WeaponType = EMHWeaponType::GreatSword; // 손승우 추가
+	WeaponType = EMHWeaponType::GreatSword;
 
+	// 대검 전용 입력 상태와 차징 상태를 관리한다.
+	ActionComponent = CreateDefaultSubobject<UMHGreatSwordActionComponent>(TEXT("ActionComponent"));
 }
 
 void AMHGreatSwordInstance::ApplyItemData()

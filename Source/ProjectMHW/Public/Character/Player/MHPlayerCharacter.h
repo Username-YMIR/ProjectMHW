@@ -39,6 +39,8 @@ class UAnimMontage;
 class UGameplayEffect;
 class UDataTable;
 class AMHWeaponInstance;
+class AMHGreatSwordInstance;
+class UMHGreatSwordActionComponent;
 struct FInputActionValue;
 struct FMHAttackDefinitionRow;
 struct FMHAttackMetaRow;
@@ -613,6 +615,31 @@ private:
     // Mouse5(실제 베어내리기 계열 축) 단일 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForAttackSimultaneousInput() const;
 #pragma endregion
+
+
+// ===== GreatSwordInput =====
+protected:
+    // 현재 장착 무기가 대검인지 확인한다.
+    bool IsGreatSwordEquipped() const;
+
+    // 좌클릭 입력 시작을 대검 액션으로 변환한다.
+    bool TryHandleGreatSwordPrimaryInput();
+
+    // 좌클릭 입력 종료를 대검 차지 릴리즈로 변환한다.
+    bool TryHandleGreatSwordPrimaryRelease();
+
+    // 우클릭 입력을 대검 액션으로 변환한다.
+    bool TryHandleGreatSwordSecondaryInput();
+
+    // Mouse4 입력을 대검 액션으로 변환한다.
+    bool TryHandleGreatSwordWeaponSpecialInput();
+
+    // Mouse5 입력을 대검 액션으로 변환한다.
+    bool TryHandleGreatSwordSimultaneousInput();
+
+    // 현재 대기 중인 대검 기술을 실제 어빌리티 실행으로 넘긴다.
+    bool TryActivateGreatSwordPrimaryAbility();
+// ===== End GreatSwordInput =====
 
 #pragma region LongSwordRuntimeFunctions
     bool IsLongSwordEquipped() const;

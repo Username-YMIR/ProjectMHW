@@ -13,9 +13,12 @@
 #include "GameFramework/PlayerController.h"
 #include "Items/Instance/MHWeaponInstance.h"
 #include "Items/Instance/MHLongSwordInstance.h"
+#include "Items/Instance/MHGreatSwordInstance.h"
 #include "Weapons/LongSword/MHLongSwordComboComponent.h"
+#include "Weapons/GreatSword/MHGreatSwordActionComponent.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystem/Abilities/Weapon/LongSword/MHGA_LongSwordCombo.h"
+#include "GameplayTags/MHGreatSwordGameplayTags.h"
 #include "GameplayTags/MHCombatStateGameplayTags.h"
 #include "GameplayTags/MHInputPatternGameplayTags.h"
 #include "GameplayTags/MHLongSwordGameplayTags.h"
@@ -466,17 +469,36 @@ void AMHPlayerCharacter::ApplyDebugDamageFromSource(AActor* InSourceActor, float
 void AMHPlayerCharacter::Input_AttackPrimary(const FInputActionValue& InputActionValue)
 {
     bAttackPrimaryHeld = true;
+
+    if (IsGreatSwordEquipped())
+    {
+        TryHandleGreatSwordPrimaryInput();
+        return;
+    }
+
     TryResolveAndHandleLongSwordPattern(ResolveLongSwordPatternForPrimaryInput());
 }
 
 void AMHPlayerCharacter::Input_AttackPrimaryCompleted(const FInputActionValue& InputActionValue)
 {
     bAttackPrimaryHeld = false;
+
+    if (IsGreatSwordEquipped())
+    {
+        TryHandleGreatSwordPrimaryRelease();
+    }
 }
 
 void AMHPlayerCharacter::Input_AttackSecondary(const FInputActionValue& InputActionValue)
 {
     bAttackSecondaryHeld = true;
+
+    if (IsGreatSwordEquipped())
+    {
+        TryHandleGreatSwordSecondaryInput();
+        return;
+    }
+
     TryResolveAndHandleLongSwordPattern(ResolveLongSwordPatternForSecondaryInput());
 }
 
@@ -488,6 +510,13 @@ void AMHPlayerCharacter::Input_AttackSecondaryCompleted(const FInputActionValue&
 void AMHPlayerCharacter::Input_WeaponSpecial(const FInputActionValue& InputActionValue)
 {
     bWeaponSpecialHeld = true;
+
+    if (IsGreatSwordEquipped())
+    {
+        TryHandleGreatSwordWeaponSpecialInput();
+        return;
+    }
+
     TryResolveAndHandleLongSwordPattern(ResolveLongSwordPatternForWeaponSpecialInput());
 }
 
@@ -498,6 +527,12 @@ void AMHPlayerCharacter::Input_WeaponSpecialCompleted(const FInputActionValue& I
 
 void AMHPlayerCharacter::Input_AttackSimultaneous(const FInputActionValue& InputActionValue)
 {
+    if (IsGreatSwordEquipped())
+    {
+        TryHandleGreatSwordSimultaneousInput();
+        return;
+    }
+
     // Mouse5 단일 입력은 베어내리기 계열 전용 진입으로 사용한다.
     // 좌클릭 + 우클릭 동시 입력과 동일한 기술군을 가리키지만,
     // Mouse5 입력은 별도 액션으로 들어오므로 전용 해석 함수를 거친다.
@@ -517,6 +552,12 @@ void AMHPlayerCharacter::Input_AimHoldCompleted(const FInputActionValue& InputAc
 
 void AMHPlayerCharacter::UsePrimaryAction()
 {
+    if (IsGreatSwordEquipped())
+    {
+        TryHandleGreatSwordPrimaryInput();
+        return;
+    }
+
     TryResolveAndHandleLongSwordPattern(ResolveLongSwordPatternForPrimaryInput());
 }
 
@@ -1381,6 +1422,123 @@ float AMHPlayerCharacter::ResolveLongSwordDamageMultiplier(const FGameplayTag& I
 
     return MetaDamageMultiplier * GetCurrentSpiritDamageMultiplier();
 }
+
+// ===== GreatSwordInput =====
+bool AMHPlayerCharacter::IsGreatSwordEquipped() const
+{
+    return CurrentWeaponType == EMHWeaponType::GreatSword && Cast<AMHGreatSwordInstance>(EquippedWeapon) != nullptr;
+}
+
+bool AMHPlayerCharacter::TryHandleGreatSwordPrimaryInput()
+{
+    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+    if (!GreatSword || !GreatSword->GetActionComponent())
+    {
+        return false;
+    }
+
+    if (WeaponSheathState == EMHWeaponSheathState::Sheathing)
+    {
+        return false;
+    }
+
+    const bool bForwardInput = CachedMoveInput2D.Y > 0.1f;
+    const bool bSheathed = WeaponSheathState == EMHWeaponSheathState::Sheathed;
+    if (!GreatSword->GetActionComponent()->HandlePrimaryPressed(bForwardInput, bSheathed))
+    {
+        return false;
+    }
+
+    if (bSheathed)
+    {
+        WeaponSheathState = EMHWeaponSheathState::Unsheathing;
+        bPendingUnsheatheFromComboEntry = true;
+    }
+
+    return TryActivateGreatSwordPrimaryAbility();
+}
+
+bool AMHPlayerCharacter::TryHandleGreatSwordPrimaryRelease()
+{
+    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+    if (!GreatSword || !GreatSword->GetActionComponent())
+    {
+        return false;
+    }
+
+    if (!GreatSword->GetActionComponent()->HandlePrimaryReleased())
+    {
+        return false;
+    }
+
+    return TryActivateGreatSwordPrimaryAbility();
+}
+
+bool AMHPlayerCharacter::TryHandleGreatSwordSecondaryInput()
+{
+    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+    if (!GreatSword || !GreatSword->GetActionComponent())
+    {
+        return false;
+    }
+
+    if (!GreatSword->GetActionComponent()->HandleSecondaryPressed())
+    {
+        return false;
+    }
+
+    return TryActivateGreatSwordPrimaryAbility();
+}
+
+bool AMHPlayerCharacter::TryHandleGreatSwordWeaponSpecialInput()
+{
+    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+    if (!GreatSword || !GreatSword->GetActionComponent())
+    {
+        return false;
+    }
+
+    if (!GreatSword->GetActionComponent()->HandleWeaponSpecialPressed())
+    {
+        return false;
+    }
+
+    return TryActivateGreatSwordPrimaryAbility();
+}
+
+bool AMHPlayerCharacter::TryHandleGreatSwordSimultaneousInput()
+{
+    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+    if (!GreatSword || !GreatSword->GetActionComponent())
+    {
+        return false;
+    }
+
+    if (!GreatSword->GetActionComponent()->HandleSimultaneousPressed())
+    {
+        return false;
+    }
+
+    return TryActivateGreatSwordPrimaryAbility();
+}
+
+bool AMHPlayerCharacter::TryActivateGreatSwordPrimaryAbility()
+{
+    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+    if (!GreatSword || !AbilitySystemComponent)
+    {
+        return false;
+    }
+
+    const TSubclassOf<UGameplayAbility> AbilityClass = GreatSword->GetPrimaryAttackAbilityClass();
+    if (AbilityClass == nullptr)
+    {
+        return false;
+    }
+
+    return AbilitySystemComponent->TryActivateAbilityByClass(AbilityClass);
+}
+// ===== End GreatSwordInput =====
 
 #pragma endregion
 
