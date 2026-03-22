@@ -225,6 +225,10 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
     EMHGreatSwordChargeFamily PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
 
+    // 태클 직전 차징 계열을 기록해 태클 후 다음 단계 차징 판정에 사용한다.
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
+    EMHGreatSwordChargeFamily LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
     int32 CurrentChargeLevel = 0;
 

@@ -61,6 +61,7 @@ bool UMHGreatSwordActionComponent::HandleSecondaryPressed()
 {
     if (IsCharging())
     {
+        LastTackleSourceChargeFamily = ChargeFamily;
         PendingPostTackleChargeFamily = ResolveNextChargeFamilyAfterTackleFromCharge(ChargeFamily);
         ResetChargeContext();
         QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_Tackle, EMHGreatSwordActionState::Acting);
@@ -198,7 +199,12 @@ void UMHGreatSwordActionComponent::CommitExecutedMove(const FGameplayTag& InMove
     LastCommittedMoveTag = InMoveTag;
     PendingMoveTag = FGameplayTag();
     ActiveUtilityMoveTag = FGameplayTag();
-    PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
+    if (InMoveTag != MHGreatSwordGameplayTags::Move_GS_Tackle)
+    {
+        PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
+        LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
+    }
+
     bEarlyTransitionWindowOpen = false;
     bAttackRollWindowOpen = false;
     ClearBufferedInput();
@@ -238,6 +244,8 @@ void UMHGreatSwordActionComponent::NotifyUtilityMoveStarted(const FGameplayTag& 
         || InMoveTag == MHGreatSwordGameplayTags::Move_GS_RollRight)
     {
         LastCommittedMoveTag = FGameplayTag();
+        PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
+        LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
         ActionState = EMHGreatSwordActionState::Acting;
         return;
     }
@@ -254,6 +262,7 @@ void UMHGreatSwordActionComponent::NotifyUtilityMoveEnded(const FGameplayTag& In
 
     ActiveUtilityMoveTag = FGameplayTag();
     PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
+    LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
     bEarlyTransitionWindowOpen = false;
     bAttackRollWindowOpen = false;
     ClearBufferedInput();
@@ -296,6 +305,7 @@ void UMHGreatSwordActionComponent::NotifyActionFinished()
     bEarlyTransitionWindowOpen = false;
     bAttackRollWindowOpen = false;
     PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
+    LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
     ClearBufferedInput();
     NotifyEndChargeFollowUpWindow();
     ActionState = EMHGreatSwordActionState::Neutral;
@@ -537,11 +547,20 @@ bool UMHGreatSwordActionComponent::ResolvePrimaryDuringEarlyTransition(const boo
 {
     if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_Tackle)
     {
-        const EMHGreatSwordChargeFamily NextFamily = PendingPostTackleChargeFamily != EMHGreatSwordChargeFamily::None
-            ? PendingPostTackleChargeFamily
-            : EMHGreatSwordChargeFamily::Strong;
+        EMHGreatSwordChargeFamily NextFamily = PendingPostTackleChargeFamily;
+
+        if (NextFamily == EMHGreatSwordChargeFamily::None)
+        {
+            NextFamily = ResolveNextChargeFamilyAfterTackleFromCharge(LastTackleSourceChargeFamily);
+        }
+
+        if (NextFamily == EMHGreatSwordChargeFamily::None)
+        {
+            NextFamily = EMHGreatSwordChargeFamily::Strong;
+        }
 
         PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
+        LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
         BeginCharging(NextFamily, false);
         return true;
     }
@@ -598,6 +617,8 @@ bool UMHGreatSwordActionComponent::ResolveSecondaryDuringEarlyTransition()
 {
     if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_Tackle)
     {
+        PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
+        LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
         QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_JumpingWideSlash, EMHGreatSwordActionState::Acting);
         return true;
     }
@@ -627,6 +648,8 @@ bool UMHGreatSwordActionComponent::ResolveWeaponSpecialDuringEarlyTransition()
 {
     if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_Tackle)
     {
+        PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
+        LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
         QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
         return true;
     }
