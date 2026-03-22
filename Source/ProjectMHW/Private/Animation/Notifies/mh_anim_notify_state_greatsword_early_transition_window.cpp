@@ -1,9 +1,9 @@
-#include "Animation/Notifies/mh_anim_notify_state_greatsword_charge_followup_window.h"
+#include "Animation/Notifies/mh_anim_notify_state_greatsword_early_transition_window.h"
 
 #include "Character/Player/MHPlayerCharacter.h"
 #include "Components/SkeletalMeshComponent.h"
 
-void UMHAnimNotifyState_GreatSwordChargeFollowUpWindow::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration,
+void UMHAnimNotifyState_GreatSwordEarlyTransitionWindow::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration,
     const FAnimNotifyEventReference& EventReference)
 {
     Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
@@ -15,11 +15,11 @@ void UMHAnimNotifyState_GreatSwordChargeFollowUpWindow::NotifyBegin(USkeletalMes
 
     if (AMHPlayerCharacter* Player = Cast<AMHPlayerCharacter>(MeshComp->GetOwner()))
     {
-        Player->Notify_BeginGreatSwordChargeFollowUpWindow(SourceMoveTag);
+        Player->Notify_BeginGreatSwordEarlyTransitionWindow();
     }
 }
 
-void UMHAnimNotifyState_GreatSwordChargeFollowUpWindow::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
+void UMHAnimNotifyState_GreatSwordEarlyTransitionWindow::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
     const FAnimNotifyEventReference& EventReference)
 {
     Super::NotifyEnd(MeshComp, Animation, EventReference);
@@ -31,6 +31,6 @@ void UMHAnimNotifyState_GreatSwordChargeFollowUpWindow::NotifyEnd(USkeletalMeshC
 
     if (AMHPlayerCharacter* Player = Cast<AMHPlayerCharacter>(MeshComp->GetOwner()))
     {
-        Player->Notify_EndGreatSwordChargeFollowUpWindow();
+        Player->Notify_EndGreatSwordEarlyTransitionWindow();
     }
 }

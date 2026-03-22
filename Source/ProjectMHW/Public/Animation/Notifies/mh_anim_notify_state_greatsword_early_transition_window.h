@@ -2,11 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimNotifies/AnimNotifyState.h"
-#include "GameplayTagContainer.h"
-#include "mh_anim_notify_state_greatsword_charge_followup_window.generated.h"
+#include "mh_anim_notify_state_greatsword_early_transition_window.generated.h"
 
 UCLASS()
-class PROJECTMHW_API UMHAnimNotifyState_GreatSwordChargeFollowUpWindow : public UAnimNotifyState
+class PROJECTMHW_API UMHAnimNotifyState_GreatSwordEarlyTransitionWindow : public UAnimNotifyState
 {
     GENERATED_BODY()
 
@@ -16,8 +15,4 @@ public:
 
     virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
         const FAnimNotifyEventReference& EventReference) override;
-
-protected:
-    UPROPERTY(EditAnywhere, Category = "GreatSword")
-    FGameplayTag SourceMoveTag;
 };

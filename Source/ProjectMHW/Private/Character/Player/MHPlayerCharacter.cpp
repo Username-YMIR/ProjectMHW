@@ -634,7 +634,7 @@ void AMHPlayerCharacter::Notify_AttachWeaponToBack()
     AttachWeaponToBack();
 }
 
-void AMHPlayerCharacter::Notify_AttachWeaponToSocket(FName InSocketName)
+void AMHPlayerCharacter::Notify_AttachWeaponToSocket(const FName InSocketName)
 {
     AttachWeaponToSocket(InSocketName);
 }
@@ -751,13 +751,43 @@ void AMHPlayerCharacter::Notify_EndGreatSwordAttackRollWindow()
     }
 }
 
-void AMHPlayerCharacter::Notify_BeginGreatSwordChargeFollowUpWindow(FGameplayTag InSourceMoveTag)
+void AMHPlayerCharacter::Notify_BeginGreatSwordEarlyTransitionWindow()
 {
     if (AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
     {
         if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
         {
-            ActionComponent->OpenChargeFollowUpWindow(InSourceMoveTag);
+            ActionComponent->NotifyBeginEarlyTransitionWindow();
+            if (ActionComponent->HasPendingMove())
+            {
+                TryExecuteGreatSwordPendingMove();
+            }
+        }
+    }
+}
+
+void AMHPlayerCharacter::Notify_EndGreatSwordEarlyTransitionWindow()
+{
+    if (AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
+    {
+        if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
+        {
+            ActionComponent->NotifyEndEarlyTransitionWindow();
+        }
+    }
+}
+
+void AMHPlayerCharacter::Notify_BeginGreatSwordChargeFollowUpWindow(const FGameplayTag InSourceMoveTag)
+{
+    if (AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
+    {
+        if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
+        {
+            ActionComponent->NotifyBeginChargeFollowUpWindow(InSourceMoveTag);
+            if (ActionComponent->HasPendingMove())
+            {
+                TryExecuteGreatSwordPendingMove();
+            }
         }
     }
 }
@@ -768,7 +798,7 @@ void AMHPlayerCharacter::Notify_EndGreatSwordChargeFollowUpWindow()
     {
         if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
         {
-            ActionComponent->CloseChargeFollowUpWindow();
+            ActionComponent->NotifyEndChargeFollowUpWindow();
         }
     }
 }
@@ -1158,7 +1188,7 @@ void AMHPlayerCharacter::AttachWeaponToHand()
 
 void AMHPlayerCharacter::AttachWeaponToSocket(const FName& InSocketName)
 {
-    if (!EquippedWeapon || !GetMesh())
+    if (!EquippedWeapon || !GetMesh() || InSocketName.IsNone())
     {
         return;
     }

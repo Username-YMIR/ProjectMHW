@@ -8,8 +8,8 @@
 UENUM(BlueprintType)
 enum class EMHWeaponSocketSwapTarget : uint8
 {
-    ToHand  UMETA(DisplayName = "ToHand"), // 손 소켓으로 이동
-    ToBack  UMETA(DisplayName = "ToBack"), // 등 소켓으로 이동
+    ToHand      UMETA(DisplayName = "ToHand"), // 손 소켓으로 이동
+    ToBack      UMETA(DisplayName = "ToBack"), // 등 소켓으로 이동
     ToNamedSocket UMETA(DisplayName = "ToNamedSocket"), // 지정한 소켓으로 이동
 };
 
@@ -29,6 +29,6 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
     EMHWeaponSocketSwapTarget Target = EMHWeaponSocketSwapTarget::ToHand; // 이동 대상
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (EditCondition = "Target == EMHWeaponSocketSwapTarget::ToNamedSocket"))
-    FName SocketName; // 지정 소켓 이름
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (EditCondition = "Target == EMHWeaponSocketSwapTarget::ToNamedSocket", EditConditionHides))
+    FName TargetSocketName = NAME_None; // 지정 소켓 이름
 };

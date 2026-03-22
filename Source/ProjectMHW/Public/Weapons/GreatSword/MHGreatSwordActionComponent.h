@@ -31,6 +31,16 @@ enum class EMHGreatSwordActionState : uint8
     Guarding    UMETA(DisplayName = "Guarding")
 };
 
+UENUM(BlueprintType)
+enum class EMHGreatSwordBufferedInputType : uint8
+{
+    None            UMETA(DisplayName = "None"),
+    Primary         UMETA(DisplayName = "Primary"),
+    Secondary       UMETA(DisplayName = "Secondary"),
+    WeaponSpecial   UMETA(DisplayName = "WeaponSpecial"),
+    Simultaneous    UMETA(DisplayName = "Simultaneous")
+};
+
 UCLASS(ClassGroup=(Weapon), Blueprintable, BlueprintType, meta=(BlueprintSpawnableComponent))
 class PROJECTMHW_API UMHGreatSwordActionComponent : public UActorComponent
 {
@@ -117,11 +127,17 @@ public:
     // 공격 후 4방향 구르기 윈도우를 닫는다.
     void NotifyEndAttackRollWindow();
 
-    // 다음 단계 차징으로 이어질 수 있는 후속 윈도우를 연다.
-    void OpenChargeFollowUpWindow(const FGameplayTag& InSourceMoveTag);
+    // 공격 조기 전환 윈도우를 연다.
+    void NotifyBeginEarlyTransitionWindow();
+
+    // 공격 조기 전환 윈도우를 닫는다.
+    void NotifyEndEarlyTransitionWindow();
+
+    // 다음 단계 차징 후속 윈도우를 연다.
+    void NotifyBeginChargeFollowUpWindow(const FGameplayTag& InSourceMoveTag);
 
     // 다음 단계 차징 후속 윈도우를 닫는다.
-    void CloseChargeFollowUpWindow();
+    void NotifyEndChargeFollowUpWindow();
 
     // 현재 문맥에서 사용할 구르기 기술 태그를 결정한다.
     FGameplayTag ResolveDodgeMoveTag(bool bInSheathed, EMHDirectionalVariant InDirectionalVariant) const;
@@ -142,8 +158,26 @@ protected:
     // 현재 차징 컨텍스트를 초기화한다.
     void ResetChargeContext();
 
-    // 다음 단계 차징 후속 상태를 초기화한다.
-    void ResetChargeFollowUpState();
+    // 조기 전환 버퍼 입력을 비운다.
+    void ClearBufferedInput();
+
+    // 입력을 조기 전환 버퍼에 저장한다.
+    void BufferInput(EMHGreatSwordBufferedInputType InInputType, bool bInForwardInput, bool bInSheathed);
+
+    // 조기 전환 윈도우가 열렸을 때 버퍼 입력을 소비한다.
+    bool TryConsumeBufferedTransitionInput();
+
+    // 현재 공격 중 조기 전환 가능한 문맥에서 좌클릭 입력을 해석한다.
+    bool ResolvePrimaryDuringEarlyTransition(bool bInForwardInput);
+
+    // 현재 공격 중 조기 전환 가능한 문맥에서 우클릭 입력을 해석한다.
+    bool ResolveSecondaryDuringEarlyTransition();
+
+    // 현재 공격 중 조기 전환 가능한 문맥에서 Mouse4 입력을 해석한다.
+    bool ResolveWeaponSpecialDuringEarlyTransition();
+
+    // 현재 공격 중 조기 전환 가능한 문맥에서 Mouse5 입력을 해석한다.
+    bool ResolveSimultaneousDuringEarlyTransition();
 
     // 새 대기 기술을 기록하고 액션 상태를 갱신한다.
     void QueuePendingMove(const FGameplayTag& InMoveTag, EMHGreatSwordActionState InNextState);
@@ -219,8 +253,23 @@ protected:
     bool bAttackRollWindowOpen = false;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
+    bool bEarlyTransitionWindowOpen = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
     bool bChargeFollowUpWindowOpen = false;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
     FGameplayTag ChargeFollowUpSourceMoveTag;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
+    bool bHasBufferedInput = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
+    EMHGreatSwordBufferedInputType BufferedInputType = EMHGreatSwordBufferedInputType::None;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
+    bool bBufferedForwardInput = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
+    bool bBufferedSheathed = false;
 };

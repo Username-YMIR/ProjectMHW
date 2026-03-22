@@ -141,7 +141,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     void Notify_AttachWeaponToBack();
 
-    // 노티파이: 지정한 소켓으로 무기를 이동한다.
+    // 노티파이: 지정한 무기 소켓으로 이동
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     void Notify_AttachWeaponToSocket(FName InSocketName);
 
@@ -184,6 +184,14 @@ public:
     // 노티파이: 대검 공격 후 4방향 구르기 윈도우를 닫는다.
     UFUNCTION(BlueprintCallable, Category = "GreatSword")
     void Notify_EndGreatSwordAttackRollWindow();
+
+    // 노티파이: 대검 조기 전환 윈도우를 연다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_BeginGreatSwordEarlyTransitionWindow();
+
+    // 노티파이: 대검 조기 전환 윈도우를 닫는다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_EndGreatSwordEarlyTransitionWindow();
 
     // 노티파이: 대검 다음 단계 차징 후속 윈도우를 연다.
     UFUNCTION(BlueprintCallable, Category = "GreatSword")
@@ -631,7 +639,7 @@ private:
     // 무기 발도 상태로 부착
     void AttachWeaponToHand();
 
-    // 무기 메쉬를 지정한 캐릭터 소켓에 부착한다.
+    // 지정한 캐릭터 소켓으로 무기를 부착
     void AttachWeaponToSocket(const FName& InSocketName);
 
     // 좌클릭 입력을 기준으로 태도 패턴을 해석한다.
