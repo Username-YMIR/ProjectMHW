@@ -330,6 +330,41 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
 {
     bDodgeHeld = true;
 
+    if (IsGreatSwordEquipped())
+    {
+        UAnimMontage* RollMontage = nullptr;
+
+        if (WeaponSheathState == EMHWeaponSheathState::Sheathed)
+        {
+            LastResolvedDodgeContext = EMHDodgeContext::Sheathed;
+            LastResolvedDodgeVariant = EMHDirectionalVariant::Forward;
+            TryRotateActorTowardsMoveInput();
+            RollMontage = ResolveSheathedRollMontage();
+        }
+        else if (WeaponSheathState == EMHWeaponSheathState::Unsheathed)
+        {
+            if (IsGreatSwordAttackChainDodgeContext())
+            {
+                LastResolvedDodgeContext = EMHDodgeContext::AttackChain;
+                LastResolvedDodgeVariant = ResolveDirectionalVariantFromInput(true);
+            }
+            else
+            {
+                LastResolvedDodgeContext = EMHDodgeContext::UnsheathedNeutral;
+                LastResolvedDodgeVariant = EMHDirectionalVariant::Forward;
+                TryRotateActorTowardsMoveInput();
+            }
+
+            RollMontage = ResolveUnsheathedRollMontage();
+        }
+
+        if (!TryPlayRollMontage(RollMontage))
+        {
+            UE_LOG(LogMHPlayerCharacter, Verbose, TEXT("%s : GreatSword roll montage play failed. Context=%d Variant=%d"), *GetName(), static_cast<int32>(LastResolvedDodgeContext), static_cast<int32>(LastResolvedDodgeVariant));
+        }
+        return;
+    }
+
     // 태도 발도 상태에서 특정 동시 입력이 들어오면 회피보다 특수 액션 패턴을 우선 처리한다.
     if (TryResolveAndHandleLongSwordPattern(ResolveLongSwordPatternForDodgeInput()))
     {
@@ -523,6 +558,11 @@ void AMHPlayerCharacter::Input_WeaponSpecial(const FInputActionValue& InputActio
 void AMHPlayerCharacter::Input_WeaponSpecialCompleted(const FInputActionValue& InputActionValue)
 {
     bWeaponSpecialHeld = false;
+
+    if (IsGreatSwordEquipped())
+    {
+        TryHandleGreatSwordWeaponSpecialRelease();
+    }
 }
 
 void AMHPlayerCharacter::Input_AttackSimultaneous(const FInputActionValue& InputActionValue)
@@ -594,6 +634,11 @@ void AMHPlayerCharacter::Notify_AttachWeaponToBack()
     AttachWeaponToBack();
 }
 
+void AMHPlayerCharacter::Notify_AttachWeaponToSocket(FName InSocketName)
+{
+    AttachWeaponToSocket(InSocketName);
+}
+
 void AMHPlayerCharacter::Notify_BeginComboChainWindow()
 {
     if (AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
@@ -657,6 +702,75 @@ void AMHPlayerCharacter::Notify_EndDirectionalTurnWindow()
     bDirectionalTurnWindowActive = false;
     DirectionalTurnWindowMaxYawDeltaDegrees = 0.0f;
     DirectionalTurnWindowRotationInterpSpeed = 0.0f;
+}
+
+void AMHPlayerCharacter::Notify_GreatSwordChargeLevelReached(const int32 InChargeLevel)
+{
+    if (AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
+    {
+        if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
+        {
+            ActionComponent->NotifyChargeLevelReached(InChargeLevel);
+        }
+    }
+}
+
+void AMHPlayerCharacter::Notify_GreatSwordChargeAutoRelease()
+{
+    if (AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
+    {
+        if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
+        {
+            if (ActionComponent->NotifyChargeAutoReleaseRequested())
+            {
+                TryExecuteGreatSwordPendingMove();
+            }
+        }
+    }
+}
+
+void AMHPlayerCharacter::Notify_BeginGreatSwordAttackRollWindow()
+{
+    if (AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
+    {
+        if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
+        {
+            ActionComponent->NotifyBeginAttackRollWindow();
+        }
+    }
+}
+
+void AMHPlayerCharacter::Notify_EndGreatSwordAttackRollWindow()
+{
+    if (AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
+    {
+        if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
+        {
+            ActionComponent->NotifyEndAttackRollWindow();
+        }
+    }
+}
+
+void AMHPlayerCharacter::Notify_BeginGreatSwordChargeFollowUpWindow(FGameplayTag InSourceMoveTag)
+{
+    if (AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
+    {
+        if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
+        {
+            ActionComponent->OpenChargeFollowUpWindow(InSourceMoveTag);
+        }
+    }
+}
+
+void AMHPlayerCharacter::Notify_EndGreatSwordChargeFollowUpWindow()
+{
+    if (AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
+    {
+        if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
+        {
+            ActionComponent->CloseChargeFollowUpWindow();
+        }
+    }
 }
 
 void AMHPlayerCharacter::Notify_LongSwordForesightCounterSuccess()
@@ -1039,6 +1153,11 @@ void AMHPlayerCharacter::AttachWeaponToBack()
 
 void AMHPlayerCharacter::AttachWeaponToHand()
 {
+    AttachWeaponToSocket(WeaponSocketConfig.HandSocketName);
+}
+
+void AMHPlayerCharacter::AttachWeaponToSocket(const FName& InSocketName)
+{
     if (!EquippedWeapon || !GetMesh())
     {
         return;
@@ -1050,7 +1169,7 @@ void AMHPlayerCharacter::AttachWeaponToHand()
         return;
     }
 
-    BladeMesh->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocketConfig.HandSocketName);
+    BladeMesh->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, InSocketName);
 }
 
 #pragma endregion
@@ -1455,12 +1574,7 @@ bool AMHPlayerCharacter::TryHandleGreatSwordPrimaryInput()
         bPendingUnsheatheFromComboEntry = true;
     }
 
-    if (!GreatSword->GetActionComponent()->HasPendingMove())
-    {
-        return true;
-    }
-
-    return TryActivateGreatSwordPrimaryAbility();
+    return TryExecuteGreatSwordPendingMove();
 }
 
 bool AMHPlayerCharacter::TryHandleGreatSwordPrimaryRelease()
@@ -1476,12 +1590,7 @@ bool AMHPlayerCharacter::TryHandleGreatSwordPrimaryRelease()
         return false;
     }
 
-    if (!GreatSword->GetActionComponent()->HasPendingMove())
-    {
-        return true;
-    }
-
-    return TryActivateGreatSwordPrimaryAbility();
+    return TryExecuteGreatSwordPendingMove();
 }
 
 bool AMHPlayerCharacter::TryHandleGreatSwordSecondaryInput()
@@ -1497,12 +1606,7 @@ bool AMHPlayerCharacter::TryHandleGreatSwordSecondaryInput()
         return false;
     }
 
-    if (!GreatSword->GetActionComponent()->HasPendingMove())
-    {
-        return true;
-    }
-
-    return TryActivateGreatSwordPrimaryAbility();
+    return TryExecuteGreatSwordPendingMove();
 }
 
 bool AMHPlayerCharacter::TryHandleGreatSwordWeaponSpecialInput()
@@ -1513,17 +1617,42 @@ bool AMHPlayerCharacter::TryHandleGreatSwordWeaponSpecialInput()
         return false;
     }
 
-    if (!GreatSword->GetActionComponent()->HandleWeaponSpecialPressed())
+    const bool bSheathed = WeaponSheathState == EMHWeaponSheathState::Sheathed;
+    if (!GreatSword->GetActionComponent()->HandleWeaponSpecialPressed(bSheathed))
     {
         return false;
     }
 
-    if (!GreatSword->GetActionComponent()->HasPendingMove())
+    if (bSheathed)
     {
-        return true;
+        WeaponSheathState = EMHWeaponSheathState::Unsheathing;
+        bPendingUnsheatheFromComboEntry = true;
     }
 
-    return TryActivateGreatSwordPrimaryAbility();
+    return TryExecuteGreatSwordPendingMove();
+}
+
+bool AMHPlayerCharacter::TryHandleGreatSwordWeaponSpecialRelease()
+{
+    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+    if (!GreatSword || !GreatSword->GetActionComponent())
+    {
+        return false;
+    }
+
+    if (!GreatSword->GetActionComponent()->HandleWeaponSpecialReleased())
+    {
+        return false;
+    }
+
+    UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
+    if (!AnimInstance || !ActiveGreatSwordUtilityMontage)
+    {
+        return false;
+    }
+
+    AnimInstance->Montage_JumpToSection(TEXT("guard_end"), ActiveGreatSwordUtilityMontage);
+    return true;
 }
 
 bool AMHPlayerCharacter::TryHandleGreatSwordSimultaneousInput()
@@ -1539,9 +1668,27 @@ bool AMHPlayerCharacter::TryHandleGreatSwordSimultaneousInput()
         return false;
     }
 
-    if (!GreatSword->GetActionComponent()->HasPendingMove())
+    return TryExecuteGreatSwordPendingMove();
+}
+
+bool AMHPlayerCharacter::TryExecuteGreatSwordPendingMove()
+{
+    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+    if (!GreatSword)
     {
-        return true;
+        return false;
+    }
+
+    UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent();
+    if (!ActionComponent || !ActionComponent->HasPendingMove())
+    {
+        return false;
+    }
+
+    const FGameplayTag PendingMoveTag = ActionComponent->GetPendingMoveTag();
+    if (ActionComponent->IsUtilityMoveTag(PendingMoveTag))
+    {
+        return TryPlayGreatSwordUtilityMontage(PendingMoveTag);
     }
 
     return TryActivateGreatSwordPrimaryAbility();
@@ -1561,7 +1708,81 @@ bool AMHPlayerCharacter::TryActivateGreatSwordPrimaryAbility()
         return false;
     }
 
-    return AbilitySystemComponent->TryActivateAbilityByClass(AbilityClass);
+    const bool bActivated = AbilitySystemComponent->TryActivateAbilityByClass(AbilityClass);
+    if (bActivated && bPendingUnsheatheFromComboEntry)
+    {
+        HandleComboMontageStateTransition(false);
+    }
+
+    return bActivated;
+}
+
+bool AMHPlayerCharacter::TryPlayGreatSwordUtilityMontage(const FGameplayTag& InMoveTag)
+{
+    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+    if (!GreatSword || !GreatSword->GetActionComponent())
+    {
+        return false;
+    }
+
+    UAnimMontage* Montage = GreatSword->GetActionComponent()->ResolveMontageForMove(InMoveTag);
+    UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
+    if (!Montage || !AnimInstance)
+    {
+        return false;
+    }
+
+    const float PlayedLength = AnimInstance->Montage_Play(Montage);
+    if (PlayedLength <= 0.0f)
+    {
+        return false;
+    }
+
+    ActiveGreatSwordUtilityMontage = Montage;
+    ActiveGreatSwordUtilityMoveTag = InMoveTag;
+    GreatSword->GetActionComponent()->ConsumePendingMoveTag();
+    GreatSword->GetActionComponent()->NotifyUtilityMoveStarted(InMoveTag);
+
+    FOnMontageEnded EndDelegate;
+    EndDelegate.BindUObject(this, &AMHPlayerCharacter::HandleGreatSwordUtilityMontageEnded);
+    AnimInstance->Montage_SetEndDelegate(EndDelegate, Montage);
+
+    if (bPendingUnsheatheFromComboEntry)
+    {
+        HandleComboMontageStateTransition(false);
+    }
+
+    return true;
+}
+
+void AMHPlayerCharacter::HandleGreatSwordUtilityMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+    if (Montage != ActiveGreatSwordUtilityMontage)
+    {
+        return;
+    }
+
+    if (AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
+    {
+        if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
+        {
+            ActionComponent->NotifyUtilityMoveEnded(ActiveGreatSwordUtilityMoveTag, bInterrupted);
+        }
+    }
+
+    ActiveGreatSwordUtilityMontage = nullptr;
+    ActiveGreatSwordUtilityMoveTag = FGameplayTag();
+}
+
+bool AMHPlayerCharacter::IsGreatSwordAttackChainDodgeContext() const
+{
+    if (!IsGreatSwordEquipped() || WeaponSheathState != EMHWeaponSheathState::Unsheathed)
+    {
+        return false;
+    }
+
+    const AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+    return GreatSword && GreatSword->GetActionComponent() && GreatSword->GetActionComponent()->IsAttackRollWindowOpen();
 }
 // ===== End GreatSwordInput =====
 
@@ -1848,7 +2069,7 @@ UAnimMontage* AMHPlayerCharacter::ResolveUnsheathedRollMontage() const
         return nullptr;
     }
 
-    if (IsLongSwordAttackChainDodgeContext())
+    if (IsLongSwordAttackChainDodgeContext() || IsGreatSwordAttackChainDodgeContext())
     {
         const EMHDirectionalVariant DirectionalVariant = ResolveDirectionalVariantFromInput(true);
         const TSoftObjectPtr<UAnimMontage> VariantMontage = AnimConfig->ChainRollMontages.GetMontageByVariant(DirectionalVariant);
@@ -2479,9 +2700,15 @@ bool AMHPlayerCharacter::ShouldUseLateralFadeSlashPattern() const
 
 FGameplayTag AMHPlayerCharacter::GetCurrentWeaponTypeGameplayTag() const
 {
-    return CurrentWeaponType == EMHWeaponType::LongSword
-        ? MHCombatStateGameplayTags::WeaponType_LongSword
-        : FGameplayTag::EmptyTag;
+    switch (CurrentWeaponType)
+    {
+    case EMHWeaponType::LongSword:
+        return MHCombatStateGameplayTags::WeaponType_LongSword;
+    case EMHWeaponType::GreatSword:
+        return MHCombatStateGameplayTags::WeaponType_GreatSword;
+    default:
+        return FGameplayTag::EmptyTag;
+    }
 }
 
 FGameplayTag AMHPlayerCharacter::GetCurrentWeaponSheathGameplayTag() const

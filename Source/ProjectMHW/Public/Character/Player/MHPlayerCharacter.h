@@ -141,6 +141,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     void Notify_AttachWeaponToBack();
 
+    // 노티파이: 지정한 소켓으로 무기를 이동한다.
+    UFUNCTION(BlueprintCallable, Category = "Weapon")
+    void Notify_AttachWeaponToSocket(FName InSocketName);
+
     // 노티파이: 콤보 입력 윈도우 시작
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_BeginComboChainWindow();
@@ -164,6 +168,30 @@ public:
     // 노티파이: 입력 방향 기준 회전 조정 윈도우 종료
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_EndDirectionalTurnWindow();
+
+    // 노티파이: 대검 차징 단계 타이밍에 현재 차징 단계를 갱신한다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_GreatSwordChargeLevelReached(int32 InChargeLevel);
+
+    // 노티파이: 대검 최대 차징 시점에 자동 릴리즈를 요청한다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_GreatSwordChargeAutoRelease();
+
+    // 노티파이: 대검 공격 후 4방향 구르기 윈도우를 연다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_BeginGreatSwordAttackRollWindow();
+
+    // 노티파이: 대검 공격 후 4방향 구르기 윈도우를 닫는다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_EndGreatSwordAttackRollWindow();
+
+    // 노티파이: 대검 다음 단계 차징 후속 윈도우를 연다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_BeginGreatSwordChargeFollowUpWindow(FGameplayTag InSourceMoveTag);
+
+    // 노티파이: 대검 다음 단계 차징 후속 윈도우를 닫는다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_EndGreatSwordChargeFollowUpWindow();
     
     // 현재 장착 중인 무기 인스턴스 반환
     AMHWeaponInstance* GetEquippedWeapon() const { return EquippedWeapon; }
@@ -530,6 +558,12 @@ private:
     // 납도 상태 특수 진입 후 첫 몽타주 종료 대기 여부
     bool bPendingUnsheatheFromComboEntry = false; //손승우 추가
 
+    // 현재 재생 중인 대검 유틸리티 몽타주
+    UAnimMontage* ActiveGreatSwordUtilityMontage = nullptr;
+
+    // 현재 재생 중인 대검 유틸리티 기술 태그
+    FGameplayTag ActiveGreatSwordUtilityMoveTag;
+
     // 비주얼 적용
     void ApplyPlayerVisuals();
 
@@ -597,6 +631,9 @@ private:
     // 무기 발도 상태로 부착
     void AttachWeaponToHand();
 
+    // 무기 메쉬를 지정한 캐릭터 소켓에 부착한다.
+    void AttachWeaponToSocket(const FName& InSocketName);
+
     // 좌클릭 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForPrimaryInput() const;
 
@@ -634,11 +671,26 @@ protected:
     // Mouse4 입력을 대검 액션으로 변환한다.
     bool TryHandleGreatSwordWeaponSpecialInput();
 
+    // Mouse4 입력 해제 시 대검 가드 종료를 처리한다.
+    bool TryHandleGreatSwordWeaponSpecialRelease();
+
     // Mouse5 입력을 대검 액션으로 변환한다.
     bool TryHandleGreatSwordSimultaneousInput();
 
+    // 현재 대기 중인 대검 기술을 유틸리티/공격 실행으로 넘긴다.
+    bool TryExecuteGreatSwordPendingMove();
+
     // 현재 대기 중인 대검 기술을 실제 어빌리티 실행으로 넘긴다.
     bool TryActivateGreatSwordPrimaryAbility();
+
+    // 대검 차징/가드 유틸리티 몽타주를 직접 재생한다.
+    bool TryPlayGreatSwordUtilityMontage(const FGameplayTag& InMoveTag);
+
+    // 대검 유틸리티 몽타주 종료 시 런타임 상태를 정리한다.
+    void HandleGreatSwordUtilityMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+    // 대검 공격 후 4방향 구르기 문맥인지 확인한다.
+    bool IsGreatSwordAttackChainDodgeContext() const;
 // ===== End GreatSwordInput =====
 
 #pragma region LongSwordRuntimeFunctions

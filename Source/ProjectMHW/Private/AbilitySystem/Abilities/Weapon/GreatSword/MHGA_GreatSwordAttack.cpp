@@ -142,7 +142,10 @@ bool UMHGA_GreatSwordAttack::BuildDamageSpecForMove(const FGameplayTag& InMoveTa
     }
 
     const float SourcePhysicalAttack = SourceASC->GetNumericAttribute(SourcePhysicalAttackAttribute);
-    const float FinalPhysicalDamage = SourcePhysicalAttack * GlobalPhysicalScale * AttackMetaRow.DamageMultiplier;
+    const float ChargeDamageScale = CachedWeapon->GetActionComponent()
+        ? CachedWeapon->GetActionComponent()->ResolveChargeDamageScaleForMove(InMoveTag)
+        : 1.0f;
+    const float FinalPhysicalDamage = SourcePhysicalAttack * GlobalPhysicalScale * AttackMetaRow.DamageMultiplier * ChargeDamageScale;
 
     SpecHandle.Data->SetSetByCallerMagnitude(PhysicalDamageDataTag, FinalPhysicalDamage);
     OutSpecHandle = SpecHandle;

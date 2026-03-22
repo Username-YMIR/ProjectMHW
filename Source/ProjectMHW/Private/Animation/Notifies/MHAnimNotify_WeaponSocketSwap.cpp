@@ -27,6 +27,9 @@ void UMHAnimNotify_WeaponSocketSwap::Notify(USkeletalMeshComponent* MeshComp, UA
     case EMHWeaponSocketSwapTarget::ToBack:
         PlayerCharacter->Notify_AttachWeaponToBack();
         break;
+    case EMHWeaponSocketSwapTarget::ToNamedSocket:
+        PlayerCharacter->Notify_AttachWeaponToSocket(SocketName);
+        break;
     default:
         break;
     }
