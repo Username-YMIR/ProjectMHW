@@ -27,6 +27,16 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category="Attributes|Player", ReplicatedUsing=OnRep_MaxStamina)
 	FGameplayAttributeData MaxStamina;
 	ATTRIBUTE_ACCESSORS(UMHPlayerAttributeSet, MaxStamina)
+	
+	UPROPERTY(BlueprintReadOnly, Category="Attributes|Player", ReplicatedUsing=OnRep_Sharpness)
+	FGameplayAttributeData Sharpness;
+	ATTRIBUTE_ACCESSORS(UMHPlayerAttributeSet, Sharpness)
+
+	UPROPERTY(BlueprintReadOnly, Category="Attributes|Player", ReplicatedUsing=OnRep_MaxSharpness)
+	FGameplayAttributeData MaxSharpness;
+	ATTRIBUTE_ACCESSORS(UMHPlayerAttributeSet, MaxSharpness)
+
+
 
 protected:
 	UFUNCTION()
@@ -34,4 +44,10 @@ protected:
 
 	UFUNCTION()
 	void OnRep_MaxStamina(const FGameplayAttributeData& OldValue);
+	
+	UFUNCTION()
+	void OnRep_Sharpness(const FGameplayAttributeData& OldValue);
+
+	UFUNCTION()
+	void OnRep_MaxSharpness(const FGameplayAttributeData& OldValue);
 };

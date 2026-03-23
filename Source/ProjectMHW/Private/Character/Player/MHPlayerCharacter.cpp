@@ -230,6 +230,23 @@ void AMHPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AimHold, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_AimHoldStarted); //손승우 추가
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AimHold, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_AimHoldCompleted); //손승우 추가
     }
+    
+    // 아이템 사용 키 바인딩 _이건주
+    if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_ItemSelectSharpen))
+    {
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_ItemSelectSharpen, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_ItemSelectSharpen);
+    }
+
+    if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_ItemSelectPotion))
+    {
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_ItemSelectPotion, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_ItemSelectPotion);
+    }
+
+    if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_ItemUse))
+    {
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_ItemUse, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_ItemUseStarted);
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_ItemUse, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_ItemUseCompleted);
+    }
 
     // 입력 액션 자산과 별개로 디버그 피격 키를 직접 바인딩해서 간파/거합 검증에 사용한다.
     PlayerInputComponent->BindKey(EKeys::Four, IE_Pressed, this, &AMHPlayerCharacter::Input_DebugIncomingDamageKeyPressed);
@@ -969,7 +986,7 @@ void AMHPlayerCharacter::UnequipCurrentWeapon(bool bDestroyWeapon)
     CurrentWeaponTag = FGameplayTag();
     CurrentWeaponElementTag = FGameplayTag();
     CurrentSharpnessColor = EMHSharpnessColor::Red;
-    CurrentSharpnessValue = 0.0f;
+    // CurrentSharpnessValue = 0.0f;
 
     RefreshWeaponAnimationLayerState();
 }
@@ -1746,10 +1763,14 @@ void AMHPlayerCharacter::ApplyEquippedWeaponStatEffect()
 
     CurrentSharpnessColor = Stat.MaxSharpnessColor;
 
-    CurrentSharpnessValue = GetMaxSharpnessValueFromColor(
+    const float MaxSharpness = GetMaxSharpnessValueFromColor(
         Stat.SharpnessLength,
         Stat.MaxSharpnessColor
     );
+
+    AbilitySystemComponent->SetNumericAttributeBase(UMHPlayerAttributeSet::GetMaxSharpnessAttribute(), MaxSharpness);
+    AbilitySystemComponent->SetNumericAttributeBase(UMHPlayerAttributeSet::GetSharpnessAttribute(), MaxSharpness);
+    SyncSharpnessModifierAttribute();
 
     // -----------------------
     // 3. Element 저장
@@ -1812,28 +1833,15 @@ float AMHPlayerCharacter::GetMaxSharpnessValueFromColor(
 
 void AMHPlayerCharacter::ConsumeSharpness(float Amount)
 {
-    if (!EquippedWeapon)
-        return;
-
-    const FMHAttackStats& Stat = EquippedWeapon->GetAttackStats();
-
-    CurrentSharpnessValue -= Amount;
-
-    while (CurrentSharpnessValue <= 0.f)
+    if (!AbilitySystemComponent || !PlayerAttributeSet)
     {
-        if (!DowngradeSharpnessColor())
-        {
-            CurrentSharpnessValue = 0.f;
-            break;
-        }
-
-        CurrentSharpnessValue = GetMaxSharpnessValueFromColor(
-            Stat.SharpnessLength,
-            CurrentSharpnessColor
-        );
+        return;
     }
 
-    SyncSharpnessModifierAttribute();
+    const float NewSharpness = PlayerAttributeSet->GetSharpness() - Amount;
+    AbilitySystemComponent->SetNumericAttributeBase(UMHPlayerAttributeSet::GetSharpnessAttribute(), NewSharpness);
+
+    NormalizeSharpnessStateFromAttribute();
 }
 
 bool AMHPlayerCharacter::DowngradeSharpnessColor()
@@ -2991,7 +2999,22 @@ bool AMHPlayerCharacter::ApplyIncomingPlayerDamageSpec(
 void AMHPlayerCharacter::InitializeAbilitySystem()
 {
     Super::InitializeAbilitySystem();
+
+    if (AbilitySystemComponent)
+    {
+        if (SharpenAbilityClass && !AbilitySystemComponent->FindAbilitySpecFromClass(SharpenAbilityClass))
+        {
+            AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(SharpenAbilityClass, 1, INDEX_NONE, this));
+        }
+
+        if (PotionAbilityClass && !AbilitySystemComponent->FindAbilitySpecFromClass(PotionAbilityClass))
+        {
+            AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(PotionAbilityClass, 1, INDEX_NONE, this));
+        }
+    }
+
     BindAttributeDelegates();
+    BroadcastInitialAttributeSnapshot();
 }
 
 void AMHPlayerCharacter::BindAttributeDelegates()
@@ -3006,25 +3029,38 @@ void AMHPlayerCharacter::BindAttributeDelegates()
     ).AddUObject(this, &ThisClass::HandleHealthAttributeChanged);
 
     AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHHealthAttributeSet::GetMaxHealthAttribute()
+    ).AddUObject(this, &ThisClass::HandleMaxHealthAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHHealthAttributeSet::GetHealableHealthAttribute()
+    ).AddUObject(this, &ThisClass::HandleHealableHealthAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
         UMHPlayerAttributeSet::GetStaminaAttribute()
     ).AddUObject(this, &ThisClass::HandleStaminaAttributeChanged);
-    
-    //TODO: 예리도 기인 게이지  
-    
-    // AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
-    //     UMHHealthAttributeSet::GetMaxHealthAttribute()
-    // ).AddUObject(this, &ThisClass::HandleMaxHealthAttributeChanged);
-    //
-    // AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
-    //     UMHPlayerAttributeSet::GetMaxStaminaAttribute()
-    // ).AddUObject(this, &ThisClass::HandleMaxStaminaAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHPlayerAttributeSet::GetMaxStaminaAttribute()
+    ).AddUObject(this, &ThisClass::HandleMaxStaminaAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHPlayerAttributeSet::GetSharpnessAttribute()
+    ).AddUObject(this, &ThisClass::HandleShapnessAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHPlayerAttributeSet::GetMaxSharpnessAttribute()
+    ).AddUObject(this, &ThisClass::HandleMaxShapnessAttributeChanged);
 
     bAttributeDelegatesBound = true;
 }
 
 void AMHPlayerCharacter::BroadcastInitialAttributeSnapshot()
 {
-    //TODO: 이건주
+    OnHealthChanged.Broadcast(GetCurrentHealthValue(), GetMaxHealthValue());
+    OnHealableHealthChanged.Broadcast(GetCurrentHealableHealthValue(), GetMaxHealthValue());
+    OnStaminaChanged.Broadcast(GetCurrentStaminaValue(), GetMaxStaminaValue());
+    OnSharpnessChanged.Broadcast(GetCurrentSharpnessValue(), GetMaxSharpnessValue());
 }
 
 void AMHPlayerCharacter::HandleHealthAttributeChanged(const FOnAttributeChangeData& ChangeData)
@@ -3047,17 +3083,27 @@ void AMHPlayerCharacter::HandleMaxStaminaAttributeChanged(const FOnAttributeChan
     OnStaminaChanged.Broadcast(GetCurrentStaminaValue(), ChangeData.NewValue);
 }
 
+void AMHPlayerCharacter::HandleHealableHealthAttributeChanged(const FOnAttributeChangeData& ChangeData)
+{
+    OnHealableHealthChanged.Broadcast(ChangeData.NewValue, GetMaxHealthValue());
+}
+
 void AMHPlayerCharacter::HandleShapnessAttributeChanged(const FOnAttributeChangeData& ChangeData)
 {
-    //TODO: Getter 함수 추가 _이건주
-    // OnSharpnessChanged.Broadcast(ChangeData.NewValue, GetCurrentSharpnessGaugeValue());
+    if (!bSyncingSharpnessState)
+    {
+        NormalizeSharpnessStateFromAttribute();
+    }
+
+    OnSharpnessChanged.Broadcast(GetCurrentSharpnessValue(), GetMaxSharpnessValue());
 }
 
 void AMHPlayerCharacter::HandleMaxShapnessAttributeChanged(const FOnAttributeChangeData& ChangeData)
 {
-    //TODO: Getter 함수 추가 _이건주
-    // OnSharpnessChanged.Broadcast(ChangeData.NewValue, GetMaxSharpnessGaugeValue());
+    OnSharpnessChanged.Broadcast(GetCurrentSharpnessValue(), ChangeData.NewValue);
 }
+
+
 
 void AMHPlayerCharacter::HandleSpiritAttributeChanged(const FOnAttributeChangeData& ChangeData)
 {
@@ -3068,6 +3114,150 @@ void AMHPlayerCharacter::HandleSpiritAttributeChanged(const FOnAttributeChangeDa
 void AMHPlayerCharacter::HandleMaxSpiritAttributeChanged(const FOnAttributeChangeData& ChangeData)
 {
     OnSpiritGaugeChanged.Broadcast(ChangeData.NewValue, GetMaxSpiritGaugeValue());
+}
+
+
+#pragma endregion
+
+#pragma region Useable Item _이건주
+void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue&)
+{
+    SelectedConsumable = EMHConsumableSelection::Sharpen;
+}
+
+void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue&)
+{
+    SelectedConsumable = EMHConsumableSelection::Potion;
+}
+
+void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue&)
+{
+    bItemUseHeld = true;
+    TryUseSelectedItem();
+}
+
+void AMHPlayerCharacter::Input_ItemUseCompleted(const FInputActionValue&)
+{
+    bItemUseHeld = false;
+}
+
+void AMHPlayerCharacter::TryUseSelectedItem()
+{
+    if (!AbilitySystemComponent) return;
+
+    switch (SelectedConsumable)
+    {
+    case EMHConsumableSelection::Sharpen:
+        if (SharpenAbilityClass) AbilitySystemComponent->TryActivateAbilityByClass(SharpenAbilityClass);
+        break;
+    case EMHConsumableSelection::Potion:
+        if (PotionAbilityClass) AbilitySystemComponent->TryActivateAbilityByClass(PotionAbilityClass);
+        break;
+    default:
+        break;
+    }
+}
+
+EMHSharpnessColor AMHPlayerCharacter::GetLowerSharpnessColor(EMHSharpnessColor InColor) const
+{
+	switch (InColor)
+	{
+	case EMHSharpnessColor::White:  return EMHSharpnessColor::Blue;
+	case EMHSharpnessColor::Blue:   return EMHSharpnessColor::Green;
+	case EMHSharpnessColor::Green:  return EMHSharpnessColor::Yellow;
+	case EMHSharpnessColor::Yellow: return EMHSharpnessColor::Orange;
+	case EMHSharpnessColor::Orange: return EMHSharpnessColor::Red;
+	case EMHSharpnessColor::Red:
+	default:                        return EMHSharpnessColor::Red;
+	}
+}
+
+EMHSharpnessColor AMHPlayerCharacter::GetHigherSharpnessColor(EMHSharpnessColor InColor) const
+{
+	switch (InColor)
+	{
+	case EMHSharpnessColor::Red:    return EMHSharpnessColor::Orange;
+	case EMHSharpnessColor::Orange: return EMHSharpnessColor::Yellow;
+	case EMHSharpnessColor::Yellow: return EMHSharpnessColor::Green;
+	case EMHSharpnessColor::Green:  return EMHSharpnessColor::Blue;
+	case EMHSharpnessColor::Blue:   return EMHSharpnessColor::White;
+	case EMHSharpnessColor::White:
+	default:                        return EMHSharpnessColor::White;
+	}
+}
+
+bool AMHPlayerCharacter::CanUpgradeSharpnessColor() const
+{
+	if (!EquippedWeapon)
+	{
+		return false;
+	}
+
+	return CurrentSharpnessColor != EquippedWeapon->GetAttackStats().MaxSharpnessColor;
+}
+
+void AMHPlayerCharacter::NormalizeSharpnessStateFromAttribute()
+{
+	if (bSyncingSharpnessState || !AbilitySystemComponent || !PlayerAttributeSet || !EquippedWeapon)
+	{
+		return;
+	}
+
+	bSyncingSharpnessState = true;
+
+	const FMHAttackStats& Stat = EquippedWeapon->GetAttackStats();
+	float CurrentSharpness = PlayerAttributeSet->GetSharpness();
+	float CurrentSegmentMax = PlayerAttributeSet->GetMaxSharpness();
+
+	while (CurrentSharpness > CurrentSegmentMax && CanUpgradeSharpnessColor())
+	{
+		CurrentSharpness -= CurrentSegmentMax;
+		CurrentSharpnessColor = GetHigherSharpnessColor(CurrentSharpnessColor);
+		CurrentSegmentMax = GetMaxSharpnessValueFromColor(Stat.SharpnessLength, CurrentSharpnessColor);
+
+		AbilitySystemComponent->SetNumericAttributeBase(
+			UMHPlayerAttributeSet::GetMaxSharpnessAttribute(),
+			CurrentSegmentMax
+		);
+	}
+
+	while (CurrentSharpness <= 0.f && CurrentSharpnessColor != EMHSharpnessColor::Red)
+	{
+		CurrentSharpnessColor = GetLowerSharpnessColor(CurrentSharpnessColor);
+		CurrentSegmentMax = GetMaxSharpnessValueFromColor(Stat.SharpnessLength, CurrentSharpnessColor);
+		CurrentSharpness += CurrentSegmentMax;
+
+		AbilitySystemComponent->SetNumericAttributeBase(
+			UMHPlayerAttributeSet::GetMaxSharpnessAttribute(),
+			CurrentSegmentMax
+		);
+	}
+
+	CurrentSharpness = FMath::Clamp(CurrentSharpness, 0.f, CurrentSegmentMax);
+
+	AbilitySystemComponent->SetNumericAttributeBase(
+		UMHPlayerAttributeSet::GetSharpnessAttribute(),
+		CurrentSharpness
+	);
+
+	SyncSharpnessModifierAttribute();
+
+	bSyncingSharpnessState = false;
+}
+
+float AMHPlayerCharacter::GetCurrentHealableHealthValue() const
+{
+    return HealthAttributeSet ? FMath::Max(0.f, HealthAttributeSet->GetHealableHealth()) : 0.f;
+}
+
+float AMHPlayerCharacter::GetCurrentSharpnessValue() const
+{
+    return PlayerAttributeSet ? FMath::Max(0.f, PlayerAttributeSet->GetSharpness()) : 0.f;
+}
+
+float AMHPlayerCharacter::GetMaxSharpnessValue() const
+{
+    return PlayerAttributeSet ? FMath::Max(0.f, PlayerAttributeSet->GetMaxSharpness()) : 0.f;
 }
 
 

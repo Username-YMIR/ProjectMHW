@@ -10,25 +10,27 @@ UMHHealthAttributeSet::UMHHealthAttributeSet()
 {
 	InitMaxHealth(100.f);
 	InitHealth(100.f);
-
+	InitHealableHealth(0.f);
 	InitIncomingDamage(0.f);
 	InitIncomingHeal(0.f);
 }
 
 void UMHHealthAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
 {
-	Super::PreAttributeChange(Attribute, NewValue);
+    Super::PreAttributeChange(Attribute, NewValue);
 
-	if (Attribute == GetMaxHealthAttribute())
-	{
-		NewValue = FMath::Max(0.f, NewValue);
-	}
-	
-	if (Attribute == GetHealthAttribute())
-	{
-		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxHealth());
-	}
-
+    if (Attribute == GetMaxHealthAttribute())
+    {
+        NewValue = FMath::Max(0.f, NewValue);
+    }
+    else if (Attribute == GetHealthAttribute())
+    {
+        NewValue = FMath::Clamp(NewValue, 0.f, GetMaxHealth());
+    }
+    else if (Attribute == GetHealableHealthAttribute())
+    {
+        NewValue = FMath::Clamp(NewValue, 0.f, GetMaxHealth());
+    }
 }
 
 void UMHHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
@@ -54,27 +56,34 @@ void UMHHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCa
 
 	/* 회복 처리 */
 
-	if (Data.EvaluatedData.Attribute == GetIncomingHealAttribute())
+	else if (Data.EvaluatedData.Attribute == GetIncomingHealAttribute())
 	{
-		float Heal = GetIncomingHeal();
-
+		const float IncomingHealValue = GetIncomingHeal();
 		SetIncomingHeal(0.f);
 
-		if (Heal > 0.f)
+		if (IncomingHealValue > 0.f)
 		{
-			const float NewHealth = GetHealth() + Heal;
-			SetHealth(FMath::Clamp(NewHealth, 0.f, GetMaxHealth()));
+			const float MissingHealth = FMath::Max(0.f, GetMaxHealth() - GetHealth());
+			const float AppliedHeal = FMath::Min3(IncomingHealValue, GetHealableHealth(), MissingHealth);
+
+			if (AppliedHeal > 0.f)
+			{
+				SetHealth(FMath::Clamp(GetHealth() + AppliedHeal, 0.f, GetMaxHealth()));
+				SetHealableHealth(FMath::Max(0.f, GetHealableHealth() - AppliedHeal));
+			}
 		}
+	}
+	
+	else if (Data.EvaluatedData.Attribute == GetHealableHealthAttribute())
+	{
+		SetHealableHealth(FMath::Clamp(GetHealableHealth(), 0.f, GetMaxHealth()));
 	}
 
 	/* 사망 체크 */
 
-	if (Data.EvaluatedData.Attribute == GetHealthAttribute())
+	if (Data.EvaluatedData.Attribute == GetHealthAttribute() && GetHealth() <= 0.f)
 	{
-		if (GetHealth() <= 0.f)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Actor Died"));
-		}
+		UE_LOG(LogTemp, Warning, TEXT("Actor Died"));
 	}
 }
 
@@ -88,10 +97,17 @@ void UMHHealthAttributeSet::OnRep_MaxHealth(const FGameplayAttributeData& OldVal
 	GAMEPLAYATTRIBUTE_REPNOTIFY(UMHHealthAttributeSet, MaxHealth, OldValue);
 }
 
+void UMHHealthAttributeSet::OnRep_HealableHealth(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UMHHealthAttributeSet, HealableHealth, OldValue);
+}
+
+
 void UMHHealthAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
+	DOREPLIFETIME_CONDITION_NOTIFY(UMHHealthAttributeSet, HealableHealth, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UMHHealthAttributeSet, Health, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UMHHealthAttributeSet, MaxHealth, COND_None, REPNOTIFY_Always);
 }

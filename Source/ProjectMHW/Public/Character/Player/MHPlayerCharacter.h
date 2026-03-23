@@ -15,6 +15,15 @@ DECLARE_LOG_CATEGORY_EXTERN(LogMHPlayerCharacter, Log, All);
 // 어트리뷰트셋 값 변경 시 사용하는 델리게이트 _이건주
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMHOnVitalChanged, float, CurrentValue, float, MaxValue);
 
+// 소비템 선택
+UENUM(BlueprintType)
+enum class EMHConsumableSelection : uint8
+{
+    None,
+    Sharpen,
+    Potion
+};
+
 UENUM(BlueprintType)
 enum class EMHLongSwordCounterWindowType : uint8
 {
@@ -370,15 +379,7 @@ protected:
     // 현재 예리도 상태
     UPROPERTY(Transient)
     EMHSharpnessColor CurrentSharpnessColor;
-
-    UPROPERTY(Transient)
-    float CurrentSharpnessValue;
     
-    UPROPERTY(Transient)
-    float CurrentSharpnessLength;
-    
-    float GetCurrentSharpnessValue() const { return CurrentSharpnessValue; }
-    float GetCurrentSharpnessLength() const { return CurrentSharpnessLength; }    
     
     UPROPERTY(Transient)
     FGameplayTag CurrentWeaponElementTag;
@@ -780,4 +781,44 @@ protected:
     // 중복 바인딩 가드 플래그
     bool bAttributeDelegatesBound = false;
 #pragma endregion
+
+public:
+    // delegate 추가
+    UPROPERTY(BlueprintAssignable, Category="UI|Attributes")
+    FMHOnVitalChanged OnHealableHealthChanged;
+
+    bool IsItemUseHeld() const { return bItemUseHeld; }
+    float GetCurrentHealableHealthValue() const;
+    float GetCurrentSharpnessValue() const;
+    float GetMaxSharpnessValue() const;
+
+protected:
+    void Input_ItemSelectSharpen(const FInputActionValue& InputActionValue);
+    void Input_ItemSelectPotion(const FInputActionValue& InputActionValue);
+    void Input_ItemUseStarted(const FInputActionValue& InputActionValue);
+    void Input_ItemUseCompleted(const FInputActionValue& InputActionValue);
+    void HandleHealableHealthAttributeChanged(const FOnAttributeChangeData& ChangeData);
+    
+    void TryUseSelectedItem();
+   
+protected:
+    void NormalizeSharpnessStateFromAttribute();
+    EMHSharpnessColor GetLowerSharpnessColor(EMHSharpnessColor InColor) const;
+    EMHSharpnessColor GetHigherSharpnessColor(EMHSharpnessColor InColor) const;
+    bool CanUpgradeSharpnessColor() const;
+
+private:
+    bool bSyncingSharpnessState = false;
+    
+
+private:
+    EMHConsumableSelection SelectedConsumable = EMHConsumableSelection::Sharpen;
+    bool bItemUseHeld = false;
+
+    UPROPERTY(EditDefaultsOnly, Category="Ability|Items")
+    TSubclassOf<UGameplayAbility> SharpenAbilityClass;
+
+    UPROPERTY(EditDefaultsOnly, Category="Ability|Items")
+    TSubclassOf<UGameplayAbility> PotionAbilityClass;
+        
 };

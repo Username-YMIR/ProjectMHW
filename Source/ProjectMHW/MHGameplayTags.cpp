@@ -2,6 +2,12 @@
 
 namespace MHGameplayTags
 {
+#pragma region Event
+	UE_DEFINE_GAMEPLAY_TAG(Event_Item_SharpenStart, "Event.Item.SharpenStart");
+	UE_DEFINE_GAMEPLAY_TAG(Event_Item_Drink, "Event.Item.Drink");
+#pragma endregion
+	
+#pragma region Input
 	//Input Tags
 	UE_DEFINE_GAMEPLAY_TAG(Input_Move, "Input.Move");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Look, "Input.Look");
@@ -13,8 +19,15 @@ namespace MHGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Input_WeaponSpecial, "Input.Weapon.Special"); // 손승우 추가
 	UE_DEFINE_GAMEPLAY_TAG(Input_AttackSimultaneous, "Input.Attack.Simultaneous"); // 손승우 추가
 	UE_DEFINE_GAMEPLAY_TAG(Input_AimHold, "Input.Aim.Hold"); // 손승우 추가
-
 	
+	// 추가
+	UE_DEFINE_GAMEPLAY_TAG(Input_ItemSelectSharpen, "Input.Item.SelectSharpen");
+	UE_DEFINE_GAMEPLAY_TAG(Input_ItemSelectPotion, "Input.Item.SelectPotion");
+	UE_DEFINE_GAMEPLAY_TAG(Input_ItemUse, "Input.Item.Use");
+#pragma endregion
+
+
+#pragma region Element
 	//Element Tags (속성 태그)
 	UE_DEFINE_GAMEPLAY_TAG(Element,        "Element");
 	UE_DEFINE_GAMEPLAY_TAG(Element_Fire,   "Element.Fire");
@@ -22,6 +35,7 @@ namespace MHGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Element_Thunder,"Element.Thunder");
 	UE_DEFINE_GAMEPLAY_TAG(Element_Ice,    "Element.Ice");
 	UE_DEFINE_GAMEPLAY_TAG(Element_Dragon, "Element.Dragon");
+#pragma endregion
 
 	
 	

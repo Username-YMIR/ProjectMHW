@@ -4,6 +4,11 @@
 
 namespace MHGameplayTags
 {
+	// 아이템 이벤트 _이건주
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Item_SharpenStart);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Item_Drink);
+	
+#pragma region Input
 	// 이동 입력 태그
 	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Move);
 	// 시점 입력 태그
@@ -24,6 +29,16 @@ namespace MHGameplayTags
 	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_AttackSimultaneous); // 손승우 추가
 	// 조준/홀드 입력 태그 (C 홀드)
 	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_AimHold); // 손승우 추가
+	
+	
+	// 아이템 인풋 _이건주
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_ItemSelectSharpen);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_ItemSelectPotion);
+	PROJECTMHW_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_ItemUse);
+#pragma endregion
+
+
+
 
 	
 	//Element Tags (속성 태그)
