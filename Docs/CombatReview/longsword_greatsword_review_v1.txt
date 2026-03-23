@@ -1,0 +1,48 @@
+[버전 1] 핵심 이상점/수정 우선순위 요약
+기준: Source.zip(태도) + Source.05 snapshot 정리(대검)
+작성일: 2026-03-23
+
+0) 목적
+- 지금 당장 플레이 체감/디버깅 비용을 크게 만드는 문제를 빠르게 고치기 위한 1차 점검본.
+
+1) 태도(LS) 핵심 이슈
+1-1. FadeSlash 노드 브랜치 중복
+- 위치: MHLongSwordComboGraph.cpp
+- 현상: Move_LS_FadeSlash의 InputPattern_LS_ForesightSlash -> Move_LS_ForesightSlash가 중복 2회.
+- 영향: 런타임 치명도는 낮지만, 그래프 유지보수/의도 파악 혼선 발생.
+- 조치: 중복 1개 제거.
+
+1-2. AttackMeta 누락 시 기술 시작 허용
+- 위치: MHPlayerCharacter.cpp / CanStartLongSwordMove
+- 현상: FindAttackMetaRow 실패하면 true 반환.
+- 영향: 데이터 누락 상황에서 오히려 기술이 허용되어 자원 규칙(기인 게이지 소모)이 무력화될 수 있음.
+- 조치: 기본 false 처리 + 유틸리티 화이트리스트만 허용.
+
+1-3. 어빌리티 초기 실패 시 상태 플래그 정리 불균일
+- 위치: MHGA_LongSwordCombo.cpp / ActivateAbility
+- 현상: PlayNextMove 실패 시 Foresight 플래그만 clear.
+- 영향: 특수납도/헬름브레이커 준비/무료 라운드슬래시 보상 등 잔존 가능.
+- 조치: 실패 경로도 ClearAllLongSwordCounterSuccessFlags()로 통일.
+
+2) 대검(GS) 핵심 이슈
+2-1. 가드 해제 시 ActionState 조기 전환 가능성
+- 위치: MHGreatSwordActionComponent.cpp / HandleWeaponSpecialReleased
+- 현상: 버튼 release 즉시 Guarding -> Acting 전환.
+- 영향: guard_end 모션 중 입력 경합 가능(상태/애니 타이밍 불일치).
+- 조치: release 시 bGuardHeld만 false, 상태 전환은 Utility Montage 종료 시점으로 이관.
+
+2-2. 유틸리티 몽타주 재생 실패 롤백 부재
+- 위치: MHPlayerCharacter.cpp / TryPlayGreatSwordUtilityMontage
+- 현상: 재생 실패 시 PendingMove/ActionState 정리 없음.
+- 영향: Charging/Guarding 고착 등 비정상 상태 가능.
+- 조치: 실패 공통 롤백 루틴 추가(Neutral 복귀 + pending/버퍼 정리).
+
+3) 즉시 우선순위
+- P0: LS AttackMeta 누락 허용 차단(1-2), GS 유틸리티 실패 롤백(2-2)
+- P1: LS 실패 경로 플래그 통일(1-3), GS 가드 전환 타이밍 정렬(2-1)
+- P2: LS 중복 브랜치 정리(1-1)
+
+4) 기대효과
+- 데이터 누락으로 발생하는 잠복 버그 감소
+- 상태기계/애니메이션 타이밍 일치성 개선
+- 디버깅 로그와 재현성 향상

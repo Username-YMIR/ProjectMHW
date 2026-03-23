@@ -1,0 +1,47 @@
+[버전 3] QA 테스트 시나리오 중심 점검본
+기준: Source.zip(태도) + Source.05 snapshot 정리(대검)
+작성일: 2026-03-23
+
+1) 태도(LS) 테스트
+1-1. 데이터 누락 내성 테스트
+- 준비: AttackMetaTable에서 Move.LS.SpiritThrust row 임시 제거
+- 기대: SpiritThrust 시작 거부 + 명확한 경고 로그
+- 현재 추정: 시작 허용될 가능성(수정 필요)
+
+1-2. 실패 경로 플래그 잔존 테스트
+- 시나리오:
+  a) Foresight 성공으로 보상 플래그 세팅
+  b) 다음 입력 타이밍 꼬아서 PlayNextMove 실패 유도
+  c) 종료 후 새 콤보 진입
+- 기대: 모든 카운터/보상 플래그 초기화
+- 점검: ClearAllLongSwordCounterSuccessFlags 호출 여부
+
+1-3. 그래프 선언 정합성 테스트
+- 항목: Move_LS_FadeSlash branch 목록 중복 검사
+- 기대: 동일 Pattern->Move 항목 1개만 존재
+
+2) 대검(GS) 테스트
+2-1. 가드 해제 타이밍 경합 테스트
+- 시나리오:
+  a) Guard 유지
+  b) release 직후(guard_end 재생 중) 공격 입력 연타
+- 기대: guard_end 종료 이후 입력이 반영되거나, 정책적으로 일관된 처리
+- 점검: ActionState 전환 시점과 montage 종료 시점 일치
+
+2-2. 유틸리티 몽타주 누락 복구 테스트
+- 준비: MoveMontageMap에서 DrawDefaultCharge를 임시 비워 재생 실패 유도
+- 기대: 상태가 Neutral로 안전 복귀, 다음 입력 정상 수용
+- 현재 추정: 고착/잔류 가능성(수정 필요)
+
+3) 회귀 테스트 최소 세트
+- LS: DrawOnly -> AdvancingSlash -> Thrust -> RisingSlash 체인
+- LS: SpiritThrust 적중 후 Helmbreaker 허용/비허용 검증
+- GS: Sheathed Forward LMB 짧게(세로베기) / 길게(차지베기) 분기
+- GS: Charge -> Tackle -> 후속 family(Strong/TrueCharge) 검증
+- GS: 공격 후 롤 윈도우 4방향 분기 검증
+
+4) 합격 기준
+- 상태고착 0건
+- 데이터 누락 시 fail-fast 100%
+- 카운터/보상 플래그 누수 0건
+- 노드 브랜치 중복 0건
