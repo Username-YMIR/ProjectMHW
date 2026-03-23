@@ -41,6 +41,34 @@ enum class EMHGreatSwordBufferedInputType : uint8
     Simultaneous    UMETA(DisplayName = "Simultaneous")
 };
 
+
+struct FMHGreatSwordRuntimeSnapshot
+{
+    EMHGreatSwordActionState ActionState = EMHGreatSwordActionState::Neutral;
+    EMHGreatSwordChargeFamily ChargeFamily = EMHGreatSwordChargeFamily::None;
+    FGameplayTag PendingMoveTag;
+    FGameplayTag LastCommittedMoveTag;
+    FGameplayTag ActiveUtilityMoveTag;
+    EMHGreatSwordChargeFamily PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
+    EMHGreatSwordChargeFamily LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
+    int32 CurrentChargeLevel = 0;
+    int32 LastReleasedChargeLevel = 0;
+    EMHGreatSwordChargeFamily LastReleasedChargeFamily = EMHGreatSwordChargeFamily::None;
+    int32 ChargeSessionId = 0;
+    bool bChargeReleaseReady = false;
+    bool bChargeAutoReleaseRequested = false;
+    bool bChargeStartedFromSheathedForwardInput = false;
+    bool bGuardHeld = false;
+    bool bAttackRollWindowOpen = false;
+    bool bEarlyTransitionWindowOpen = false;
+    bool bChargeFollowUpWindowOpen = false;
+    FGameplayTag ChargeFollowUpSourceMoveTag;
+    bool bHasBufferedInput = false;
+    EMHGreatSwordBufferedInputType BufferedInputType = EMHGreatSwordBufferedInputType::None;
+    bool bBufferedForwardInput = false;
+    bool bBufferedSheathed = false;
+};
+
 UCLASS(ClassGroup=(Weapon), Blueprintable, BlueprintType, meta=(BlueprintSpawnableComponent))
 class PROJECTMHW_API UMHGreatSwordActionComponent : public UActorComponent
 {
@@ -84,6 +112,18 @@ public:
 
     // 현재 공격 후 4방향 구르기 윈도우가 열려 있는지 확인한다.
     bool IsAttackRollWindowOpen() const { return bAttackRollWindowOpen; }
+
+    // 조기 전환 또는 차지 후속 전이 윈도우가 열려 있는지 확인한다.
+    bool IsAnyTransitionWindowOpen() const;
+
+    // 현재 대검 런타임 상태를 백업한다.
+    void CaptureRuntimeSnapshot(FMHGreatSwordRuntimeSnapshot& OutSnapshot) const;
+
+    // 저장한 대검 런타임 상태를 복구한다.
+    void RestoreRuntimeSnapshot(const FMHGreatSwordRuntimeSnapshot& InSnapshot);
+
+    // 현재 문맥에서 대검 회피 입력을 해석한다.
+    bool HandleDodgePressed(bool bInSheathed, EMHDirectionalVariant InDirectionalVariant);
 
     // 현재 대검 액션 상태를 조회한다.
     EMHGreatSwordActionState GetActionState() const { return ActionState; }

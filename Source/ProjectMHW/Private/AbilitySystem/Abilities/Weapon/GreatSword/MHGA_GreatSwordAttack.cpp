@@ -85,6 +85,10 @@ void UMHGA_GreatSwordAttack::ActivateAbility(
     MontageTask->OnCompleted.AddDynamic(this, &UMHGA_GreatSwordAttack::OnMontageCompleted);
     MontageTask->OnInterrupted.AddDynamic(this, &UMHGA_GreatSwordAttack::OnMontageInterrupted);
     MontageTask->OnCancelled.AddDynamic(this, &UMHGA_GreatSwordAttack::OnMontageInterrupted);
+
+    // 실제 공격 기술 재생 준비가 끝난 뒤에만 발도 상태를 확정한다.
+    CachedPlayer->HandleComboMontageStateTransition(false);
+
     MontageTask->ReadyForActivation();
 }
 

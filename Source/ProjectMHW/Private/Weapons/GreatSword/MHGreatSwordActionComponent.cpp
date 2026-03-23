@@ -13,6 +13,106 @@ UMHGreatSwordActionComponent::UMHGreatSwordActionComponent()
     PrimaryComponentTick.bStartWithTickEnabled = false;
 }
 
+
+bool UMHGreatSwordActionComponent::IsAnyTransitionWindowOpen() const
+{
+    return bEarlyTransitionWindowOpen || bChargeFollowUpWindowOpen;
+}
+
+void UMHGreatSwordActionComponent::CaptureRuntimeSnapshot(FMHGreatSwordRuntimeSnapshot& OutSnapshot) const
+{
+    OutSnapshot.ActionState = ActionState;
+    OutSnapshot.ChargeFamily = ChargeFamily;
+    OutSnapshot.PendingMoveTag = PendingMoveTag;
+    OutSnapshot.LastCommittedMoveTag = LastCommittedMoveTag;
+    OutSnapshot.ActiveUtilityMoveTag = ActiveUtilityMoveTag;
+    OutSnapshot.PendingPostTackleChargeFamily = PendingPostTackleChargeFamily;
+    OutSnapshot.LastTackleSourceChargeFamily = LastTackleSourceChargeFamily;
+    OutSnapshot.CurrentChargeLevel = CurrentChargeLevel;
+    OutSnapshot.LastReleasedChargeLevel = LastReleasedChargeLevel;
+    OutSnapshot.LastReleasedChargeFamily = LastReleasedChargeFamily;
+    OutSnapshot.ChargeSessionId = ChargeSessionId;
+    OutSnapshot.bChargeReleaseReady = bChargeReleaseReady;
+    OutSnapshot.bChargeAutoReleaseRequested = bChargeAutoReleaseRequested;
+    OutSnapshot.bChargeStartedFromSheathedForwardInput = bChargeStartedFromSheathedForwardInput;
+    OutSnapshot.bGuardHeld = bGuardHeld;
+    OutSnapshot.bAttackRollWindowOpen = bAttackRollWindowOpen;
+    OutSnapshot.bEarlyTransitionWindowOpen = bEarlyTransitionWindowOpen;
+    OutSnapshot.bChargeFollowUpWindowOpen = bChargeFollowUpWindowOpen;
+    OutSnapshot.ChargeFollowUpSourceMoveTag = ChargeFollowUpSourceMoveTag;
+    OutSnapshot.bHasBufferedInput = bHasBufferedInput;
+    OutSnapshot.BufferedInputType = BufferedInputType;
+    OutSnapshot.bBufferedForwardInput = bBufferedForwardInput;
+    OutSnapshot.bBufferedSheathed = bBufferedSheathed;
+}
+
+void UMHGreatSwordActionComponent::RestoreRuntimeSnapshot(const FMHGreatSwordRuntimeSnapshot& InSnapshot)
+{
+    ActionState = InSnapshot.ActionState;
+    ChargeFamily = InSnapshot.ChargeFamily;
+    PendingMoveTag = InSnapshot.PendingMoveTag;
+    LastCommittedMoveTag = InSnapshot.LastCommittedMoveTag;
+    ActiveUtilityMoveTag = InSnapshot.ActiveUtilityMoveTag;
+    PendingPostTackleChargeFamily = InSnapshot.PendingPostTackleChargeFamily;
+    LastTackleSourceChargeFamily = InSnapshot.LastTackleSourceChargeFamily;
+    CurrentChargeLevel = InSnapshot.CurrentChargeLevel;
+    LastReleasedChargeLevel = InSnapshot.LastReleasedChargeLevel;
+    LastReleasedChargeFamily = InSnapshot.LastReleasedChargeFamily;
+    ChargeSessionId = InSnapshot.ChargeSessionId;
+    bChargeReleaseReady = InSnapshot.bChargeReleaseReady;
+    bChargeAutoReleaseRequested = InSnapshot.bChargeAutoReleaseRequested;
+    bChargeStartedFromSheathedForwardInput = InSnapshot.bChargeStartedFromSheathedForwardInput;
+    bGuardHeld = InSnapshot.bGuardHeld;
+    bAttackRollWindowOpen = InSnapshot.bAttackRollWindowOpen;
+    bEarlyTransitionWindowOpen = InSnapshot.bEarlyTransitionWindowOpen;
+    bChargeFollowUpWindowOpen = InSnapshot.bChargeFollowUpWindowOpen;
+    ChargeFollowUpSourceMoveTag = InSnapshot.ChargeFollowUpSourceMoveTag;
+    bHasBufferedInput = InSnapshot.bHasBufferedInput;
+    BufferedInputType = InSnapshot.BufferedInputType;
+    bBufferedForwardInput = InSnapshot.bBufferedForwardInput;
+    bBufferedSheathed = InSnapshot.bBufferedSheathed;
+}
+
+bool UMHGreatSwordActionComponent::HandleDodgePressed(const bool bInSheathed, const EMHDirectionalVariant InDirectionalVariant)
+{
+    if (bInSheathed)
+    {
+        QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_RollFront, EMHGreatSwordActionState::Acting);
+        return true;
+    }
+
+    if (IsCharging())
+    {
+        return false;
+    }
+
+    if (IsGuarding())
+    {
+        bGuardHeld = false;
+        QueuePendingMove(ResolveDodgeMoveTag(false, InDirectionalVariant), EMHGreatSwordActionState::Acting);
+        return true;
+    }
+
+    if (ActionState == EMHGreatSwordActionState::Acting)
+    {
+        if (!bAttackRollWindowOpen)
+        {
+            return false;
+        }
+
+        QueuePendingMove(ResolveDodgeMoveTag(false, InDirectionalVariant), EMHGreatSwordActionState::Acting);
+        return true;
+    }
+
+    if (ActionState == EMHGreatSwordActionState::Neutral)
+    {
+        QueuePendingMove(ResolveDodgeMoveTag(false, InDirectionalVariant), EMHGreatSwordActionState::Acting);
+        return true;
+    }
+
+    return false;
+}
+
 bool UMHGreatSwordActionComponent::HandlePrimaryPressed(const bool bInForwardInput, const bool bInSheathed)
 {
     if (IsCharging() || IsGuarding())
@@ -22,7 +122,7 @@ bool UMHGreatSwordActionComponent::HandlePrimaryPressed(const bool bInForwardInp
 
     if (ActionState == EMHGreatSwordActionState::Acting)
     {
-        if (!bEarlyTransitionWindowOpen)
+        if (!IsAnyTransitionWindowOpen())
         {
             BufferInput(EMHGreatSwordBufferedInputType::Primary, bInForwardInput, bInSheathed);
             return true;
@@ -75,7 +175,7 @@ bool UMHGreatSwordActionComponent::HandleSecondaryPressed()
 
     if (ActionState == EMHGreatSwordActionState::Acting)
     {
-        if (!bEarlyTransitionWindowOpen)
+        if (!IsAnyTransitionWindowOpen())
         {
             BufferInput(EMHGreatSwordBufferedInputType::Secondary, false, false);
             return true;
@@ -102,7 +202,7 @@ bool UMHGreatSwordActionComponent::HandleWeaponSpecialPressed(const bool bInShea
 
     if (ActionState == EMHGreatSwordActionState::Acting)
     {
-        if (!bEarlyTransitionWindowOpen)
+        if (!IsAnyTransitionWindowOpen())
         {
             BufferInput(EMHGreatSwordBufferedInputType::WeaponSpecial, false, bInSheathed);
             return true;
@@ -141,7 +241,7 @@ bool UMHGreatSwordActionComponent::HandleSimultaneousPressed()
 
     if (ActionState == EMHGreatSwordActionState::Acting)
     {
-        if (!bEarlyTransitionWindowOpen)
+        if (!IsAnyTransitionWindowOpen())
         {
             BufferInput(EMHGreatSwordBufferedInputType::Simultaneous, false, false);
             return true;
@@ -519,7 +619,7 @@ void UMHGreatSwordActionComponent::BufferInput(const EMHGreatSwordBufferedInputT
 
 bool UMHGreatSwordActionComponent::TryConsumeBufferedTransitionInput()
 {
-    if (!bHasBufferedInput || !bEarlyTransitionWindowOpen || ActionState != EMHGreatSwordActionState::Acting)
+    if (!bHasBufferedInput || !IsAnyTransitionWindowOpen() || ActionState != EMHGreatSwordActionState::Acting)
     {
         return false;
     }

@@ -252,6 +252,12 @@ public:
     // 기술 시작 전에 현재 기인 게이지로 진입 가능한지 확인한다.
     bool CanStartLongSwordMove(const FGameplayTag& InMoveTag) const;
 
+    // 현재 태도 기술이 공격 메타를 반드시 가져야 하는지 확인한다.
+    bool DoesLongSwordMoveRequireAttackMeta(const FGameplayTag& InMoveTag) const;
+
+    // 현재 태도 기술이 실제 DamageSpec을 만들어야 하는지 확인한다.
+    bool DoesLongSwordMoveBuildDamageSpec(const FGameplayTag& InMoveTag) const;
+
     // 태도 히트 성공 시 현재 공격 메타를 기준으로 카메라 쉐이크를 재생한다.
     void PlayLongSwordHitCameraShake(const FGameplayTag& InMoveTag) const;
 #pragma endregion
@@ -433,7 +439,12 @@ protected:
     void ConsumeSharpness(float Amount);
     // 예리도 단계 하락
     bool DowngradeSharpnessColor();
-    
+
+    // 현재 예리도 색상에 대응하는 전투 배율을 계산한다.
+    float ResolveSharpnessModifierFromColor(EMHSharpnessColor InColor) const;
+
+    // 현재 예리도 상태를 전투 어트리뷰트에 동기화한다.
+    void SyncSharpnessModifierToCombatAttribute();
 
 #pragma endregion
 
