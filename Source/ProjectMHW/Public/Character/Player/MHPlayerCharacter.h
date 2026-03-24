@@ -33,6 +33,8 @@ enum class EMHLongSwordCounterWindowType : uint8
     SpecialSheatheSpirit    UMETA(DisplayName = "SpecialSheatheSpirit")
 };
 
+enum class EMHHitResultType : uint8;
+
 class UMHHealthAttributeSet;
 class UMHCombatAttributeSet;
 class UMHResistanceAttributeSet;
@@ -403,6 +405,8 @@ protected:
     
 #pragma region Weapon Stat (GAS)_이건주
     // === Weapon Stat (GAS) ===
+public:
+    void HandleWeaponAttackHit(AActor* Target, AMHWeaponInstance* Weapon);
 protected:
 
     // 현재 장착 무기 스탯 GE 핸들
@@ -421,6 +425,8 @@ protected:
     UPROPERTY(Transient)
     float CurrentSharpnessValue = 0.0f;
     
+    UPROPERTY(Transient)
+    float CurrentSharpnessLength = 0.0f;
     
     UPROPERTY(Transient)
     FGameplayTag CurrentWeaponElementTag;

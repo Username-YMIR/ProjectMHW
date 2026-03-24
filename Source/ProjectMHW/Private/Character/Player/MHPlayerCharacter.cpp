@@ -224,6 +224,22 @@ void AMHPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
     }
 
     // 입력 액션 자산과 별개로 디버그 피격 키를 직접 바인딩해서 간파/거합 검증에 사용한다.
+    if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_ItemSelectSharpen))
+    {
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_ItemSelectSharpen, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_ItemSelectSharpen);
+    }
+
+    if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_ItemSelectPotion))
+    {
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_ItemSelectPotion, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_ItemSelectPotion);
+    }
+
+    if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_ItemUse))
+    {
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_ItemUse, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_ItemUseStarted);
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_ItemUse, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_ItemUseCompleted);
+    }
+
     PlayerInputComponent->BindKey(EKeys::Four, IE_Pressed, this, &AMHPlayerCharacter::Input_DebugIncomingDamageKeyPressed);
 }
 
@@ -2540,7 +2556,6 @@ bool AMHPlayerCharacter::DowngradeSharpnessColor()
     return false;
 }
 
-<<<<<<< HEAD
 float AMHPlayerCharacter::GetCurrentSharpnessValue() const
 {
     return FMath::Max(0.0f, CurrentSharpnessValue);
@@ -2573,9 +2588,6 @@ void AMHPlayerCharacter::HandleWeaponAttackHit(
     //     Weapon->OnAttackHit(Target);
     // }
 }
-
-=======
->>>>>>> dev/SW
 FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForPrimaryInput() const
 {
     using namespace MHInputPatternGameplayTags;
@@ -3663,7 +3675,20 @@ bool AMHPlayerCharacter::ApplyIncomingPlayerDamageSpec(
 void AMHPlayerCharacter::InitializeAbilitySystem()
 {
     Super::InitializeAbilitySystem();
+    if (AbilitySystemComponent && HasAuthority())
+    {
+        if (SharpenAbilityClass && !AbilitySystemComponent->FindAbilitySpecFromClass(SharpenAbilityClass))
+        {
+            AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(SharpenAbilityClass, 1, INDEX_NONE, this));
+        }
+
+        if (PotionAbilityClass && !AbilitySystemComponent->FindAbilitySpecFromClass(PotionAbilityClass))
+        {
+            AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(PotionAbilityClass, 1, INDEX_NONE, this));
+        }
+    }
     BindAttributeDelegates();
+    BroadcastInitialAttributeSnapshot();
 }
 
 void AMHPlayerCharacter::BindAttributeDelegates()
@@ -3678,8 +3703,20 @@ void AMHPlayerCharacter::BindAttributeDelegates()
     ).AddUObject(this, &ThisClass::HandleHealthAttributeChanged);
 
     AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHHealthAttributeSet::GetMaxHealthAttribute()
+    ).AddUObject(this, &ThisClass::HandleMaxHealthAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHHealthAttributeSet::GetHealableHealthAttribute()
+    ).AddUObject(this, &ThisClass::HandleHealableHealthAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
         UMHPlayerAttributeSet::GetStaminaAttribute()
     ).AddUObject(this, &ThisClass::HandleStaminaAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHPlayerAttributeSet::GetMaxStaminaAttribute()
+    ).AddUObject(this, &ThisClass::HandleMaxStaminaAttributeChanged);
     
     //TODO: 예리도 기인 게이지  
     
@@ -3696,6 +3733,9 @@ void AMHPlayerCharacter::BindAttributeDelegates()
 
 void AMHPlayerCharacter::BroadcastInitialAttributeSnapshot()
 {
+    OnHealthChanged.Broadcast(GetCurrentHealthValue(), GetMaxHealthValue());
+    OnHealableHealthChanged.Broadcast(GetCurrentHealableHealthValue(), GetMaxHealthValue());
+    OnStaminaChanged.Broadcast(GetCurrentStaminaValue(), GetMaxStaminaValue());
     //TODO: 이건주
 }
 
@@ -3719,6 +3759,11 @@ void AMHPlayerCharacter::HandleMaxStaminaAttributeChanged(const FOnAttributeChan
     OnStaminaChanged.Broadcast(GetCurrentStaminaValue(), ChangeData.NewValue);
 }
 
+void AMHPlayerCharacter::HandleHealableHealthAttributeChanged(const FOnAttributeChangeData& ChangeData)
+{
+    OnHealableHealthChanged.Broadcast(ChangeData.NewValue, GetMaxHealthValue());
+}
+
 void AMHPlayerCharacter::HandleShapnessAttributeChanged(const FOnAttributeChangeData& ChangeData)
 {
     //TODO: Getter 함수 추가 _이건주
@@ -3740,6 +3785,68 @@ void AMHPlayerCharacter::HandleSpiritAttributeChanged(const FOnAttributeChangeDa
 void AMHPlayerCharacter::HandleMaxSpiritAttributeChanged(const FOnAttributeChangeData& ChangeData)
 {
     OnSpiritGaugeChanged.Broadcast(ChangeData.NewValue, GetMaxSpiritGaugeValue());
+}
+
+void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue& InputActionValue)
+{
+    (void)InputActionValue;
+    SelectedConsumable = EMHConsumableSelection::Sharpen;
+}
+
+void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputActionValue)
+{
+    (void)InputActionValue;
+    SelectedConsumable = EMHConsumableSelection::Potion;
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Selected consumable: Potion"));
+}
+
+void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActionValue)
+{
+    (void)InputActionValue;
+    bItemUseHeld = true;
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Use started: selection=%d"), static_cast<uint8>(SelectedConsumable));
+    TryUseSelectedItem();
+}
+
+void AMHPlayerCharacter::Input_ItemUseCompleted(const FInputActionValue& InputActionValue)
+{
+    (void)InputActionValue;
+    bItemUseHeld = false;
+}
+
+void AMHPlayerCharacter::TryUseSelectedItem()
+{
+    if (!AbilitySystemComponent)
+    {
+        return;
+    }
+
+    switch (SelectedConsumable)
+    {
+    case EMHConsumableSelection::Sharpen:
+        if (SharpenAbilityClass)
+        {
+            AbilitySystemComponent->TryActivateAbilityByClass(SharpenAbilityClass);
+        }
+        break;
+    case EMHConsumableSelection::Potion:
+        if (PotionAbilityClass)
+        {
+            const bool bActivated = AbilitySystemComponent->TryActivateAbilityByClass(PotionAbilityClass);
+            UE_LOG(
+                LogMHPlayerCharacter,
+                Log,
+                TEXT("[Item] TryUseSelectedItem Potion: activated=%d HP=%.1f/%.1f Healable=%.1f"),
+                bActivated ? 1 : 0,
+                GetCurrentHealthValue(),
+                GetMaxHealthValue(),
+                GetCurrentHealableHealthValue()
+            );
+        }
+        break;
+    default:
+        break;
+    }
 }
 
 
