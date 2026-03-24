@@ -43,6 +43,8 @@ enum class EMHLongSwordResourceCommitType : uint8
     CounterSuccess
 };
 
+enum class EMHHitResultType : uint8;
+
 class UMHHealthAttributeSet;
 class UMHCombatAttributeSet;
 class UMHResistanceAttributeSet;
@@ -367,7 +369,7 @@ protected:
 #pragma region Weapon Stat (GAS)_이건주
     // === Weapon Stat (GAS) ===
 public:
-    void HandleWeaponAttackHit(AActor* Target, AMHWeaponInstance* Weapon);
+    EMHHitResultType HandleWeaponAttackHit(AActor* Target, AMHWeaponInstance* Weapon);
 protected:
 
     // 현재 장착 무기 스탯 GE 핸들
@@ -404,6 +406,8 @@ protected:
     void RefreshEquippedWeaponStatEffect();
     // 예리도 값
     float GetMaxSharpnessValueFromColor(const FMHSharpnessData& Data, EMHSharpnessColor Color) const;
+    void SetSharpnessAttributeValues(float InCurrentSharpness, float InMaxSharpness);
+    void UpdateSharpnessModifierFromCurrentColor();
     
     // 예리도 소모
     void ConsumeSharpness(float Amount);
@@ -791,6 +795,7 @@ public:
     float GetCurrentHealableHealthValue() const;
     float GetCurrentSharpnessValue() const;
     float GetMaxSharpnessValue() const;
+    void RefreshSharpnessState();
 
 protected:
     void Input_ItemSelectSharpen(const FInputActionValue& InputActionValue);
