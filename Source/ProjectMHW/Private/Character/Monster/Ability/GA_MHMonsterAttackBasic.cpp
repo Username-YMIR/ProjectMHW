@@ -15,6 +15,10 @@ UGA_MHMonsterAttackBasic::UGA_MHMonsterAttackBasic()
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalOnly;
 	
+	ActivationBlockedTags.AddTag(MHGameplayTags::State_Monster_Roaring);
+	ActivationBlockedTags.AddTag(MHGameplayTags::State_Monster_Attacking);
+	ActivationBlockedTags.AddTag(MHGameplayTags::State_Monster_PhaseTransition);
+	
 	AbilityTags.AddTag(MHGameplayTags::Ability_Monster_Attack_Basic);
 
 	// 어빌리티 활성 중 자동 부여
@@ -50,6 +54,15 @@ void UGA_MHMonsterAttackBasic::ActivateAbility(const FGameplayAbilitySpecHandle 
 
     const FGameplayTag ResolvedAttackTag = ResolveAttackTag(Handle, ActorInfo);
 
+	const FGameplayTag ChargeP2Tag =
+	FGameplayTag::RequestGameplayTag(FName("Ability.Monster.Attack.Charge.P2"));
+
+	if (ResolvedAttackTag == ChargeP2Tag)
+	{
+		Monster->PrepareChargeP2Landing();
+	}
+	
+	
     FMonsterAbilityEntry AbilityEntry;
     UAnimMontage* MontageToPlay = AttackMontage; // fallback
 

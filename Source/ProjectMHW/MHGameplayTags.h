@@ -78,6 +78,9 @@ namespace MHGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Combat);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Dead);
 	
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_PhaseTransition);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Phase2);
+	
 	
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Attacking);	// 근거리 패턴
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Monster_Charging);		// 원거리 돌진 
@@ -89,7 +92,8 @@ namespace MHGameplayTags
 	// Attack
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Monster_Attack_Basic);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Monster_Attack_Charge);
-	
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Monster_Attack_Basic_P2);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Monster_Attack_Charge_P2);
 	
 #pragma endregion
 	
