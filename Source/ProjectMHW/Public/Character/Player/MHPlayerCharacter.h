@@ -52,6 +52,9 @@ class UDataTable;
 class AMHWeaponInstance;
 class AMHGreatSwordInstance;
 class UMHGreatSwordActionComponent;
+class UMHGA_Potion;
+class UNiagaraComponent;
+class UNiagaraSystem;
 struct FInputActionValue;
 struct FMHAttackDefinitionRow;
 struct FMHAttackMetaRow;
@@ -339,6 +342,26 @@ public:
         const FHitResult& HitResult
     ) override;
 
+    virtual bool CanReceiveDamage(
+        AActor* SourceActor,
+        FGameplayTag AttackTag,
+        const FGameplayEffectSpecHandle& DamageSpecHandle,
+        const FHitResult& HitResult
+    ) const override;
+
+    virtual void HandleDamageAccepted(
+        AActor* SourceActor,
+        AActor* SourceWeapon,
+        FGameplayTag AttackTag,
+        const FHitResult& HitResult
+    ) override;
+
+    virtual bool IsDead() const override;
+    virtual void HandleDeath() override;
+
+    void BeginPotionUse(UMHGA_Potion* InPotionAbility);
+    void EndPotionUse(UMHGA_Potion* InPotionAbility);
+
     bool TryStartAutoSheatheAfterLongSwordMove(const FGameplayTag& CompletedMoveTag);
 
     /**
@@ -401,6 +424,24 @@ protected:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
     TSoftObjectPtr<UAnimMontage> SheathedRollMontage; // 납도 구르기 몽타주(루트모션)
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|HitReact", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UAnimMontage> DamageHitReactMontage;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Death", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UAnimMontage> DeathMontage;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Status|Burn", meta = (AllowPrivateAccess = "true"))
+    TSoftObjectPtr<UNiagaraSystem> BurningLoopNiagara;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Status|Burn", meta = (AllowPrivateAccess = "true"))
+    float BurnDamagePerTick = 5.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Status|Burn", meta = (AllowPrivateAccess = "true"))
+    float BurnTickInterval = 1.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Status|Burn", meta = (AllowPrivateAccess = "true"))
+    int32 BurnRequiredRollCount = 3;
 #pragma endregion
     
 #pragma region Weapon Stat (GAS)_이건주
@@ -535,6 +576,36 @@ protected:
 #pragma endregion
 
 private:
+    bool bDamageHitReactMontagePlaying = false;
+    bool bDamageHitReactInputLocked = false;
+    bool bPotionInUse = false;
+    bool bDeathStateActive = false;
+    bool bBurningActive = false;
+
+    int32 BurnRollCount = 0;
+
+    UAnimMontage* ActiveDamageHitReactMontage = nullptr;
+    UAnimMontage* ActiveDeathMontage = nullptr;
+    TWeakObjectPtr<UMHGA_Potion> ActivePotionAbility;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UNiagaraComponent> BurningLoopNiagaraComponent;
+
+    FTimerHandle BurnDamageTimerHandle;
+
+    bool IsDamageHitReactActive() const;
+    bool ResolveDamageHitReactFacingYaw(AActor* SourceActor, const FHitResult& HitResult, FRotator& OutFacingRotation) const;
+    bool TryPlayDamageHitReactMontage(AActor* SourceActor, const FHitResult& HitResult);
+    bool TryPlayDeathMontage();
+    void HandleDamageHitReactMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+    void HandleDeathMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+    void SetDamageHitReactInputLock(bool bEnable);
+    void CancelActivePotionUseOnDamageTaken();
+    void TryIgniteBurning();
+    void HandleBurnDamageTick();
+    void HandleBurnRollSucceeded();
+    void ClearBurningState();
+
     // 스프린트 입력 유지 여부
     bool bSprintHeld = false;
 

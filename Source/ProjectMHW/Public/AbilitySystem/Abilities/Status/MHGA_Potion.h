@@ -16,6 +16,7 @@ class PROJECTMHW_API UMHGA_Potion : public UGameplayAbility
 
 public:
 	UMHGA_Potion();
+	void EndPotionByDamageTaken();
 
 protected:
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
@@ -33,6 +34,7 @@ protected:
 	void HandleMontageInterrupted();
 
 	void TickHeal();
+	void StopPotionHealingAndClearBuffer();
 
 	UPROPERTY(EditDefaultsOnly, Category="Potion")
 	TSubclassOf<UGameplayEffect> PotionHealableEffectClass;

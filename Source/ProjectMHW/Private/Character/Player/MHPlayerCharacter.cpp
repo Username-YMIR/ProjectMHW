@@ -10,6 +10,9 @@
 #include "Camera/CameraComponent.h"
 #include "Camera/mh_hit_enemy_camera_shake.h"
 #include "Camera/PlayerCameraManager.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
 #include "GameFramework/PlayerController.h"
 #include "Items/Instance/MHWeaponInstance.h"
 #include "Items/Instance/MHLongSwordInstance.h"
@@ -18,6 +21,7 @@
 #include "Weapons/GreatSword/MHGreatSwordActionComponent.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystem/Abilities/Weapon/LongSword/MHGA_LongSwordCombo.h"
+#include "AbilitySystem/Abilities/Status/MHGA_Potion.h"
 #include "GameplayTags/MHGreatSwordGameplayTags.h"
 #include "GameplayTags/MHCombatStateGameplayTags.h"
 #include "GameplayTags/MHInputPatternGameplayTags.h"
@@ -64,6 +68,16 @@ namespace
     }
 
     static FMHHitAcknowledge BuildLongSwordCounterAcknowledge()
+    {
+        FMHHitAcknowledge Result;
+        Result.bAcceptedHit = true;
+        Result.bConsumeHitOnce = true;
+        Result.bShouldStopAttackWindow = false;
+        Result.ResultType = EMHHitResultType::Invulnerable;
+        return Result;
+    }
+
+    static FMHHitAcknowledge BuildPlayerInvulnerableAcknowledge()
     {
         FMHHitAcknowledge Result;
         Result.bAcceptedHit = true;
@@ -251,6 +265,8 @@ void AMHPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
         OnCharacterMovementUpdated.RemoveDynamic(this, &AMHPlayerCharacter::HandleMovementUpdated);
     }
 
+    ClearBurningState();
+
     // 무기 해제 함수화 _ 이건주
     UnequipCurrentWeapon(false);
     
@@ -274,6 +290,12 @@ void AMHPlayerCharacter::HandleMovementUpdated(float DeltaSeconds, FVector OldLo
 
 void AMHPlayerCharacter::Input_Move(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        CachedMoveInput2D = FVector2D::ZeroVector;
+        return;
+    }
+
     const FVector2D MovementVector = InputActionValue.Get<FVector2D>();
     CachedMoveInput2D = MovementVector;
 
@@ -325,6 +347,11 @@ void AMHPlayerCharacter::Input_Look(const FInputActionValue& InputActionValue)
 
 void AMHPlayerCharacter::Input_SprintStarted(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     // 가만히 선 발도 상태에서는 Shift 입력을 납도로 사용한다. //손승우 수정
     if (CanStartSheathe())
     {
@@ -338,12 +365,22 @@ void AMHPlayerCharacter::Input_SprintStarted(const FInputActionValue& InputActio
 
 void AMHPlayerCharacter::Input_SprintCompleted(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     bSprintHeld = false;
     EvaluateSprintState();
 }
 
 void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     bDodgeHeld = true;
 
     if (IsGreatSwordEquipped())
@@ -409,6 +446,10 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
                 static_cast<int32>(LastResolvedDodgeVariant)
             );
         }
+        else
+        {
+            HandleBurnRollSucceeded();
+        }
         return;
     }
 
@@ -452,6 +493,11 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
 
 void AMHPlayerCharacter::Input_DodgeCompleted(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     bDodgeHeld = false;
 }
 
@@ -550,6 +596,11 @@ void AMHPlayerCharacter::ApplyDebugDamageFromSource(AActor* InSourceActor, float
 
 void AMHPlayerCharacter::Input_AttackPrimary(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     bAttackPrimaryHeld = true;
 
     if (IsGreatSwordEquipped())
@@ -563,6 +614,11 @@ void AMHPlayerCharacter::Input_AttackPrimary(const FInputActionValue& InputActio
 
 void AMHPlayerCharacter::Input_AttackPrimaryCompleted(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     bAttackPrimaryHeld = false;
 
     if (IsGreatSwordEquipped())
@@ -573,6 +629,11 @@ void AMHPlayerCharacter::Input_AttackPrimaryCompleted(const FInputActionValue& I
 
 void AMHPlayerCharacter::Input_AttackSecondary(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     bAttackSecondaryHeld = true;
 
     if (IsGreatSwordEquipped())
@@ -586,11 +647,21 @@ void AMHPlayerCharacter::Input_AttackSecondary(const FInputActionValue& InputAct
 
 void AMHPlayerCharacter::Input_AttackSecondaryCompleted(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     bAttackSecondaryHeld = false;
 }
 
 void AMHPlayerCharacter::Input_WeaponSpecial(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     bWeaponSpecialHeld = true;
 
     if (IsGreatSwordEquipped())
@@ -604,6 +675,11 @@ void AMHPlayerCharacter::Input_WeaponSpecial(const FInputActionValue& InputActio
 
 void AMHPlayerCharacter::Input_WeaponSpecialCompleted(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     bWeaponSpecialHeld = false;
 
     if (IsGreatSwordEquipped())
@@ -614,6 +690,11 @@ void AMHPlayerCharacter::Input_WeaponSpecialCompleted(const FInputActionValue& I
 
 void AMHPlayerCharacter::Input_AttackSimultaneous(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     if (IsGreatSwordEquipped())
     {
         TryHandleGreatSwordSimultaneousInput();
@@ -628,17 +709,32 @@ void AMHPlayerCharacter::Input_AttackSimultaneous(const FInputActionValue& Input
 
 void AMHPlayerCharacter::Input_AimHoldStarted(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     bAimHeld = true; //손승우 추가
 }
 
 void AMHPlayerCharacter::Input_AimHoldCompleted(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     bAimHeld = false; //손승우 추가
 }
 
 
 void AMHPlayerCharacter::UsePrimaryAction()
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     if (IsGreatSwordEquipped())
     {
         TryHandleGreatSwordPrimaryInput();
@@ -996,6 +1092,457 @@ void AMHPlayerCharacter::Notify_EndLongSwordCounterWindow(const EMHLongSwordCoun
     }
 }
 
+bool AMHPlayerCharacter::CanReceiveDamage(
+    AActor* SourceActor,
+    FGameplayTag AttackTag,
+    const FGameplayEffectSpecHandle& DamageSpecHandle,
+    const FHitResult& HitResult
+) const
+{
+    if (IsDamageHitReactActive())
+    {
+        return false;
+    }
+
+    return Super::CanReceiveDamage(SourceActor, AttackTag, DamageSpecHandle, HitResult);
+}
+
+bool AMHPlayerCharacter::IsDamageHitReactActive() const
+{
+    return bDamageHitReactMontagePlaying;
+}
+
+void AMHPlayerCharacter::BeginPotionUse(UMHGA_Potion* InPotionAbility)
+{
+    if (!InPotionAbility)
+    {
+        return;
+    }
+
+    bPotionInUse = true;
+    ActivePotionAbility = InPotionAbility;
+}
+
+void AMHPlayerCharacter::EndPotionUse(UMHGA_Potion* InPotionAbility)
+{
+    if (ActivePotionAbility.IsValid() && ActivePotionAbility.Get() != InPotionAbility)
+    {
+        return;
+    }
+
+    bPotionInUse = false;
+    ActivePotionAbility = nullptr;
+}
+
+void AMHPlayerCharacter::CancelActivePotionUseOnDamageTaken()
+{
+    if (!bPotionInUse)
+    {
+        return;
+    }
+
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[HitReact] 피격으로 포션 사용을 중단합니다."));
+
+    if (ActivePotionAbility.IsValid())
+    {
+        ActivePotionAbility->EndPotionByDamageTaken();
+    }
+
+    bPotionInUse = false;
+    ActivePotionAbility = nullptr;
+}
+
+void AMHPlayerCharacter::TryIgniteBurning()
+{
+    if (IsDead())
+    {
+        return;
+    }
+
+    if (!bBurningActive)
+    {
+        bBurningActive = true;
+        BurnRollCount = 0;
+
+        if (UWorld* World = GetWorld())
+        {
+            World->GetTimerManager().ClearTimer(BurnDamageTimerHandle);
+            World->GetTimerManager().SetTimer(
+                BurnDamageTimerHandle,
+                this,
+                &AMHPlayerCharacter::HandleBurnDamageTick,
+                FMath::Max(0.01f, BurnTickInterval),
+                true
+            );
+        }
+
+        if (!BurningLoopNiagaraComponent && !BurningLoopNiagara.IsNull() && GetMesh())
+        {
+            UNiagaraSystem* BurningSystem = BurningLoopNiagara.LoadSynchronous();
+            if (BurningSystem)
+            {
+                BurningLoopNiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
+                    BurningSystem,
+                    GetMesh(),
+                    NAME_None,
+                    FVector::ZeroVector,
+                    FRotator::ZeroRotator,
+                    EAttachLocation::KeepRelativeOffset,
+                    true
+                );
+            }
+        }
+
+        UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Burn] 플레이어가 불타는 상태에 진입했습니다."));
+        return;
+    }
+
+    if (!BurningLoopNiagaraComponent && !BurningLoopNiagara.IsNull() && GetMesh())
+    {
+        UNiagaraSystem* BurningSystem = BurningLoopNiagara.LoadSynchronous();
+        if (BurningSystem)
+        {
+            BurningLoopNiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
+                BurningSystem,
+                GetMesh(),
+                NAME_None,
+                FVector::ZeroVector,
+                FRotator::ZeroRotator,
+                EAttachLocation::KeepRelativeOffset,
+                true
+            );
+        }
+    }
+}
+
+void AMHPlayerCharacter::HandleBurnDamageTick()
+{
+    if (!bBurningActive)
+    {
+        return;
+    }
+
+    if (IsDead() || GetCurrentHealthValue() <= 0.0f)
+    {
+        ClearBurningState();
+        return;
+    }
+
+    UAbilitySystemComponent* TargetASC = GetCharacterASC();
+    if (!IsValid(TargetASC))
+    {
+        ClearBurningState();
+        return;
+    }
+
+    TSubclassOf<UGameplayEffect> DamageGEClass = PlayerIncomingDamageEffectClass;
+    if (!DamageGEClass)
+    {
+        DamageGEClass = UMHGameplayEffect_PlayerDamage::StaticClass();
+    }
+
+    if (!DamageGEClass)
+    {
+        return;
+    }
+
+    FGameplayEffectContextHandle EffectContext = TargetASC->MakeEffectContext();
+    EffectContext.AddInstigator(this, this);
+
+    const FGameplayEffectSpecHandle BurnDamageSpecHandle = TargetASC->MakeOutgoingSpec(DamageGEClass, 1.0f, EffectContext);
+    if (!BurnDamageSpecHandle.IsValid() || !BurnDamageSpecHandle.Data.IsValid())
+    {
+        return;
+    }
+
+    BurnDamageSpecHandle.Data->SetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Physical, FMath::Max(0.0f, BurnDamagePerTick));
+
+    static const FGameplayTag ElementDamageTags[] =
+    {
+        MHGameplayTags::Data_Damage_Fire,
+        MHGameplayTags::Data_Damage_Water,
+        MHGameplayTags::Data_Damage_Thunder,
+        MHGameplayTags::Data_Damage_Ice,
+        MHGameplayTags::Data_Damage_Dragon
+    };
+
+    for (const FGameplayTag& DamageTag : ElementDamageTags)
+    {
+        if (DamageTag.IsValid())
+        {
+            BurnDamageSpecHandle.Data->SetSetByCallerMagnitude(DamageTag, 0.0f);
+        }
+    }
+
+    const FActiveGameplayEffectHandle ActiveHandle = TargetASC->ApplyGameplayEffectSpecToSelf(*BurnDamageSpecHandle.Data.Get());
+    if (!ActiveHandle.WasSuccessfullyApplied())
+    {
+        return;
+    }
+
+    UE_LOG(LogMHPlayerCharacter, Verbose, TEXT("[Burn] 화상 데미지 적용. HP=%.1f/%.1f"), GetCurrentHealthValue(), GetMaxHealthValue());
+
+    if (GetCurrentHealthValue() <= 0.0f)
+    {
+        HandleDeath();
+    }
+}
+
+void AMHPlayerCharacter::HandleBurnRollSucceeded()
+{
+    if (!bBurningActive)
+    {
+        return;
+    }
+
+    ++BurnRollCount;
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Log,
+        TEXT("[Burn] 구르기 성공으로 화상 해제 카운트 증가. Count=%d / %d"),
+        BurnRollCount,
+        BurnRequiredRollCount
+    );
+
+    if (BurnRollCount >= FMath::Max(1, BurnRequiredRollCount))
+    {
+        ClearBurningState();
+    }
+}
+
+void AMHPlayerCharacter::ClearBurningState()
+{
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(BurnDamageTimerHandle);
+    }
+
+    if (BurningLoopNiagaraComponent)
+    {
+        BurningLoopNiagaraComponent->Deactivate();
+        BurningLoopNiagaraComponent->DestroyComponent();
+        BurningLoopNiagaraComponent = nullptr;
+    }
+
+    if (bBurningActive)
+    {
+        UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Burn] 화상 상태가 해제되었습니다."));
+    }
+
+    bBurningActive = false;
+    BurnRollCount = 0;
+}
+
+void AMHPlayerCharacter::SetDamageHitReactInputLock(bool bEnable)
+{
+    bDamageHitReactInputLocked = bEnable;
+
+    if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+    {
+        PlayerController->SetIgnoreMoveInput(bEnable);
+    }
+
+    if (bEnable)
+    {
+        bSprintHeld = false;
+        bIsSprinting = false;
+        bAimHeld = false;
+        bAttackPrimaryHeld = false;
+        bAttackSecondaryHeld = false;
+        bWeaponSpecialHeld = false;
+        bDodgeHeld = false;
+        bItemUseHeld = false;
+        CachedMoveInput2D = FVector2D::ZeroVector;
+
+        ApplyMovementProfile(EMHPlayerMoveProfile::Run);
+
+        if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+        {
+            MoveComp->StopMovementImmediately();
+        }
+    }
+}
+
+bool AMHPlayerCharacter::ResolveDamageHitReactFacingYaw(AActor* SourceActor, const FHitResult& HitResult, FRotator& OutFacingRotation) const
+{
+    FVector DirectionToSource = FVector::ZeroVector;
+
+    if (IsValid(SourceActor))
+    {
+        DirectionToSource = GetActorLocation() - SourceActor->GetActorLocation();
+    }
+    else if (!HitResult.ImpactPoint.IsNearlyZero())
+    {
+        DirectionToSource = GetActorLocation() - HitResult.ImpactPoint;
+    }
+
+    DirectionToSource.Z = 0.0f;
+    if (DirectionToSource.IsNearlyZero())
+    {
+        return false;
+    }
+
+    OutFacingRotation = DirectionToSource.Rotation();
+    OutFacingRotation.Pitch = 0.0f;
+    OutFacingRotation.Roll = 0.0f;
+    return true;
+}
+
+bool AMHPlayerCharacter::TryPlayDamageHitReactMontage(AActor* SourceActor, const FHitResult& HitResult)
+{
+    if (bDamageHitReactMontagePlaying || !DamageHitReactMontage)
+    {
+        return false;
+    }
+
+    UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
+    if (!AnimInstance)
+    {
+        return false;
+    }
+
+    FRotator FacingRotation = GetActorRotation();
+    if (ResolveDamageHitReactFacingYaw(SourceActor, HitResult, FacingRotation))
+    {
+        SetActorRotation(FacingRotation);
+    }
+
+    if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+    {
+        MoveComp->StopMovementImmediately();
+    }
+
+    const float PlayedLength = AnimInstance->Montage_Play(DamageHitReactMontage);
+    if (PlayedLength <= 0.0f)
+    {
+        return false;
+    }
+
+    ActiveDamageHitReactMontage = DamageHitReactMontage;
+    bDamageHitReactMontagePlaying = true;
+    SetDamageHitReactInputLock(true);
+
+    FOnMontageEnded EndDelegate;
+    EndDelegate.BindUObject(this, &AMHPlayerCharacter::HandleDamageHitReactMontageEnded);
+    AnimInstance->Montage_SetEndDelegate(EndDelegate, DamageHitReactMontage);
+
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[HitReact] 피격 몽타주 재생 시작"));
+    return true;
+}
+
+void AMHPlayerCharacter::HandleDamageHitReactMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+    if (Montage != ActiveDamageHitReactMontage)
+    {
+        return;
+    }
+
+    bDamageHitReactMontagePlaying = false;
+    ActiveDamageHitReactMontage = nullptr;
+    SetDamageHitReactInputLock(false);
+}
+
+bool AMHPlayerCharacter::TryPlayDeathMontage()
+{
+    if (ActiveDeathMontage || !DeathMontage)
+    {
+        return false;
+    }
+
+    UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
+    if (!AnimInstance)
+    {
+        return false;
+    }
+
+    const float PlayedLength = AnimInstance->Montage_Play(DeathMontage);
+    if (PlayedLength <= 0.0f)
+    {
+        return false;
+    }
+
+    ActiveDeathMontage = DeathMontage;
+
+    FOnMontageEnded EndDelegate;
+    EndDelegate.BindUObject(this, &AMHPlayerCharacter::HandleDeathMontageEnded);
+    AnimInstance->Montage_SetEndDelegate(EndDelegate, DeathMontage);
+
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Death] 사망 몽타주 재생 시작"));
+    return true;
+}
+
+void AMHPlayerCharacter::HandleDeathMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+    if (Montage != ActiveDeathMontage)
+    {
+        return;
+    }
+
+    ActiveDeathMontage = nullptr;
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Death] 사망 몽타주 종료"));
+}
+
+bool AMHPlayerCharacter::IsDead() const
+{
+    return bDeathStateActive || GetCurrentHealthValue() <= 0.0f;
+}
+
+void AMHPlayerCharacter::HandleDeath()
+{
+    if (bDeathStateActive)
+    {
+        return;
+    }
+
+    Super::HandleDeath();
+
+    bDeathStateActive = true;
+    CancelActivePotionUseOnDamageTaken();
+    ClearBurningState();
+
+    if (UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
+    {
+        if (ActiveDamageHitReactMontage)
+        {
+            UAnimMontage* PreviousHitReactMontage = ActiveDamageHitReactMontage;
+            ActiveDamageHitReactMontage = nullptr;
+            bDamageHitReactMontagePlaying = false;
+            AnimInstance->Montage_Stop(0.05f, PreviousHitReactMontage);
+        }
+    }
+
+    SetDamageHitReactInputLock(true);
+
+    if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+    {
+        MoveComp->StopMovementImmediately();
+        MoveComp->DisableMovement();
+    }
+
+    TryPlayDeathMontage();
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Death] 플레이어 사망 처리 시작"));
+}
+
+void AMHPlayerCharacter::HandleDamageAccepted(
+    AActor* SourceActor,
+    AActor* SourceWeapon,
+    FGameplayTag AttackTag,
+    const FHitResult& HitResult
+)
+{
+    Super::HandleDamageAccepted(SourceActor, SourceWeapon, AttackTag, HitResult);
+
+    CancelActivePotionUseOnDamageTaken();
+
+    if (GetCurrentHealthValue() <= 0.0f || IsDamageHitReactActive())
+    {
+        return;
+    }
+
+    TryPlayDamageHitReactMontage(SourceActor, HitResult);
+}
+
 FMHHitAcknowledge AMHPlayerCharacter::ReceiveDamageSpec_Implementation(
     AActor* SourceActor,
     AActor* SourceWeapon,
@@ -1003,7 +1550,10 @@ FMHHitAcknowledge AMHPlayerCharacter::ReceiveDamageSpec_Implementation(
     const FGameplayEffectSpecHandle& DamageSpecHandle,
     const FHitResult& HitResult)
 {
-    
+    const float IncomingFireDamage = DamageSpecHandle.IsValid() && DamageSpecHandle.Data.IsValid()
+        ? DamageSpecHandle.Data->GetSetByCallerMagnitude(MHGameplayTags::Data_Damage_Fire, false, 0.0f)
+        : 0.0f;
+
     if (!ValidateDamageSpec(DamageSpecHandle))
     {
         HandleDamageRejected(SourceActor, SourceWeapon, AttackTag, HitResult);
@@ -1011,6 +1561,11 @@ FMHHitAcknowledge AMHPlayerCharacter::ReceiveDamageSpec_Implementation(
     }
 
     ClearExpiredLongSwordDamageIgnoreState();
+
+    if (IsDamageHitReactActive())
+    {
+        return BuildPlayerInvulnerableAcknowledge();
+    }
 
     if (bIgnoreDamageUntilCurrentActionEnd)
     {
@@ -1054,7 +1609,14 @@ FMHHitAcknowledge AMHPlayerCharacter::ReceiveDamageSpec_Implementation(
         return BuildLongSwordInvulnerableHitAcknowledge();
     }
 
-    return Super::ReceiveDamageSpec_Implementation(SourceActor, SourceWeapon, AttackTag, DamageSpecHandle, HitResult);
+    const FMHHitAcknowledge HitAcknowledge = Super::ReceiveDamageSpec_Implementation(SourceActor, SourceWeapon, AttackTag, DamageSpecHandle, HitResult);
+
+    if (HitAcknowledge.bAcceptedHit && IncomingFireDamage > 0.0f && !IsDead())
+    {
+        TryIgniteBurning();
+    }
+
+    return HitAcknowledge;
 }
 
 bool AMHPlayerCharacter::TryStartAutoSheatheAfterLongSwordMove(const FGameplayTag& CompletedMoveTag)
@@ -2271,6 +2833,7 @@ bool AMHPlayerCharacter::TryPlayRollMontage(UAnimMontage* InMontage)
     }
 
     bRollMontagePlaying = true;
+    HandleBurnRollSucceeded();
 
     FOnMontageEnded EndDelegate;
     EndDelegate.BindUObject(this, &AMHPlayerCharacter::HandleRollMontageEnded);
@@ -3789,12 +4352,22 @@ void AMHPlayerCharacter::HandleMaxSpiritAttributeChanged(const FOnAttributeChang
 
 void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     (void)InputActionValue;
     SelectedConsumable = EMHConsumableSelection::Sharpen;
 }
 
 void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     (void)InputActionValue;
     SelectedConsumable = EMHConsumableSelection::Potion;
     UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Selected consumable: Potion"));
@@ -3802,6 +4375,11 @@ void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputAc
 
 void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     (void)InputActionValue;
     bItemUseHeld = true;
     UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Use started: selection=%d"), static_cast<uint8>(SelectedConsumable));
@@ -3810,12 +4388,22 @@ void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActi
 
 void AMHPlayerCharacter::Input_ItemUseCompleted(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     (void)InputActionValue;
     bItemUseHeld = false;
 }
 
 void AMHPlayerCharacter::TryUseSelectedItem()
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     if (!AbilitySystemComponent)
     {
         return;

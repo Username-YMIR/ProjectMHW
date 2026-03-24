@@ -15,6 +15,17 @@ UMHGA_Potion::UMHGA_Potion()
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 }
 
+void UMHGA_Potion::EndPotionByDamageTaken()
+{
+	if (!CurrentActorInfo)
+	{
+		return;
+	}
+
+	StopPotionHealingAndClearBuffer();
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+}
+
 void UMHGA_Potion::ActivateAbility(
 	const FGameplayAbilitySpecHandle Handle,
 	const FGameplayAbilityActorInfo* ActorInfo,
@@ -77,6 +88,7 @@ void UMHGA_Potion::ActivateAbility(
 	);
 
 	bDrinkTriggered = false;
+	Player->BeginPotionUse(this);
 
 	MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
 		this,
@@ -111,9 +123,11 @@ void UMHGA_Potion::EndAbility(
 	bool bReplicateEndAbility,
 	bool bWasCancelled)
 {
-	if (UWorld* World = GetWorld())
+	StopPotionHealingAndClearBuffer();
+
+	if (AMHPlayerCharacter* Player = Cast<AMHPlayerCharacter>(GetAvatarActorFromActorInfo()))
 	{
-		World->GetTimerManager().ClearTimer(HealTickTimerHandle);
+		Player->EndPotionUse(this);
 	}
 
 	if (MontageTask)
@@ -129,6 +143,21 @@ void UMHGA_Potion::EndAbility(
 	}
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+}
+
+void UMHGA_Potion::StopPotionHealingAndClearBuffer()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(HealTickTimerHandle);
+	}
+
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo())
+	{
+		ASC->SetNumericAttributeBase(UMHHealthAttributeSet::GetHealableHealthAttribute(), 0.f);
+	}
+
+	bDrinkTriggered = false;
 }
 
 void UMHGA_Potion::OnDrink(FGameplayEventData Payload)
