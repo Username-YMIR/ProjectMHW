@@ -5,6 +5,7 @@
 namespace MHCombatStateGameplayTags
 {
 	UE_DEFINE_GAMEPLAY_TAG(WeaponType_LongSword, "WeaponType.LongSword");
+	UE_DEFINE_GAMEPLAY_TAG(WeaponType_GreatSword, "WeaponType.GreatSword");
 	UE_DEFINE_GAMEPLAY_TAG(WeaponType_ChargeBlade, "WeaponType.ChargeBlade");
 	UE_DEFINE_GAMEPLAY_TAG(WeaponSheath_Sheathed, "WeaponSheath.Sheathed");
 	UE_DEFINE_GAMEPLAY_TAG(WeaponSheath_Unsheathing, "WeaponSheath.Unsheathing");

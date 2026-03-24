@@ -103,6 +103,57 @@ protected:
     bool BuildMonsterDamageSpec(float PhysicalDamage, FGameplayEffectSpecHandle& OutSpecHandle) const;
     
     
+    //todo 테스트용
+    UFUNCTION(BlueprintImplementableEvent, Category="Monster|Damage")
+    void BP_OnMonsterDamageAccepted(const FHitResult& HitResult, FGameplayTag AttackTag);
+    
+#pragma region P2Landing 
+public:
+    // ===== Charge P2 Landing =====
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    float ChargeP2ImpactOffsetFromTarget = 140.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    float ChargeP2MinTravelDistance = 250.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    float ChargeP2MaxTravelDistance = 900.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    float ChargeP2JumpZVelocity = 1000.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    float ChargeP2AirTime = 0.1f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    float ChargeP2MinXYLaunchSpeed = 100.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    float ChargeP2MaxXYLaunchSpeed = 500.f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    FVector CachedChargeP2LandingPoint = FVector::ZeroVector;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    bool bChargeP2LandingPrepared = false;
+
+    UFUNCTION(BlueprintCallable, Category="Monster|ChargeP2")
+    void PrepareChargeP2Landing();
+
+    UFUNCTION(BlueprintCallable, Category="Monster|ChargeP2")
+    void ExecuteChargeP2Jump();
+
+    UFUNCTION(BlueprintCallable, Category="Monster|ChargeP2")
+    void ExecuteChargeP2ImpactSnap();
+
+    UFUNCTION(BlueprintCallable, Category="Monster|ChargeP2")
+    void ClearChargeP2Landing();
+    
+    
+#pragma endregion
+    
+    
+    
 #pragma region DamageSystem_GJ
 public:
     virtual FMHHitAcknowledge ReceiveDamageSpec_Implementation(
@@ -143,7 +194,76 @@ protected:
     TSubclassOf<AMHDamageTextWidgetActor> DamageTextWidgetActorClass;
 #pragma endregion  
     
+#pragma region Grrogy
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Groggy")
+    bool bUseGroggy = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Groggy", meta=(ClampMin="0.0", ClampMax="1.0"))
+    float FirstGroggyHealthRatioThreshold = 0.7f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Groggy", meta=(ClampMin="0.0", ClampMax="1.0"))
+    float SecondGroggyHealthRatioThreshold = 0.3f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Groggy")
+    bool bFirstGroggyTriggered = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Groggy")
+    bool bSecondGroggyTriggered = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Groggy")
+    bool bGroggyPlaying = false;
+
+    void CheckGroggyTransition();
+    virtual void EnterGroggy(int32 GroggyIndex);
+
+    UFUNCTION(BlueprintImplementableEvent, Category="Monster|Groggy")
+    void BP_OnEnterGroggy(int32 GroggyIndex);
+
+    UFUNCTION(BlueprintCallable, Category="Monster|Groggy")
+    void FinishGroggy();
     
+    
+    
+#pragma endregion 
+    
+    
+    
+#pragma region Phase
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Phase")
+    bool bUsePhase2 = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Phase")
+    bool bPhase2Entered = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Phase", meta=(ClampMin="0.0", ClampMax="1.0"))
+    float Phase2HealthRatioThreshold = 0.5f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Phase")
+    float Phase2MoveSpeed = 450.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Phase")
+    FGameplayTag Phase2StateTag;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Phase")
+    bool bPhaseTransitionPlaying = false;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Phase")
+    FGameplayTag PhaseTransitionStateTag;
+    
+    void CheckPhaseTransition();
+    virtual void EnterPhase2();
+
+    UFUNCTION(BlueprintImplementableEvent, Category="Monster|Phase")
+    void BP_OnEnterPhase2();
+    
+    UFUNCTION(BlueprintCallable, Category="Monster|Phase")
+    void FinishPhase2Transition();
+
+public:
+    UFUNCTION(BlueprintPure, Category="Monster|Phase")
+    bool IsPhase2Entered() const { return bPhase2Entered; }
+
+#pragma endregion 
 
 protected:
     // =========================
@@ -161,7 +281,7 @@ protected:
     UFUNCTION(BlueprintPure, Category="Monster|State")
     bool HasDeadTag() const;
     
-    UFUNCTION(Blueprintable , Category="Monster|State")
+    UFUNCTION(BlueprintPure , Category="Monster|State")
     bool IsMonsterDead() const;
     
     UFUNCTION(BlueprintCallable, Category="Monster|Death")

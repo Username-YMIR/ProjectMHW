@@ -33,15 +33,7 @@ enum class EMHLongSwordCounterWindowType : uint8
     SpecialSheatheSpirit    UMETA(DisplayName = "SpecialSheatheSpirit")
 };
 
-// 태도 기술별 자원 반영 시점을 구분하기 위한 내부 enum
-UENUM()
-enum class EMHLongSwordResourceCommitType : uint8
-{
-    None,
-    FirstValidHit,
-    FinisherHit,
-    CounterSuccess
-};
+enum class EMHHitResultType : uint8;
 
 enum class EMHHitResultType : uint8;
 
@@ -60,6 +52,8 @@ class UAnimMontage;
 class UGameplayEffect;
 class UDataTable;
 class AMHWeaponInstance;
+class AMHGreatSwordInstance;
+class UMHGreatSwordActionComponent;
 struct FInputActionValue;
 struct FMHAttackDefinitionRow;
 struct FMHAttackMetaRow;
@@ -160,6 +154,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     void Notify_AttachWeaponToBack();
 
+    // 노티파이: 지정한 무기 소켓으로 이동
+    UFUNCTION(BlueprintCallable, Category = "Weapon")
+    void Notify_AttachWeaponToSocket(FName InSocketName);
+
     // 노티파이: 콤보 입력 윈도우 시작
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_BeginComboChainWindow();
@@ -183,6 +181,38 @@ public:
     // 노티파이: 입력 방향 기준 회전 조정 윈도우 종료
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_EndDirectionalTurnWindow();
+
+    // 노티파이: 대검 차징 단계 타이밍에 현재 차징 단계를 갱신한다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_GreatSwordChargeLevelReached(int32 InChargeLevel);
+
+    // 노티파이: 대검 최대 차징 시점에 자동 릴리즈를 요청한다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_GreatSwordChargeAutoRelease();
+
+    // 노티파이: 대검 공격 후 4방향 구르기 윈도우를 연다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_BeginGreatSwordAttackRollWindow();
+
+    // 노티파이: 대검 공격 후 4방향 구르기 윈도우를 닫는다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_EndGreatSwordAttackRollWindow();
+
+    // 노티파이: 대검 조기 전환 윈도우를 연다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_BeginGreatSwordEarlyTransitionWindow();
+
+    // 노티파이: 대검 조기 전환 윈도우를 닫는다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_EndGreatSwordEarlyTransitionWindow();
+
+    // 노티파이: 대검 다음 단계 차징 후속 윈도우를 연다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_BeginGreatSwordChargeFollowUpWindow(FGameplayTag InSourceMoveTag);
+
+    // 노티파이: 대검 다음 단계 차징 후속 윈도우를 닫는다.
+    UFUNCTION(BlueprintCallable, Category = "GreatSword")
+    void Notify_EndGreatSwordChargeFollowUpWindow();
     
     // 현재 장착 중인 무기 인스턴스 반환
     AMHWeaponInstance* GetEquippedWeapon() const { return EquippedWeapon; }
@@ -221,16 +251,25 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void ClearAllLongSwordCounterSuccessFlags();
 
-    // 태도 공격이 실제 유효 타격으로 확정된 순간 자원 반영을 처리한다.
+    // 태도 기술이 실제로 시작될 때 선소모 비용과 후속 권한 소모를 처리한다.
+    void Notify_LongSwordMoveStarted(const FGameplayTag& InMoveTag);
+
+    // 태도 공격이 실제 유효 타격으로 확정된 순간 히트 보상을 처리한다.
     void Notify_LongSwordAttackHitConfirmed(const FGameplayTag& InMoveTag);
 
-    // 태도 카운터 성공 시점에 자원 반영이 필요한 기술을 처리한다.
+    // 태도 카운터 성공 시점에 기술별 성공 보상을 처리한다.
     void Notify_LongSwordCounterCommitSuccess(EMHLongSwordCounterWindowType InCounterWindowType);
 
     // 현재 기인 레벨과 공격 메타를 반영한 최종 배율을 계산한다.
     float ResolveLongSwordDamageMultiplier(const FGameplayTag& InMoveTag) const;
     // 기술 시작 전에 현재 기인 게이지로 진입 가능한지 확인한다.
     bool CanStartLongSwordMove(const FGameplayTag& InMoveTag) const;
+
+    // 현재 태도 기술이 공격 메타를 반드시 가져야 하는지 확인한다.
+    bool DoesLongSwordMoveRequireAttackMeta(const FGameplayTag& InMoveTag) const;
+
+    // 현재 태도 기술이 실제 DamageSpec을 만들어야 하는지 확인한다.
+    bool DoesLongSwordMoveBuildDamageSpec(const FGameplayTag& InMoveTag) const;
 
     // 태도 히트 성공 시 현재 공격 메타를 기준으로 카메라 쉐이크를 재생한다.
     void PlayLongSwordHitCameraShake(const FGameplayTag& InMoveTag) const;
@@ -388,6 +427,8 @@ protected:
     UPROPERTY(Transient)
     float CurrentSharpnessValue = 0.0f;
     
+    UPROPERTY(Transient)
+    float CurrentSharpnessLength = 0.0f;
     
     UPROPERTY(Transient)
     FGameplayTag CurrentWeaponElementTag;
@@ -413,7 +454,12 @@ protected:
     void ConsumeSharpness(float Amount);
     // 예리도 단계 하락
     bool DowngradeSharpnessColor();
-    
+
+    // 현재 예리도 색상에 대응하는 전투 배율을 계산한다.
+    float ResolveSharpnessModifierFromColor(EMHSharpnessColor InColor) const;
+
+    // 현재 예리도 상태를 전투 어트리뷰트에 동기화한다.
+    void SyncSharpnessModifierToCombatAttribute();
 
 #pragma endregion
 
@@ -510,6 +556,8 @@ private:
     bool bLongSwordForesightCounterSuccess = false;
     bool bLongSwordSpecialSheatheSlashCounterSuccess = false;
     bool bLongSwordSpecialSheatheSpiritCounterSuccess = false;
+    bool bLongSwordSpiritThrustHelmbreakerReady = false;
+    bool bLongSwordForesightFreeSpiritRoundslashReady = false;
     bool bIgnoreDamageUntilCurrentActionEnd = false;
 
     EMHLongSwordCounterWindowType ActiveLongSwordCounterWindowType = EMHLongSwordCounterWindowType::None;
@@ -543,6 +591,12 @@ private:
 
     // 납도 상태 특수 진입 후 첫 몽타주 종료 대기 여부
     bool bPendingUnsheatheFromComboEntry = false; //손승우 추가
+
+    // 현재 재생 중인 대검 유틸리티 몽타주
+    UAnimMontage* ActiveGreatSwordUtilityMontage = nullptr;
+
+    // 현재 재생 중인 대검 유틸리티 기술 태그
+    FGameplayTag ActiveGreatSwordUtilityMoveTag;
 
     // 비주얼 적용
     void ApplyPlayerVisuals();
@@ -611,6 +665,9 @@ private:
     // 무기 발도 상태로 부착
     void AttachWeaponToHand();
 
+    // 지정한 캐릭터 소켓으로 무기를 부착
+    void AttachWeaponToSocket(const FName& InSocketName);
+
     // 좌클릭 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForPrimaryInput() const;
 
@@ -630,6 +687,46 @@ private:
     FGameplayTag ResolveLongSwordPatternForAttackSimultaneousInput() const;
 #pragma endregion
 
+
+// ===== GreatSwordInput =====
+protected:
+    // 현재 장착 무기가 대검인지 확인한다.
+    bool IsGreatSwordEquipped() const;
+
+    // 좌클릭 입력 시작을 대검 액션으로 변환한다.
+    bool TryHandleGreatSwordPrimaryInput();
+
+    // 좌클릭 입력 종료를 대검 차지 릴리즈로 변환한다.
+    bool TryHandleGreatSwordPrimaryRelease();
+
+    // 우클릭 입력을 대검 액션으로 변환한다.
+    bool TryHandleGreatSwordSecondaryInput();
+
+    // Mouse4 입력을 대검 액션으로 변환한다.
+    bool TryHandleGreatSwordWeaponSpecialInput();
+
+    // Mouse4 입력 해제 시 대검 가드 종료를 처리한다.
+    bool TryHandleGreatSwordWeaponSpecialRelease();
+
+    // Mouse5 입력을 대검 액션으로 변환한다.
+    bool TryHandleGreatSwordSimultaneousInput();
+
+    // 현재 대기 중인 대검 기술을 유틸리티/공격 실행으로 넘긴다.
+    bool TryExecuteGreatSwordPendingMove();
+
+    // 현재 대기 중인 대검 기술을 실제 어빌리티 실행으로 넘긴다.
+    bool TryActivateGreatSwordPrimaryAbility();
+
+    // 대검 차징/가드 유틸리티 몽타주를 직접 재생한다.
+    bool TryPlayGreatSwordUtilityMontage(const FGameplayTag& InMoveTag);
+
+    // 대검 유틸리티 몽타주 종료 시 런타임 상태를 정리한다.
+    void HandleGreatSwordUtilityMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+    // 대검 공격 후 4방향 구르기 문맥인지 확인한다.
+    bool IsGreatSwordAttackChainDodgeContext() const;
+// ===== End GreatSwordInput =====
+
 #pragma region LongSwordRuntimeFunctions
     bool IsLongSwordEquipped() const;
     bool HasMovementInputForCombat() const;
@@ -647,11 +744,14 @@ private:
     const FMHAttackDefinitionRow* FindAttackDefinitionRow(const FGameplayTag& InAttackTag) const;
     bool FindAttackMetaRow(const FGameplayTag& InMoveTag, FMHAttackMetaRow& OutAttackMetaRow) const;
 
-    // 기술 태그를 기준으로 자원을 언제 확정할지 결정한다.
-    EMHLongSwordResourceCommitType ResolveLongSwordResourceCommitType(const FGameplayTag& InMoveTag) const;
+    // 태도 기술 시작 시 선소모 게이지와 후속 권한 소모를 적용한다.
+    void ApplyLongSwordMoveStartCost(const FGameplayTag& InMoveTag);
 
-    // 확정 시점이 도달했을 때 게이지/기인 레벨 변화를 한곳에서 적용한다.
-    void CommitLongSwordResourceDelta(const FGameplayTag& InMoveTag, EMHLongSwordResourceCommitType InCommitType);
+    // 태도 공격 적중 시 기인 게이지 획득과 단계 보상을 적용한다.
+    void ApplyLongSwordMoveHitReward(const FGameplayTag& InMoveTag);
+
+    // 태도 카운터 성공 시 기술별 성공 보상을 적용한다.
+    void ApplyLongSwordCounterSuccessReward(const FGameplayTag& InMoveTag, EMHLongSwordCounterWindowType InCounterWindowType);
 
     float GetCurrentSpiritDamageMultiplier() const;
     

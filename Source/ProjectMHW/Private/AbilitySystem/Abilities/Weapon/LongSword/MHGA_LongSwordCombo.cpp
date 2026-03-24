@@ -123,16 +123,27 @@ void UMHGA_LongSwordCombo::RequestExternalEndAbility(bool bInWasCancelled)
 /** 현재 콤보 노드 기준 DamageSpec을 생성해서 무기 인스턴스에 전달 _이건주*/
 bool UMHGA_LongSwordCombo::PushDamageSpecToWeapon(const FMHLongSwordComboNode& InNode)
 {
-    UE_LOG(LogMHGALSCombo, Warning, TEXT("PushDamageSpecToWeapon"));
-    if (!CachedWeapon)
+    if (!CachedWeapon || !CachedPlayer)
     {
-        UE_LOG(LogMHGALSCombo, Warning, TEXT("CachedWeapon is not Valid"));
+        UE_LOG(LogMHGALSCombo, Warning, TEXT("태도 무기 또는 플레이어 캐시가 비어 있어 공격 데이터를 밀어넣지 못했습니다."));
         return false;
+    }
+
+    if (!CachedPlayer->DoesLongSwordMoveBuildDamageSpec(InNode.MoveTag))
+    {
+        CachedWeapon->ClearCurrentAttackData();
+
+        UE_LOG(
+            LogMHGALSCombo,
+            Verbose,
+            TEXT("태도 유틸리티 기술은 DamageSpec을 만들지 않습니다. Move=%s"),
+            *InNode.MoveTag.ToString()
+        );
+        return true;
     }
 
     FGameplayEffectSpecHandle DamageSpecHandle;
     FGameplayTag AttackTag;
-
     if (!BuildDamageSpecForNode(InNode, DamageSpecHandle, AttackTag))
     {
         UE_LOG(LogMHGALSCombo, Warning, TEXT("BuildDamageSpecForNode failed. Move=%s"), *InNode.MoveTag.ToString());
@@ -141,7 +152,6 @@ bool UMHGA_LongSwordCombo::PushDamageSpecToWeapon(const FMHLongSwordComboNode& I
 
     CachedWeapon->SetCurrentDamageSpec(DamageSpecHandle);
     CachedWeapon->SetCurrentAttackTag(AttackTag);
-
     return true;
 }
 
@@ -204,13 +214,18 @@ bool UMHGA_LongSwordCombo::BuildDamageSpecForNode(
     if (CachedPlayer)
     {
         NodeDamageMultiplier = CachedPlayer->ResolveLongSwordDamageMultiplier(InNode.MoveTag);
+        if (CachedPlayer->DoesLongSwordMoveRequireAttackMeta(InNode.MoveTag) && NodeDamageMultiplier <= 0.0f)
+        {
+            UE_LOG(LogMHGALSCombo, Warning, TEXT("공격 메타가 없어 DamageSpec 생성을 중단합니다. Move=%s"), *InNode.MoveTag.ToString());
+            return false;
+        }
     }
 
     const float FinalPhysicalDamage = SourcePhysicalAttack * GlobalPhysicalScale * NodeDamageMultiplier;
     const float FinalElementDamage = SourceElementAttack * GlobalElementScale * NodeDamageMultiplier;
     
     // 대미지 로그 _이건주
-    UE_LOG(LogTemp, Warning, TEXT("[DamageSpec Build] SourceAP=%.2f SourceElement=%.2f Move=%s FinalPhysical=%.2f FinalElement=%.2f"),
+    UE_LOG(LogMHGALSCombo, Verbose, TEXT("DamageSpec Build. SourceAP=%.2f SourceElement=%.2f Move=%s FinalPhysical=%.2f FinalElement=%.2f"),
     SourcePhysicalAttack,
     SourceElementAttack,
     *InNode.MoveTag.ToString(),
@@ -340,6 +355,10 @@ bool UMHGA_LongSwordCombo::PlayResolvedNode(const FMHLongSwordComboNode& InNode,
     MontageTask->OnCompleted.AddDynamic(this, &UMHGA_LongSwordCombo::OnMontageCompleted);
     MontageTask->OnInterrupted.AddDynamic(this, &UMHGA_LongSwordCombo::OnMontageInterrupted);
     MontageTask->OnCancelled.AddDynamic(this, &UMHGA_LongSwordCombo::OnMontageInterrupted);
+
+    // 태도 자원 선소모와 후속 권한 소모는 기술 시작 시점에 확정한다.
+    CachedPlayer->Notify_LongSwordMoveStarted(InNode.MoveTag);
+
     MontageTask->ReadyForActivation();
 
     ClearTransitionPollingTimer();
