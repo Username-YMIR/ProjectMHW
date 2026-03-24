@@ -49,6 +49,7 @@ void UMHPlayerStatusWidget::BindToPlayerCharacter()
 	// 아래 Delegate 이름은 PlayerCharacter 설계 예시에 맞춘 가정이다.
 	// 실제 프로젝트에 맞게 이름/시그니처만 조정하면 된다.
 	PlayerCharacter->OnHealthChanged.AddDynamic(this, &ThisClass::HandleHealthChanged);
+	PlayerCharacter->OnHealableHealthChanged.AddDynamic(this, &ThisClass::HandleHealableHealthChanged);
 	PlayerCharacter->OnSpiritGaugeChanged.AddDynamic(this, &ThisClass::HandleSpiritGaugeChanged);
 	PlayerCharacter->OnStaminaChanged.AddDynamic(this, &ThisClass::HandleStaminaChanged);
 	PlayerCharacter->OnSharpnessChanged.AddDynamic(this, &ThisClass::HandleSharpnessChanged);
@@ -62,6 +63,7 @@ void UMHPlayerStatusWidget::UnbindFromPlayerCharacter()
 	}
 
 	CachedPlayerCharacter->OnHealthChanged.RemoveDynamic(this, &ThisClass::HandleHealthChanged);
+	CachedPlayerCharacter->OnHealableHealthChanged.RemoveDynamic(this, &ThisClass::HandleHealableHealthChanged);
 	CachedPlayerCharacter->OnSpiritGaugeChanged.RemoveDynamic(this, &ThisClass::HandleSpiritGaugeChanged);
 	CachedPlayerCharacter->OnStaminaChanged.RemoveDynamic(this, &ThisClass::HandleStaminaChanged);
 	CachedPlayerCharacter->OnSharpnessChanged.RemoveDynamic(this, &ThisClass::HandleSharpnessChanged);
@@ -97,9 +99,15 @@ void UMHPlayerStatusWidget::SyncInitialValues()
 		PlayerCharacter->GetMaxStaminaValue()
 	);
 
-	// Sharpness는 실제 프로젝트 구조에 맞는 getter로 교체 필요
-	// 예시 값
-	SetSharpnessValues(100.f, 100.f);
+	SetSharpnessValues(
+		PlayerCharacter->GetCurrentSharpnessValue(),
+		PlayerCharacter->GetMaxSharpnessValue()
+	);
+
+	HandleHealableHealthChanged(
+		PlayerCharacter->GetCurrentHealableHealthValue(),
+		PlayerCharacter->GetMaxHealthValue()
+	);
 }
 
 void UMHPlayerStatusWidget::SetCurrentHealth(float InCurrentHealth)
@@ -231,6 +239,19 @@ void UMHPlayerStatusWidget::SetSharpnessValues(float InCurrentSharpness, float I
 void UMHPlayerStatusWidget::HandleHealthChanged(float InCurrentHealth, float InMaxHealth)
 {
 	SetHealthValues(InCurrentHealth, InMaxHealth);
+}
+
+void UMHPlayerStatusWidget::HandleHealableHealthChanged(float InHealableHealth, float InMaxHealth)
+{
+	if (HPBar)
+	{
+		const float FrontHealth = CachedPlayerCharacter.IsValid()
+			? CachedPlayerCharacter->GetCurrentHealthValue()
+			: 0.f;
+
+		HPBar->SetFrontValues(FrontHealth, InMaxHealth);
+		HPBar->SetBackValues(FrontHealth + InHealableHealth, InMaxHealth);
+	}
 }
 
 void UMHPlayerStatusWidget::HandleSpiritGaugeChanged(float InCurrentSpiritGauge, float InMaxSpiritGauge)

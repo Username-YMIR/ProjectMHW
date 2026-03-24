@@ -67,6 +67,9 @@ protected:
 	// PlayerCharacter UI Delegate 예시 핸들러
 	UFUNCTION()
 	void HandleHealthChanged(float InCurrentHealth, float InMaxHealth);
+	
+	UFUNCTION()
+	void HandleHealableHealthChanged(float InHealableHealth, float InMaxHealth);
 
 	UFUNCTION()
 	void HandleSpiritGaugeChanged(float InCurrentSpiritGauge, float InMaxSpiritGauge);

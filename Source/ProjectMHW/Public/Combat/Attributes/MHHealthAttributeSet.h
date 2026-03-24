@@ -38,6 +38,12 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category="Health", ReplicatedUsing=OnRep_MaxHealth)
 	FGameplayAttributeData MaxHealth;
 	ATTRIBUTE_ACCESSORS(UMHHealthAttributeSet, MaxHealth)
+	
+	// 회복 가능 체력
+UPROPERTY(BlueprintReadOnly, Category="Health", ReplicatedUsing=OnRep_HealableHealth)
+	FGameplayAttributeData HealableHealth;
+	ATTRIBUTE_ACCESSORS(UMHHealthAttributeSet, HealableHealth)
+
 
 	/* ExecutionCalculation에서 계산된 대미지 */
 
@@ -58,5 +64,8 @@ protected:
 
 	UFUNCTION()
 	void OnRep_MaxHealth(const FGameplayAttributeData& OldValue);
-
+	
+	UFUNCTION()
+	void OnRep_HealableHealth(const FGameplayAttributeData& OldValue);
+	
 };
