@@ -3000,7 +3000,7 @@ void AMHPlayerCharacter::InitializeAbilitySystem()
 {
     Super::InitializeAbilitySystem();
 
-    if (AbilitySystemComponent)
+    if (AbilitySystemComponent && HasAuthority())
     {
         if (SharpenAbilityClass && !AbilitySystemComponent->FindAbilitySpecFromClass(SharpenAbilityClass))
         {
@@ -3128,11 +3128,13 @@ void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue&)
 void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue&)
 {
     SelectedConsumable = EMHConsumableSelection::Potion;
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Selected consumable: Potion"));
 }
 
 void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue&)
 {
     bItemUseHeld = true;
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Use started: selection=%d"), static_cast<uint8>(SelectedConsumable));
     TryUseSelectedItem();
 }
 
@@ -3151,7 +3153,19 @@ void AMHPlayerCharacter::TryUseSelectedItem()
         if (SharpenAbilityClass) AbilitySystemComponent->TryActivateAbilityByClass(SharpenAbilityClass);
         break;
     case EMHConsumableSelection::Potion:
-        if (PotionAbilityClass) AbilitySystemComponent->TryActivateAbilityByClass(PotionAbilityClass);
+        if (PotionAbilityClass)
+        {
+            const bool bActivated = AbilitySystemComponent->TryActivateAbilityByClass(PotionAbilityClass);
+            UE_LOG(
+                LogMHPlayerCharacter,
+                Log,
+                TEXT("[Item] TryUseSelectedItem Potion: activated=%d HP=%.1f/%.1f Healable=%.1f"),
+                bActivated ? 1 : 0,
+                GetCurrentHealthValue(),
+                GetMaxHealthValue(),
+                GetCurrentHealableHealthValue()
+            );
+        }
         break;
     default:
         break;

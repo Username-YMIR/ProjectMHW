@@ -6,6 +6,8 @@
 #include "GameplayEffectExtension.h"
 #include "Net/UnrealNetwork.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogMHHealthAttributeSet, Log, All);
+
 UMHHealthAttributeSet::UMHHealthAttributeSet()
 {
 	InitMaxHealth(100.f);
@@ -71,6 +73,18 @@ void UMHHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCa
 				SetHealth(FMath::Clamp(GetHealth() + AppliedHeal, 0.f, GetMaxHealth()));
 				SetHealableHealth(FMath::Max(0.f, GetHealableHealth() - AppliedHeal));
 			}
+
+			UE_LOG(
+				LogMHHealthAttributeSet,
+				Log,
+				TEXT("[PotionAttr] IncomingHeal=%.1f Missing=%.1f AppliedHeal=%.1f ResultHP=%.1f/%.1f RemainingHealable=%.1f"),
+				IncomingHealValue,
+				MissingHealth,
+				AppliedHeal,
+				GetHealth(),
+				GetMaxHealth(),
+				GetHealableHealth()
+			);
 		}
 	}
 	
