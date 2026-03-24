@@ -986,6 +986,34 @@ void AMHMonsterCharacterBase::EnterGroggy(int32 GroggyIndex)
         GetCharacterMovement()->StopMovementImmediately();
     }
 
+    if (USkeletalMeshComponent* MeshComp = GetMesh())
+    {
+        if (UAnimInstance* AnimInst = MeshComp->GetAnimInstance())
+        {
+            if (GroggyMontage)
+            {
+                const float PlayedLen = AnimInst->Montage_Play(GroggyMontage, 1.0f);
+
+                if (PlayedLen <= 0.f)
+                {
+                    FinishGroggy();
+                }
+            }
+            else
+            {
+                FinishGroggy();
+            }
+        }
+        else
+        {
+            FinishGroggy();
+        }
+    }
+    else
+    {
+        FinishGroggy();
+    }
+
     BP_OnEnterGroggy(GroggyIndex);
     
 }

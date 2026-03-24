@@ -190,7 +190,10 @@ protected:
     TObjectPtr<UDataTable> AttackMetaTable = nullptr;
 #pragma endregion  
     
-#pragma region Grrogy
+#pragma region Groggy
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Monster|Groggy")
+    TObjectPtr<UAnimMontage> GroggyMontage = nullptr;
+    
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Groggy")
     bool bUseGroggy = true;
 
