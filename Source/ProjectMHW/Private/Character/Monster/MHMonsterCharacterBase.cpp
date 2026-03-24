@@ -1,7 +1,7 @@
 // 제작자 : 손승우
 // 제작일 : 2026-03-04
 // 수정자 : 허혁
-// 수정일 : 2026-03-13
+// 수정일 : 2026-03-24
 
 
 #include "Character/Monster/MHMonsterCharacterBase.h"
@@ -30,6 +30,8 @@ DEFINE_LOG_CATEGORY(MHMonsterCharacterBase)
 AMHMonsterCharacterBase::AMHMonsterCharacterBase()
 {
 
+    Phase2StateTag = FGameplayTag::RequestGameplayTag(TEXT("State.Monster.Phase2"));
+    PhaseTransitionStateTag = FGameplayTag::RequestGameplayTag(TEXT("State.Monster.PhaseTransition"));
     if (GetCharacterMovement())
     {
         GetCharacterMovement()->MaxWalkSpeed = 180.f;   //속도  테스트용
@@ -50,7 +52,11 @@ void AMHMonsterCharacterBase::BeginPlay()
 {
     Super::BeginPlay();
 
-    
+    UE_LOG(MHMonsterCharacterBase, Error,
+    TEXT("BeginPlay DeadCheck | Name=%s | HP=%.1f | HasDeadTag=%d"),
+    *GetName(),
+    HealthAttributeSets ? HealthAttributeSets->GetHealth() : -1.f,
+    HasDeadTag() ? 1 : 0);
     
     UE_LOG(MHMonsterCharacterBase, Warning, TEXT("BeginPlay | Enter"));
 
@@ -80,6 +86,23 @@ void AMHMonsterCharacterBase::BeginPlay()
 
 bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag AbilityTag)
 {
+    
+    if (bPhaseTransitionPlaying)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("TryActivateMonsterAbilityByTag | blocked, phase transitioning | Tag=%s"),
+            *AbilityTag.ToString());
+        return false;
+    }
+
+    if (AbilitySystemComponent &&
+        AbilitySystemComponent->HasMatchingGameplayTag(MHGameplayTags::State_Monster_PhaseTransition))
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("TryActivateMonsterAbilityByTag | blocked by PhaseTransition tag | Tag=%s"),
+            *AbilityTag.ToString());
+        return false;
+    }
     
     if (HasDeadTag())
     {
@@ -483,6 +506,165 @@ bool AMHMonsterCharacterBase::BuildMonsterDamageSpec(float PhysicalDamage,
 }
 
 
+void AMHMonsterCharacterBase::PrepareChargeP2Landing()
+{
+    bChargeP2LandingPrepared = false;
+
+    if (!CombatTarget)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PrepareChargeP2Landing | CombatTarget is null"));
+        return;
+    }
+
+    const FVector SelfLoc = GetActorLocation();
+    const FVector TargetLoc = CombatTarget->GetActorLocation();
+
+    FVector ToTargetDir = (TargetLoc - SelfLoc).GetSafeNormal2D();
+    if (ToTargetDir.IsNearlyZero())
+    {
+        ToTargetDir = GetActorForwardVector().GetSafeNormal2D();
+    }
+
+    // 플레이어 몸 정중앙이 아니라 살짝 앞쪽에 내려찍게
+    const FVector DesiredImpactLoc = TargetLoc - ToTargetDir * ChargeP2ImpactOffsetFromTarget;
+
+    FVector FlatDelta = DesiredImpactLoc - SelfLoc;
+    FlatDelta.Z = 0.f;
+
+    const float TravelDist = FMath::Clamp(
+        FlatDelta.Size2D(),
+        ChargeP2MinTravelDistance,
+        ChargeP2MaxTravelDistance
+    );
+
+    FVector LandingPoint = SelfLoc + ToTargetDir * TravelDist;
+
+    // 바닥으로 보정
+    FHitResult GroundHit;
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(ChargeP2GroundTrace), false, this);
+    Params.AddIgnoredActor(this);
+
+    const FVector TraceStart = LandingPoint + FVector(0.f, 0.f, 500.f);
+    const FVector TraceEnd   = LandingPoint - FVector(0.f, 0.f, 1200.f);
+
+    if (GetWorld() &&
+        GetWorld()->LineTraceSingleByChannel(
+            GroundHit,
+            TraceStart,
+            TraceEnd,
+            ECC_Visibility,
+            Params))
+    {
+        LandingPoint.Z = GroundHit.ImpactPoint.Z;
+    }
+    else
+    {
+        LandingPoint.Z = SelfLoc.Z;
+    }
+
+    CachedChargeP2LandingPoint = LandingPoint;
+    bChargeP2LandingPrepared = true;
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("PrepareChargeP2Landing | Target=%s Landing=(%.1f, %.1f, %.1f)"),
+        *GetNameSafe(CombatTarget),
+        CachedChargeP2LandingPoint.X,
+        CachedChargeP2LandingPoint.Y,
+        CachedChargeP2LandingPoint.Z);
+    
+}
+
+void AMHMonsterCharacterBase::ExecuteChargeP2Jump()
+{
+    if (!bChargeP2LandingPrepared)
+    {
+        PrepareChargeP2Landing();
+    }
+
+    if (!bChargeP2LandingPrepared)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ExecuteChargeP2Jump | landing not prepared"));
+        return;
+    }
+
+    if (AAIController* AIC = Cast<AAIController>(GetController()))
+    {
+        AIC->StopMovement();
+    }
+
+    if (GetCharacterMovement())
+    {
+        GetCharacterMovement()->StopMovementImmediately();
+    }
+
+    FaceCombatTargetInstant();
+
+    FVector FlatDelta = CachedChargeP2LandingPoint - GetActorLocation();
+    FlatDelta.Z = 0.f;
+
+    const float Dist2D = FlatDelta.Size2D();
+    if (Dist2D <= 10.f)
+    {
+        ExecuteChargeP2ImpactSnap();
+        return;
+    }
+
+    const FVector Dir2D = FlatDelta.GetSafeNormal();
+    const float XYSpeed = FMath::Clamp(
+        Dist2D / FMath::Max(ChargeP2AirTime, 0.01f),
+        ChargeP2MinXYLaunchSpeed,
+        ChargeP2MaxXYLaunchSpeed
+    );
+
+    //const FVector LaunchVelocity = Dir2D * XYSpeed + FVector(0.f, 0.f, ChargeP2JumpZVelocity);
+    const FVector LaunchVelocity = FVector(0.f, 0.f, ChargeP2JumpZVelocity);
+
+    LaunchCharacter(LaunchVelocity, true, true);
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("ExecuteChargeP2Jump | Dist=%.1f XYSpeed=%.1f Z=%.1f"),
+        Dist2D, XYSpeed, ChargeP2JumpZVelocity);
+    
+}
+
+void AMHMonsterCharacterBase::ExecuteChargeP2ImpactSnap()
+{
+    if (!bChargeP2LandingPrepared)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ExecuteChargeP2ImpactSnap | landing not prepared"));
+        return;
+    }
+
+    if (GetCharacterMovement())
+    {
+        GetCharacterMovement()->StopMovementImmediately();
+    }
+
+    SetActorLocation(
+        CachedChargeP2LandingPoint,
+        false,
+        nullptr,
+        ETeleportType::TeleportPhysics
+    );
+
+    FaceCombatTargetInstant();
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("ExecuteChargeP2ImpactSnap | SnapTo=(%.1f, %.1f, %.1f)"),
+        CachedChargeP2LandingPoint.X,
+        CachedChargeP2LandingPoint.Y,
+        CachedChargeP2LandingPoint.Z);
+
+    ClearChargeP2Landing();
+    
+}
+
+void AMHMonsterCharacterBase::ClearChargeP2Landing()
+{
+    bChargeP2LandingPrepared = false;
+    CachedChargeP2LandingPoint = FVector::ZeroVector;
+    
+}
 
 FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
     AActor* SourceActor,
@@ -493,9 +675,10 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
 )
 {
     FMHHitAcknowledge Result;
+
     ResetDamageTextContext();
 
-    if (HasDeadTag())
+    if (IsMonsterDead())
     {
         UE_LOG(MHMonsterCharacterBase, Warning,
             TEXT("ReceiveDamageSpec_Implementation | ignored, already dead"));
@@ -508,13 +691,14 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
         , *SourceActor->GetName()
         , *AttackTag.GetTagName().ToString());
     
-   
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("Native ReceiveDamageSpec | %s"), *GetName());
 
     // 1. 전달받은 DamageSpec 유효성 검사
     if (!DamageSpecHandle.IsValid() || !DamageSpecHandle.Data.IsValid())
     {
         return Result;
     }
+    
 
     // 2. 현재 피격 가능한 상태인지 검사
     if (!CanReceiveDamage(SourceActor, AttackTag, DamageSpecHandle, HitResult))
@@ -540,6 +724,8 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
     ActiveHandle.WasSuccessfullyApplied() ? 1 : 0,
     HealthAttributeSets ? HealthAttributeSets->GetHealth() : -1.f);
 
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("[Monster HitBone] %s"), *HitResult.BoneName.ToString());
+    
     // 5. 적용 성공 시 후처리 및 응답 작성
     if (ActiveHandle.WasSuccessfullyApplied())
     {
@@ -551,11 +737,61 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
         Result.ResultType = EMHHitResultType::NormalHit;
 
         HandleDamageAccepted(SourceActor, SourceWeapon, AttackTag, HitResult);
+        
+        BP_OnMonsterDamageAccepted(HitResult, AttackTag);
 
+        // 죽음 판정은 데미지 적용 후
         if (IsMonsterDead())
         {
-            HandleDeath();
+            PlayDeathAnimation();
+            return Result;
         }
+        CheckGroggyTransition();
+        CheckPhaseTransition();
+        
+
+        /*UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | %s"), *GetName());
+
+        if (AbilitySystemComponent)
+        {
+            AbilitySystemComponent->AddLooseGameplayTag(MHGameplayTags::State_Monster_Dead);
+            AbilitySystemComponent->CancelAllAbilities();
+        }
+
+        SetMonsterAttacking(false);
+
+        if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+        {
+            MonsterAI->StopMovement();
+            MonsterAI->SetInCombat(false);
+            MonsterAI->SetPhaseTransition(false);
+            MonsterAI->SetPhase2(false); // 필요 없으면 빼도 됨
+        }
+
+        if (AAIController* AIC = Cast<AAIController>(GetController()))
+        {
+            AIC->StopMovement();
+            AIC->ClearFocus(EAIFocusPriority::Gameplay);
+        }
+
+        if (GetCharacterMovement())
+        {
+            GetCharacterMovement()->StopMovementImmediately();
+            GetCharacterMovement()->DisableMovement();
+        }
+
+        if (GetMesh())
+        {
+            if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+            {
+                AnimInstance->Montage_Stop(0.1f);
+
+                if (DeathMontage)
+                {
+                    AnimInstance->Montage_Play(DeathMontage, 1.f);
+                }
+            }
+        }*/
     }
     else
     {
@@ -631,47 +867,8 @@ void AMHMonsterCharacterBase::HandleDamageAccepted(
 
 void AMHMonsterCharacterBase::HandleDeath()
 {
-	Super::HandleDeath();
-
-    if (HasDeadTag())
-    {
-        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("HandleDeath | already dead"));
-        return;
-    }
-
-    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("HandleDeath | start"));
-
-    if (AbilitySystemComponent)
-    {
-        AbilitySystemComponent->AddLooseGameplayTag(MHGameplayTags::State_Monster_Dead);
-
-        AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Alert);
-        AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Roaring);
-        AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Combat);
-        AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Unaware);
-    }
-
-    StopAmbientBehavior();
-    StopSightDetection();
-    SetMonsterAttacking(false);
-
-    bInCombat = false;
-    CombatTarget = nullptr;
-
-    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
-    {
-        MonsterAI->SetAttacking(false);
-        MonsterAI->SetInCombat(false);
-        MonsterAI->SetIsRoaring(false);
-        MonsterAI->SetCombatTarget(nullptr);
-        MonsterAI->StopMovement();
-    }
-
-    if (GetCharacterMovement())
-    {
-        GetCharacterMovement()->DisableMovement();
-        GetCharacterMovement()->StopMovementImmediately();
-    }
+    Super::HandleDeath();
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("HandleDeath | finalize"));
 
     if (UCapsuleComponent* Capsule = GetCapsuleComponent())
     {
@@ -682,8 +879,6 @@ void AMHMonsterCharacterBase::HandleDeath()
     {
         MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     }
-
-    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("HandleDeath | Dead tag applied"));
 
 }
 
@@ -772,6 +967,219 @@ void AMHMonsterCharacterBase::PlayHitSoundByAttackTag(
 
 }
 
+void AMHMonsterCharacterBase::CheckGroggyTransition()
+{
+    if (!bUseGroggy)
+    {
+        return;
+    }
+
+    if (bGroggyPlaying || bPhaseTransitionPlaying)
+    {
+        return;
+    }
+
+    if (!HealthAttributeSets)
+    {
+        return;
+    }
+
+    const float CurrentHealth = HealthAttributeSets->GetHealth();
+    const float MaxHealth = HealthAttributeSets->GetMaxHealth();
+
+    if (MaxHealth <= KINDA_SMALL_NUMBER || CurrentHealth <= 0.f)
+    {
+        return;
+    }
+
+    const float HealthRatio = CurrentHealth / MaxHealth;
+
+    if (!bFirstGroggyTriggered && HealthRatio <= FirstGroggyHealthRatioThreshold)
+    {
+        bFirstGroggyTriggered = true;
+        EnterGroggy(1);
+        return;
+    }
+
+    if (!bSecondGroggyTriggered && HealthRatio <= SecondGroggyHealthRatioThreshold)
+    {
+        bSecondGroggyTriggered = true;
+        EnterGroggy(2);
+        return;
+    }
+}
+
+void AMHMonsterCharacterBase::EnterGroggy(int32 GroggyIndex)
+{
+    if (bGroggyPlaying || IsMonsterDead())
+    {
+        return;
+    }
+
+    bGroggyPlaying = true;
+
+    if (AbilitySystemComponent)
+    {
+        FGameplayTagContainer CancelTags;
+        CancelTags.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Ability.Monster.Attack")));
+        AbilitySystemComponent->CancelAbilities(&CancelTags);
+    }
+
+    SetMonsterAttacking(false);
+
+    if (AAIController* AIC = Cast<AAIController>(GetController()))
+    {
+        AIC->StopMovement();
+        AIC->ClearFocus(EAIFocusPriority::Gameplay);
+    }
+
+    if (GetCharacterMovement())
+    {
+        GetCharacterMovement()->StopMovementImmediately();
+    }
+
+    BP_OnEnterGroggy(GroggyIndex);
+    
+}
+
+void AMHMonsterCharacterBase::FinishGroggy()
+{
+    bGroggyPlaying = false;
+}
+
+void AMHMonsterCharacterBase::CheckPhaseTransition()
+{
+    
+    if (bGroggyPlaying || bPhaseTransitionPlaying)
+    {
+        return;
+    }
+    
+    if (!bUsePhase2)
+    {
+        return;
+    }
+
+    if (bPhase2Entered)
+    {
+        return;
+    }
+
+    if (!HealthAttributeSets)
+    {
+        return;
+    }
+
+    const float CurrentHealth = HealthAttributeSets->GetHealth();
+    const float MaxHealth = HealthAttributeSets->GetMaxHealth();
+
+    if (MaxHealth <= KINDA_SMALL_NUMBER)
+    {
+        return;
+    }
+
+    if (CurrentHealth <= 0.f)
+    {
+        return;
+    }
+
+    const float HealthRatio = CurrentHealth / MaxHealth;
+
+    if (HealthRatio <= Phase2HealthRatioThreshold)
+    {
+        EnterPhase2();
+    }
+    
+}
+
+void AMHMonsterCharacterBase::EnterPhase2()
+{
+    if (bPhase2Entered || bPhaseTransitionPlaying)
+    {
+        return;
+    }
+
+    bPhase2Entered = true;
+    bPhaseTransitionPlaying = true;
+
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("EnterPhase2 | %s"), *GetName());
+
+    if (AbilitySystemComponent)
+    {
+        if (Phase2StateTag.IsValid())
+        {
+            AbilitySystemComponent->AddLooseGameplayTag(Phase2StateTag);
+        }
+
+        if (PhaseTransitionStateTag.IsValid())
+        {
+            AbilitySystemComponent->AddLooseGameplayTag(PhaseTransitionStateTag);
+        }
+
+        // 현재 공격 계열 강제 취소
+        FGameplayTagContainer CancelTags;
+        CancelTags.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Ability.Monster.Attack")));
+        AbilitySystemComponent->CancelAbilities(&CancelTags);
+    }
+
+    // 현재 몽타주 강제 정지
+    if (USkeletalMeshComponent* MeshComp = GetMesh())
+    {
+        if (UAnimInstance* AnimInst = MeshComp->GetAnimInstance())
+        {
+            AnimInst->Montage_Stop(0.15f);
+        }
+    }
+
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        MonsterAI->StopMovement();
+        MonsterAI->ClearFocus(EAIFocusPriority::Gameplay);
+        MonsterAI->SetPhase2(true);
+        MonsterAI->SetPhaseTransition(true);
+    }
+
+    SetMonsterAttacking(false);
+    SetMonsterMoveSpeed(Phase2MoveSpeed);
+
+    if (GetCharacterMovement())
+    {
+        GetCharacterMovement()->StopMovementImmediately();
+    }
+    
+    BP_OnEnterPhase2();
+    
+}
+
+void AMHMonsterCharacterBase::FinishPhase2Transition()
+{
+    if (!bPhaseTransitionPlaying)
+    {
+        return;
+    }
+
+    bPhaseTransitionPlaying = false;
+
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("FinishPhase2Transition | %s"), *GetName());
+
+    if (AbilitySystemComponent && PhaseTransitionStateTag.IsValid())
+    {
+        if (PhaseTransitionStateTag.IsValid())
+        {
+            AbilitySystemComponent->RemoveLooseGameplayTag(PhaseTransitionStateTag);
+        }
+    }
+
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        MonsterAI->SetPhaseTransition(false);
+        MonsterAI->SetPhase2(true);
+    }
+
+    SetMonsterAttacking(false);
+    
+}
+
 
 bool AMHMonsterCharacterBase::HasDeadTag() const
 {
@@ -796,39 +1204,129 @@ bool AMHMonsterCharacterBase::IsMonsterDead() const
         return true;
         
     }
-    return HealthAttributeSets && HealthAttributeSets->GetHealth() <= 0.f;
+    if (HealthAttributeSets)
+    {
+        return HealthAttributeSets->GetHealth() <= 0.f;
+    }
+    
+    return false;
 
     
 }
 
 void AMHMonsterCharacterBase::PlayDeathAnimation()
 {
-    if (!DeathMontage)
+    UE_LOG(MHMonsterCharacterBase, Error,
+    TEXT("PlayDeathAnimation CALLED | Name=%s | HP=%.1f | HasDeadTag=%d"),
+    *GetName(),
+    HealthAttributeSets ? HealthAttributeSets->GetHealth() : -1.f,
+    HasDeadTag() ? 1 : 0);
+    /*if (HasDeadTag())
     {
-        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | DeathMontage null"));
         return;
+    }*/
+
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | %s"), *GetName());
+
+    if (AbilitySystemComponent)
+    {
+        AbilitySystemComponent->AddLooseGameplayTag(MHGameplayTags::State_Monster_Dead);
+        AbilitySystemComponent->CancelAllAbilities();
+
+        AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Alert);
+        AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Roaring);
+        AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Combat);
+        AbilitySystemComponent->RemoveLooseGameplayTag(MHGameplayTags::State_Monster_Unaware);
+    
+    }
+    StopAmbientBehavior();
+    StopSightDetection();
+    SetMonsterAttacking(false);
+
+    bInCombat = false;
+    CombatTarget = nullptr;
+
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        MonsterAI->SetAttacking(false);
+        MonsterAI->SetInCombat(false);
+        MonsterAI->SetIsRoaring(false);
+        MonsterAI->SetCombatTarget(nullptr);
+        MonsterAI->SetPhaseTransition(false);
+        MonsterAI->StopMovement();
+    }
+
+    if (AAIController* AIC = Cast<AAIController>(GetController()))
+    {
+        AIC->StopMovement();
+        AIC->ClearFocus(EAIFocusPriority::Gameplay);
+    }
+
+    if (GetCharacterMovement())
+    {
+        GetCharacterMovement()->StopMovementImmediately();
+        GetCharacterMovement()->DisableMovement();
     }
 
     USkeletalMeshComponent* MeshComp = GetMesh();
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | Mesh=%s"),
+        *GetNameSafe(MeshComp));
+
     if (!MeshComp)
     {
-        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | MeshComp null"));
+        UE_LOG(MHMonsterCharacterBase, Error, TEXT("PlayDeathAnimation | Mesh is NULL"));
         return;
     }
 
-    UAnimInstance* Anim = MeshComp->GetAnimInstance();
-    if (!Anim)
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | AnimClass=%s"),
+        *GetNameSafe(MeshComp->GetAnimClass()));
+
+    UAnimInstance* AnimInstance = MeshComp->GetAnimInstance();
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | AnimInstance=%s"),
+        *GetNameSafe(AnimInstance));
+
+    if (!AnimInstance)
     {
-        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | AnimInstance null"));
+        UE_LOG(MHMonsterCharacterBase, Error, TEXT("PlayDeathAnimation | AnimInstance is NULL"));
         return;
     }
 
-    const float PlayedLen = Anim->Montage_Play(DeathMontage, 1.0f);
+    AnimInstance->Montage_Stop(0.1f);
+
+    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | DeathMontage=%s"),
+        *GetNameSafe(DeathMontage));
+
+    if (!DeathMontage)
+    {
+        UE_LOG(MHMonsterCharacterBase, Error, TEXT("PlayDeathAnimation | DeathMontage is NULL"));
+        return;
+    }
+
+    const float PlayedLen = AnimInstance->Montage_Play(DeathMontage, 1.f);
 
     UE_LOG(MHMonsterCharacterBase, Warning,
-        TEXT("PlayDeathAnimation | PlayedLen=%.2f Montage=%s"),
-        PlayedLen,
-        *GetNameSafe(DeathMontage));
+        TEXT("PlayDeathAnimation | Montage_Play Result=%.2f"),
+        PlayedLen);
+    
+    
+    // todo 나중에 다시열기
+    /*if (GetMesh())
+    {
+        if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+        {
+            AnimInstance->Montage_Stop(0.1f);
+
+            if (DeathMontage)
+            {
+                AnimInstance->Montage_Play(DeathMontage, 1.f);
+                UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | DeathMontage Play"));   
+            }
+            else
+            {
+                UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayDeathAnimation | DeathMontage is null"));
+            }
+        }
+    }*/
     
 }
 

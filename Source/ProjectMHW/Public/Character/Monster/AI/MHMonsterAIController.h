@@ -33,6 +33,8 @@ public:
 	void SetInCombat(bool bNewInCombat);
 	void SetIsRoaring(bool bNewIsRoaring);
 	void SetAttacking(bool bNewAttacking);
+	void SetPhaseTransition(bool bInPhaseTransition);
+	void SetPhase2(bool phase2);
 	
 protected:
 	UPROPERTY(EditDefaultsOnly , Category="AI")

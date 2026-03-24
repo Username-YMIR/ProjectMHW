@@ -62,3 +62,21 @@ void AMHMonsterAIController::SetAttacking(bool bNewAttacking)
 	}
 	
 }
+
+void AMHMonsterAIController::SetPhaseTransition(bool bInPhaseTransition)
+{
+	if (Blackboard)
+	{
+		Blackboard->SetValueAsBool(TEXT("bPhaseTransition"), bInPhaseTransition);
+	}
+	
+}
+
+void AMHMonsterAIController::SetPhase2(bool phase2)
+{
+	if (Blackboard)
+	{
+		Blackboard->SetValueAsBool(TEXT("bPhase2") , phase2);
+	}
+	
+}
