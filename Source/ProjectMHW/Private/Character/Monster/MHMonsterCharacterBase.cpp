@@ -13,6 +13,7 @@
 #include "Character/Monster/AI/MHMonsterAIController.h"
 #include "Character/Monster/AI/MHMonsterBlackboardKeys.h"
 #include "Character/Monster/Attribute/MHMonsterAttributeSet.h"
+#include "Character/Player/MHPlayerCharacter.h"
 #include "Combat/Data/MHCombatDataLibrary.h"
 #include "Combat/Effects/MHGameplayEffect_Damage.h"
 #include "Interfaces/MHDamageSpecReceiverInterface.h"
@@ -22,6 +23,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Combat/Attributes/MHCombatAttributeSet.h"
+#include "Widgets/Actors/MHDamageTextWidgetActor.h"
 
 DEFINE_LOG_CATEGORY(MHMonsterCharacterBase)
 
@@ -491,6 +493,8 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
 )
 {
     FMHHitAcknowledge Result;
+    ResetDamageTextContext();
+
     if (HasDeadTag())
     {
         UE_LOG(MHMonsterCharacterBase, Warning,
@@ -525,6 +529,8 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
         return Result;
     }
 
+    PrepareDamageTextContext(HitResult, AttackTag);
+
     // 4. 전달받은 Spec을 자기 자신에게 적용
     const FActiveGameplayEffectHandle ActiveHandle =
         TargetASC->ApplyGameplayEffectSpecToSelf(*DamageSpecHandle.Data.Get());
@@ -537,6 +543,8 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
     // 5. 적용 성공 시 후처리 및 응답 작성
     if (ActiveHandle.WasSuccessfullyApplied())
     {
+        FinalizeDamageTextContext();
+
         Result.bAcceptedHit = true;
         Result.bConsumeHitOnce = true;
         Result.bShouldStopAttackWindow = false;
@@ -548,6 +556,10 @@ FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
         {
             HandleDeath();
         }
+    }
+    else
+    {
+        ResetDamageTextContext();
     }
 
     return Result;
@@ -569,8 +581,47 @@ void AMHMonsterCharacterBase::HandleDamageAccepted(
 	PlayHitSoundByAttackTag(AttackTag, HitResult);
 
     // 대미지 텍스트 UI 스폰
-    
-    
+    FMHDamageTextPayload DamageTextPayload;
+    const bool bHasDamageTextPayload = ConsumeAcceptedDamageTextPayload(DamageTextPayload);
+    if (!bHasDamageTextPayload || !DamageTextPayload.IsValid())
+    {
+        return;
+    }
+
+    if (!Cast<AMHPlayerCharacter>(SourceActor))
+    {
+        return;
+    }
+
+    if (!DamageTextWidgetActorClass)
+    {
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    const FTransform SpawnTransform(FRotator::ZeroRotator, DamageTextPayload.WorldLocation);
+    AMHDamageTextWidgetActor* DamageTextActor =
+        World->SpawnActorDeferred<AMHDamageTextWidgetActor>(
+            DamageTextWidgetActorClass,
+            SpawnTransform,
+            this,
+            nullptr,
+            ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+
+    if (!IsValid(DamageTextActor))
+    {
+        return;
+    }
+
+    DamageTextActor->InitDamage(DamageTextPayload);
+    UGameplayStatics::FinishSpawningActor(DamageTextActor, SpawnTransform);
+     
+     
 	// 이후 확장 예시
 	// - 피격 리액션 재생
 	// - AI에게 공격자 전달

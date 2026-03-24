@@ -9,6 +9,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "AbilitySystemInterface.h"
+#include "GameplayTagContainer.h"
 #include "Interfaces/MHDamageSpecReceiverInterface.h"
 #include "MHCharacterBase.generated.h"
 
@@ -24,6 +25,41 @@ class UGameplayEffect;
 class UDataAsset;
 class AController;
 // ====================================
+
+USTRUCT(BlueprintType)
+struct PROJECTMHW_API FMHDamageTextPayload
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DamageText")
+    float AppliedDamage = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DamageText")
+    FVector WorldLocation = FVector::ZeroVector;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DamageText")
+    FGameplayTag AttackTag;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DamageText")
+    bool bCritical = false;
+
+    bool IsValid() const
+    {
+        return AppliedDamage > 0.0f;
+    }
+};
+
+USTRUCT()
+struct PROJECTMHW_API FMHPendingDamageTextContext
+{
+    GENERATED_BODY()
+
+public:
+    float PreHealth = 0.0f;
+    FHitResult HitResult;
+    FGameplayTag AttackTag;
+};
 
 UCLASS()
 class PROJECTMHW_API AMHCharacterBase 
@@ -108,6 +144,18 @@ protected:
 
     /** 실패 응답 생성 */
     virtual FMHHitAcknowledge BuildRejectedHitAcknowledge() const;
+
+    virtual float GetCurrentHealthForDamageText() const;
+
+    void PrepareDamageTextContext(const FHitResult& HitResult, const FGameplayTag& AttackTag);
+
+    void FinalizeDamageTextContext();
+
+    void ResetDamageTextContext();
+
+    bool ConsumeAcceptedDamageTextPayload(FMHDamageTextPayload& OutPayload);
+
+    FVector ResolveDamageTextWorldLocation(const FHitResult& HitResult) const;
 #pragma endregion 
     
 
@@ -127,5 +175,17 @@ protected:
     
     UPROPERTY(BlueprintReadOnly)
     bool bGASInitialized = false; // 초기화 여부
+
+    UPROPERTY(Transient)
+    FMHPendingDamageTextContext PendingDamageTextContext;
+
+    UPROPERTY(Transient)
+    FMHDamageTextPayload LastAcceptedDamageTextPayload;
+
+    UPROPERTY(Transient)
+    bool bHasPendingDamageTextContext = false;
+
+    UPROPERTY(Transient)
+    bool bHasAcceptedDamageTextPayload = false;
     
 };

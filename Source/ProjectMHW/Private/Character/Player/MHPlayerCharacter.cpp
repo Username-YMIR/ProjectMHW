@@ -1350,6 +1350,11 @@ float AMHPlayerCharacter::GetMaxHealthValue() const
     return HealthAttributeSet ? HealthAttributeSet->GetMaxHealth() : 0.0f;
 }
 
+float AMHPlayerCharacter::GetCurrentHealableHealthValue() const
+{
+    return HealthAttributeSet ? FMath::Max(0.0f, HealthAttributeSet->GetHealableHealth()) : 0.0f;
+}
+
 float AMHPlayerCharacter::GetHealthRatio() const
 {
     const float MaxHealthValue = GetMaxHealthValue();
@@ -1881,6 +1886,22 @@ bool AMHPlayerCharacter::DowngradeSharpnessColor()
     }
 
     return false;
+}
+
+float AMHPlayerCharacter::GetCurrentSharpnessValue() const
+{
+    return FMath::Max(0.0f, CurrentSharpnessValue);
+}
+
+float AMHPlayerCharacter::GetMaxSharpnessValue() const
+{
+    if (!EquippedWeapon)
+    {
+        return 0.0f;
+    }
+
+    const FMHAttackStats& Stat = EquippedWeapon->GetAttackStats();
+    return FMath::Max(0.0f, GetMaxSharpnessValueFromColor(Stat.SharpnessLength, CurrentSharpnessColor));
 }
 
 void AMHPlayerCharacter::HandleWeaponAttackHit(

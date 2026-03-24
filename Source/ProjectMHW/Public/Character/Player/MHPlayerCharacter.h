@@ -381,6 +381,10 @@ protected:
     // 현재 예리도 상태
     UPROPERTY(Transient)
     EMHSharpnessColor CurrentSharpnessColor;
+
+    // 현재 예리도 수치
+    UPROPERTY(Transient)
+    float CurrentSharpnessValue = 0.0f;
     
     
     UPROPERTY(Transient)

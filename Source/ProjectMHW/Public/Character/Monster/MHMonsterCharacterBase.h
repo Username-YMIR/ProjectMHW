@@ -18,6 +18,7 @@ class AMHMonsterAIController;
 class UGameplayEffect;
 class UMHHealthAttributeSet;
 class UMHCombatAttributeSet;
+class AMHDamageTextWidgetActor;
 
 DECLARE_LOG_CATEGORY_EXTERN(MHMonsterCharacterBase, Log, All);
 
@@ -137,6 +138,9 @@ protected:
 protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Combat|Data")
     TObjectPtr<UDataTable> AttackMetaTable = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="UI|DamageText")
+    TSubclassOf<AMHDamageTextWidgetActor> DamageTextWidgetActorClass;
 #pragma endregion  
     
     

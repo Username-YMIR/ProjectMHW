@@ -2,6 +2,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemBlueprintLibrary.h"
+#include "Combat/Attributes/MHHealthAttributeSet.h"
 #include "Combat/Attributes/MHPlayerAttributeSet.h"
 
 DEFINE_LOG_CATEGORY(LogMHCharacterBase)
@@ -74,6 +75,8 @@ FMHHitAcknowledge AMHCharacterBase::ReceiveDamageSpec_Implementation(
 )
 {
 	UE_LOG(LogMHCharacterBase, Warning, TEXT("ReceiveDamageSpec_Implementation"));
+    ResetDamageTextContext();
+
 	// 1. DamageSpec 유효성 검사
 	if (!ValidateDamageSpec(DamageSpecHandle))
 	{
@@ -88,12 +91,17 @@ FMHHitAcknowledge AMHCharacterBase::ReceiveDamageSpec_Implementation(
 		return BuildRejectedHitAcknowledge();
 	}
 
+    PrepareDamageTextContext(HitResult, AttackTag);
+
 	// 3. 자기 자신에게 DamageSpec 적용
 	if (!ApplyIncomingDamageSpec(DamageSpecHandle))
 	{
+        ResetDamageTextContext();
 		HandleDamageRejected(SourceActor, SourceWeapon, AttackTag, HitResult);
 		return BuildRejectedHitAcknowledge();
 	}
+
+    FinalizeDamageTextContext();
 
 	// 4. 적용 성공 후 후처리
 	HandleDamageAccepted(SourceActor, SourceWeapon, AttackTag, HitResult);
@@ -218,6 +226,87 @@ FMHHitAcknowledge AMHCharacterBase::BuildRejectedHitAcknowledge() const
 	Result.bShouldStopAttackWindow = false;
 	Result.ResultType = EMHHitResultType::None;
 	return Result;
+}
+
+float AMHCharacterBase::GetCurrentHealthForDamageText() const
+{
+    const UAbilitySystemComponent* TargetASC = GetCharacterASC();
+    if (!IsValid(TargetASC))
+    {
+        return 0.0f;
+    }
+
+    return TargetASC->GetNumericAttribute(UMHHealthAttributeSet::GetHealthAttribute());
+}
+
+void AMHCharacterBase::PrepareDamageTextContext(const FHitResult& HitResult, const FGameplayTag& AttackTag)
+{
+    PendingDamageTextContext.PreHealth = GetCurrentHealthForDamageText();
+    PendingDamageTextContext.HitResult = HitResult;
+    PendingDamageTextContext.AttackTag = AttackTag;
+    bHasPendingDamageTextContext = true;
+    bHasAcceptedDamageTextPayload = false;
+}
+
+void AMHCharacterBase::FinalizeDamageTextContext()
+{
+    if (!bHasPendingDamageTextContext)
+    {
+        return;
+    }
+
+    const float PostHealth = GetCurrentHealthForDamageText();
+    const float AppliedDamage = FMath::Max(0.0f, PendingDamageTextContext.PreHealth - PostHealth);
+
+    bHasPendingDamageTextContext = false;
+    bHasAcceptedDamageTextPayload = false;
+
+    if (AppliedDamage <= 0.0f)
+    {
+        return;
+    }
+
+    LastAcceptedDamageTextPayload.AppliedDamage = AppliedDamage;
+    LastAcceptedDamageTextPayload.WorldLocation = ResolveDamageTextWorldLocation(PendingDamageTextContext.HitResult);
+    LastAcceptedDamageTextPayload.AttackTag = PendingDamageTextContext.AttackTag;
+    LastAcceptedDamageTextPayload.bCritical = false;
+    bHasAcceptedDamageTextPayload = true;
+}
+
+void AMHCharacterBase::ResetDamageTextContext()
+{
+    PendingDamageTextContext = FMHPendingDamageTextContext();
+    LastAcceptedDamageTextPayload = FMHDamageTextPayload();
+    bHasPendingDamageTextContext = false;
+    bHasAcceptedDamageTextPayload = false;
+}
+
+bool AMHCharacterBase::ConsumeAcceptedDamageTextPayload(FMHDamageTextPayload& OutPayload)
+{
+    if (!bHasAcceptedDamageTextPayload || !LastAcceptedDamageTextPayload.IsValid())
+    {
+        return false;
+    }
+
+    OutPayload = LastAcceptedDamageTextPayload;
+    LastAcceptedDamageTextPayload = FMHDamageTextPayload();
+    bHasAcceptedDamageTextPayload = false;
+    return true;
+}
+
+FVector AMHCharacterBase::ResolveDamageTextWorldLocation(const FHitResult& HitResult) const
+{
+    if (!HitResult.ImpactPoint.IsNearlyZero())
+    {
+        return HitResult.ImpactPoint + FVector(0.0f, 0.0f, 20.0f);
+    }
+
+    if (!HitResult.Location.IsNearlyZero())
+    {
+        return HitResult.Location + FVector(0.0f, 0.0f, 20.0f);
+    }
+
+    return GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
 }
 
 #pragma endregion
