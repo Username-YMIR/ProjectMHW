@@ -578,7 +578,9 @@ protected:
 
 private:
     bool bDamageHitReactMontagePlaying = false;
-    bool bDamageHitReactInputLocked = false;
+    bool bActionInputLocked = false;
+    bool bActionInputLockedByDamageHitReact = false;
+    bool bActionInputLockedBySharpnessBounce = false;
     bool bPotionInUse = false;
     bool bDeathStateActive = false;
     bool bBurningActive = false;
@@ -586,6 +588,7 @@ private:
     int32 BurnRollCount = 0;
 
     UAnimMontage* ActiveDamageHitReactMontage = nullptr;
+    UAnimMontage* ActiveSharpnessBounceMontage = nullptr;
     UAnimMontage* ActiveDeathMontage = nullptr;
     TWeakObjectPtr<UMHGA_Potion> ActivePotionAbility;
 
@@ -599,8 +602,11 @@ private:
     bool TryPlayDamageHitReactMontage(AActor* SourceActor, const FHitResult& HitResult);
     bool TryPlayDeathMontage();
     void HandleDamageHitReactMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+    void HandleSharpnessBounceMontageEnded(UAnimMontage* Montage, bool bInterrupted);
     void HandleDeathMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+    void RefreshActionInputLockState();
     void SetDamageHitReactInputLock(bool bEnable);
+    void SetSharpnessBounceInputLock(bool bEnable);
     void CancelActivePotionUseOnDamageTaken();
     void TryIgniteBurning();
     void HandleBurnDamageTick();

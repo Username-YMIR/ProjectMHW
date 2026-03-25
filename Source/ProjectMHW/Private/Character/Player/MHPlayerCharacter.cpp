@@ -315,7 +315,7 @@ void AMHPlayerCharacter::HandleMovementUpdated(float DeltaSeconds, FVector OldLo
 
 void AMHPlayerCharacter::Input_Move(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         CachedMoveInput2D = FVector2D::ZeroVector;
         return;
@@ -373,7 +373,7 @@ void AMHPlayerCharacter::Input_Look(const FInputActionValue& InputActionValue)
 
 void AMHPlayerCharacter::Input_SprintStarted(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -391,7 +391,7 @@ void AMHPlayerCharacter::Input_SprintStarted(const FInputActionValue& InputActio
 
 void AMHPlayerCharacter::Input_SprintCompleted(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -402,7 +402,7 @@ void AMHPlayerCharacter::Input_SprintCompleted(const FInputActionValue& InputAct
 
 void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -520,7 +520,7 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
 
 void AMHPlayerCharacter::Input_DodgeCompleted(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -623,7 +623,7 @@ void AMHPlayerCharacter::ApplyDebugDamageFromSource(AActor* InSourceActor, float
 
 void AMHPlayerCharacter::Input_AttackPrimary(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -642,7 +642,7 @@ void AMHPlayerCharacter::Input_AttackPrimary(const FInputActionValue& InputActio
 
 void AMHPlayerCharacter::Input_AttackPrimaryCompleted(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -657,7 +657,7 @@ void AMHPlayerCharacter::Input_AttackPrimaryCompleted(const FInputActionValue& I
 
 void AMHPlayerCharacter::Input_AttackSecondary(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -676,7 +676,7 @@ void AMHPlayerCharacter::Input_AttackSecondary(const FInputActionValue& InputAct
 
 void AMHPlayerCharacter::Input_AttackSecondaryCompleted(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -686,7 +686,7 @@ void AMHPlayerCharacter::Input_AttackSecondaryCompleted(const FInputActionValue&
 
 void AMHPlayerCharacter::Input_WeaponSpecial(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -705,7 +705,7 @@ void AMHPlayerCharacter::Input_WeaponSpecial(const FInputActionValue& InputActio
 
 void AMHPlayerCharacter::Input_WeaponSpecialCompleted(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -721,7 +721,7 @@ void AMHPlayerCharacter::Input_WeaponSpecialCompleted(const FInputActionValue& I
 void AMHPlayerCharacter::Input_AttackSimultaneous(const FInputActionValue& InputActionValue)
 {
 
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -743,7 +743,7 @@ void AMHPlayerCharacter::Input_AttackSimultaneous(const FInputActionValue& Input
 
 void AMHPlayerCharacter::Input_AimHoldStarted(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -753,7 +753,7 @@ void AMHPlayerCharacter::Input_AimHoldStarted(const FInputActionValue& InputActi
 
 void AMHPlayerCharacter::Input_AimHoldCompleted(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -764,7 +764,7 @@ void AMHPlayerCharacter::Input_AimHoldCompleted(const FInputActionValue& InputAc
 
 void AMHPlayerCharacter::UsePrimaryAction()
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -1368,16 +1368,22 @@ void AMHPlayerCharacter::ClearBurningState()
     BurnRollCount = 0;
 }
 
-void AMHPlayerCharacter::SetDamageHitReactInputLock(bool bEnable)
+void AMHPlayerCharacter::RefreshActionInputLockState()
 {
-    bDamageHitReactInputLocked = bEnable;
+    const bool bShouldLock = bActionInputLockedByDamageHitReact || bActionInputLockedBySharpnessBounce;
+    if (bActionInputLocked == bShouldLock)
+    {
+        return;
+    }
+
+    bActionInputLocked = bShouldLock;
 
     if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
     {
-        PlayerController->SetIgnoreMoveInput(bEnable);
+        PlayerController->SetIgnoreMoveInput(bActionInputLocked);
     }
 
-    if (bEnable)
+    if (bActionInputLocked)
     {
         bSprintHeld = false;
         bIsSprinting = false;
@@ -1396,6 +1402,18 @@ void AMHPlayerCharacter::SetDamageHitReactInputLock(bool bEnable)
             MoveComp->StopMovementImmediately();
         }
     }
+}
+
+void AMHPlayerCharacter::SetDamageHitReactInputLock(bool bEnable)
+{
+    bActionInputLockedByDamageHitReact = bEnable;
+    RefreshActionInputLockState();
+}
+
+void AMHPlayerCharacter::SetSharpnessBounceInputLock(bool bEnable)
+{
+    bActionInputLockedBySharpnessBounce = bEnable;
+    RefreshActionInputLockState();
 }
 
 bool AMHPlayerCharacter::ResolveDamageHitReactFacingYaw(AActor* SourceActor, const FHitResult& HitResult, FRotator& OutFacingRotation) const
@@ -1475,6 +1493,17 @@ void AMHPlayerCharacter::HandleDamageHitReactMontageEnded(UAnimMontage* Montage,
     bDamageHitReactMontagePlaying = false;
     ActiveDamageHitReactMontage = nullptr;
     SetDamageHitReactInputLock(false);
+}
+
+void AMHPlayerCharacter::HandleSharpnessBounceMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+    if (Montage != ActiveSharpnessBounceMontage)
+    {
+        return;
+    }
+
+    ActiveSharpnessBounceMontage = nullptr;
+    SetSharpnessBounceInputLock(false);
 }
 
 bool AMHPlayerCharacter::TryPlayDeathMontage()
@@ -3923,11 +3952,28 @@ void AMHPlayerCharacter::HandleSharpnessBounce()
 
     if (UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
     {
+        if (ActiveSharpnessBounceMontage)
+        {
+            UAnimMontage* PreviousBounceMontage = ActiveSharpnessBounceMontage;
+            ActiveSharpnessBounceMontage = nullptr;
+            SetSharpnessBounceInputLock(false);
+            AnimInstance->Montage_Stop(0.05f, PreviousBounceMontage);
+        }
+
         AnimInstance->Montage_Stop(0.05f);
 
         if (SharpnessBounceMontage)
         {
-            AnimInstance->Montage_Play(SharpnessBounceMontage);
+            const float PlayedLength = AnimInstance->Montage_Play(SharpnessBounceMontage);
+            if (PlayedLength > 0.0f)
+            {
+                ActiveSharpnessBounceMontage = SharpnessBounceMontage;
+                SetSharpnessBounceInputLock(true);
+
+                FOnMontageEnded EndDelegate;
+                EndDelegate.BindUObject(this, &AMHPlayerCharacter::HandleSharpnessBounceMontageEnded);
+                AnimInstance->Montage_SetEndDelegate(EndDelegate, SharpnessBounceMontage);
+            }
         }
     }
 }
@@ -4491,11 +4537,6 @@ bool AMHPlayerCharacter::CanUpgradeSharpnessColor() const
 
 void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
-    {
-        return;
-    }
-
     (void)InputActionValue;
 
     SelectedConsumable = EMHConsumableSelection::Sharpen;
@@ -4504,11 +4545,6 @@ void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue& InputA
 
 void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
-    {
-        return;
-    }
-
     (void)InputActionValue;
 
     SelectedConsumable = EMHConsumableSelection::Potion;
@@ -4517,7 +4553,7 @@ void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputAc
 
 void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -4531,7 +4567,7 @@ void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActi
 
 void AMHPlayerCharacter::Input_ItemUseCompleted(const FInputActionValue& InputActionValue)
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
@@ -4544,7 +4580,7 @@ void AMHPlayerCharacter::Input_ItemUseCompleted(const FInputActionValue& InputAc
 
 void AMHPlayerCharacter::TryUseSelectedItem()
 {
-    if (bDamageHitReactInputLocked)
+    if (bActionInputLocked)
     {
         return;
     }
