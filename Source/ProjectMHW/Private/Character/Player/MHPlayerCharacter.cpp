@@ -4487,6 +4487,11 @@ bool AMHPlayerCharacter::CanUpgradeSharpnessColor() const
 
 void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     (void)InputActionValue;
 
     SelectedConsumable = EMHConsumableSelection::Sharpen;
@@ -4495,6 +4500,11 @@ void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue& InputA
 
 void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     (void)InputActionValue;
 
     SelectedConsumable = EMHConsumableSelection::Potion;
@@ -4503,6 +4513,11 @@ void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputAc
 
 void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     (void)InputActionValue;
 
     bItemUseHeld = true;
@@ -4512,6 +4527,11 @@ void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActi
 
 void AMHPlayerCharacter::Input_ItemUseCompleted(const FInputActionValue& InputActionValue)
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     (void)InputActionValue;
 
     bItemUseHeld = false;
@@ -4520,6 +4540,11 @@ void AMHPlayerCharacter::Input_ItemUseCompleted(const FInputActionValue& InputAc
 
 void AMHPlayerCharacter::TryUseSelectedItem()
 {
+    if (bDamageHitReactInputLocked)
+    {
+        return;
+    }
+
     if (!AbilitySystemComponent)
     {
         UE_LOG(LogMHPlayerCharacter, Warning, TEXT("[Item] TryUseSelectedItem failed: ASC null"));
@@ -4726,94 +4751,5 @@ void AMHPlayerCharacter::HandleMaxSpiritAttributeChanged(const FOnAttributeChang
 {
     OnSpiritGaugeChanged.Broadcast(ChangeData.NewValue, GetMaxSpiritGaugeValue());
 }
-
-
-
-// void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue& InputActionValue)
-// {
-//     if (bDamageHitReactInputLocked)
-//     {
-//         return;
-//     }
-//
-//     (void)InputActionValue;
-//     SelectedConsumable = EMHConsumableSelection::Sharpen;
-// }
-//
-// void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputActionValue)
-// {
-//     if (bDamageHitReactInputLocked)
-//     {
-//         return;
-//     }
-//
-//     (void)InputActionValue;
-//     SelectedConsumable = EMHConsumableSelection::Potion;
-//     UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Selected consumable: Potion"));
-// }
-//
-// void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActionValue)
-// {
-//     if (bDamageHitReactInputLocked)
-//     {
-//         return;
-//     }
-//
-//     (void)InputActionValue;
-//     bItemUseHeld = true;
-//     UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Use started: selection=%d"), static_cast<uint8>(SelectedConsumable));
-//     TryUseSelectedItem();
-// }
-//
-// void AMHPlayerCharacter::Input_ItemUseCompleted(const FInputActionValue& InputActionValue)
-// {
-//     if (bDamageHitReactInputLocked)
-//     {
-//         return;
-//     }
-//
-//     (void)InputActionValue;
-//     bItemUseHeld = false;
-// }
-//
-// void AMHPlayerCharacter::TryUseSelectedItem()
-// {
-//     if (bDamageHitReactInputLocked)
-//     {
-//         return;
-//     }
-//
-//     if (!AbilitySystemComponent)
-//     {
-//         return;
-//     }
-//
-//     switch (SelectedConsumable)
-//     {
-//     case EMHConsumableSelection::Sharpen:
-//         if (SharpenAbilityClass)
-//         {
-//             AbilitySystemComponent->TryActivateAbilityByClass(SharpenAbilityClass);
-//         }
-//         break;
-//     case EMHConsumableSelection::Potion:
-//         if (PotionAbilityClass)
-//         {
-//             const bool bActivated = AbilitySystemComponent->TryActivateAbilityByClass(PotionAbilityClass);
-//             UE_LOG(
-//                 LogMHPlayerCharacter,
-//                 Log,
-//                 TEXT("[Item] TryUseSelectedItem Potion: activated=%d HP=%.1f/%.1f Healable=%.1f"),
-//                 bActivated ? 1 : 0,
-//                 GetCurrentHealthValue(),
-//                 GetMaxHealthValue(),
-//                 GetCurrentHealableHealthValue()
-//             );
-//         }
-//         break;
-//     default:
-//         break;
-//     }
-// }
 
 #pragma endregion
