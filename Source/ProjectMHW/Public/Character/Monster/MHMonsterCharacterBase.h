@@ -191,6 +191,8 @@ protected:
 #pragma endregion  
     
 #pragma region Groggy
+    
+public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Monster|Groggy")
     TObjectPtr<UAnimMontage> GroggyMontage = nullptr;
     
@@ -228,6 +230,9 @@ protected:
     
     
 #pragma region Phase
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Phase")
+    bool bPendingPhase2OnNextHit = false;
+    
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|Phase")
     bool bUsePhase2 = false;
 

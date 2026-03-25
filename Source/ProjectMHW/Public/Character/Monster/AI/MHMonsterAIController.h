@@ -35,6 +35,7 @@ public:
 	void SetAttacking(bool bNewAttacking);
 	void SetPhaseTransition(bool bInPhaseTransition);
 	void SetPhase2(bool phase2);
+	void SetGroggy(bool groggy);
 	
 protected:
 	UPROPERTY(EditDefaultsOnly , Category="AI")

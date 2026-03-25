@@ -1,7 +1,7 @@
 // 제작자 : 허혁
 // 제작일 : 2026-03-08
 // 수정자 : 허혁
-// 수정일 : 2026-03-13
+// 수정일 : 2026-03-25
 
 
 #pragma once
@@ -10,6 +10,14 @@
 #include "Engine/DataAsset.h"
 #include "MHMonsterType.generated.h"
 
+
+UENUM(BlueprintType)
+enum class EMonsterHitJudgeType : uint8
+{
+	Distance,
+	SocketSphere,
+	SocketSweep
+};
 
 USTRUCT(BlueprintType)
 struct FMonsterAbilityEntry
@@ -42,6 +50,18 @@ struct FMonsterAbilityEntry
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	FName HitSocketName = NAME_None;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	EMonsterHitJudgeType HitJudgeType = EMonsterHitJudgeType::Distance;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FName StartSocket = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FName EndSocket = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	float TraceRadius = 40.f;
 };
 
 USTRUCT(BlueprintType)
@@ -59,3 +79,4 @@ struct FPhaseAbilitySet
 	TArray<FMonsterAbilityEntry> AbilityEntries;
 	
 };
+

@@ -85,6 +85,14 @@ void AMHMonsterCharacterBase::BeginPlay()
 bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag AbilityTag)
 {
     
+    if (bGroggyPlaying)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("TryActivateMonsterAbilityByTag | blocked, groggy | Tag=%s"),
+            *AbilityTag.ToString());
+        return false;
+    }
+    
     if (bPhaseTransitionPlaying)
     {
         UE_LOG(MHMonsterCharacterBase, Warning,
@@ -200,7 +208,7 @@ bool AMHMonsterCharacterBase::GetMonsterAbilityEntryByTag(FGameplayTag AbilityTa
 
 float AMHMonsterCharacterBase::GetDistanceToCombatTarget() const
 {
-    if (!CombatTarget)
+    if (!IsValid(CombatTarget))
     {
         return TNumericLimits<float>::Max();
     }
@@ -232,7 +240,7 @@ float AMHMonsterCharacterBase::GetDistanceToCombatTarget() const
 
 bool AMHMonsterCharacterBase::IsCombatTargetInRange(float Range) const
 {
-    if (!CombatTarget)
+    if (!IsValid(CombatTarget))
     {
         return false;
     }
@@ -311,7 +319,7 @@ bool AMHMonsterCharacterBase::CanMonsterAttackHitNow() const
 
 void AMHMonsterCharacterBase::FaceCombatTargetInstant()
 {
-    if (!CombatTarget)
+    if (!IsValid(CombatTarget))
     {
         return;
     }
@@ -330,7 +338,7 @@ void AMHMonsterCharacterBase::FaceCombatTargetInstant()
 
 void AMHMonsterCharacterBase::FaceCombatTargetInterp(float DeltaSeconds, float TurnSpeedDeg)
 {
-    if (!CombatTarget)
+    if (!IsValid(CombatTarget))
     {
         return;
     }
@@ -387,11 +395,21 @@ bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag
 
     float FinalPhysicalDamage = MonsterBasicPhysicalDamage;
     float FinalAttackRange = 500.f;
+    EMonsterHitJudgeType FinalJudgeType = EMonsterHitJudgeType::Distance;
+    FName FinalHitSocket = NAME_None;
+    FName FinalStartSocket = NAME_None;
+    FName FinalEndSocket = NAME_None;
+    float FinalTraceRadius = 40.f;
 
     if (FindMonsterAbilityEntryByTag(AttackTag, AbilityEntry))
     {
         FinalPhysicalDamage = AbilityEntry.PhysicalDamage;
         FinalAttackRange = AbilityEntry.AttackRange;
+        FinalJudgeType = AbilityEntry.HitJudgeType;
+        FinalHitSocket = AbilityEntry.HitSocketName;
+        FinalStartSocket = AbilityEntry.StartSocket;
+        FinalEndSocket = AbilityEntry.EndSocket;
+        FinalTraceRadius = FMath::Max(1.f , AbilityEntry.TraceRadius);
 
         UE_LOG(MHMonsterCharacterBase, Warning,
             TEXT("ConsumeMonsterAttackHitOnce | Entry Found | Tag=%s Damage=%.1f Range=%.1f Cooldown=%.1f"),
@@ -408,14 +426,229 @@ bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag
             FinalPhysicalDamage,
             FinalAttackRange);
     }
+    auto FindCombatTargetHit = [&](const TArray<FHitResult>& Hits, FHitResult& OutHit) -> bool
+    {
+        for (const FHitResult& HR : Hits)
+        {
+            if (HR.GetActor() == CombatTarget)
+            {
+                OutHit = HR;
+                return true;
+            }
+        }
+        return false;
+    };
 
-    const float Dist = FVector::Dist(GetActorLocation(), CombatTarget->GetActorLocation());
-    if (Dist > FinalAttackRange)
+    FHitResult HitResult;
+    bool bHit = false;
+
+    switch (FinalJudgeType)
+    {
+    case EMonsterHitJudgeType::Distance:
+        {
+            const float Dist = FVector::Dist(GetActorLocation(), CombatTarget->GetActorLocation());
+            if (Dist > FinalAttackRange)
+            {
+                UE_LOG(MHMonsterCharacterBase, Warning,
+                    TEXT("ConsumeMonsterAttackHitOnce | Out of range | Dist=%.1f Range=%.1f"),
+                    Dist,
+                    FinalAttackRange);
+                return false;
+            }
+
+            HitResult.Location = CombatTarget->GetActorLocation();
+            HitResult.ImpactPoint = CombatTarget->GetActorLocation();
+            HitResult.ImpactNormal = (CombatTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+            HitResult.Normal = HitResult.ImpactNormal;
+            bHit = true;
+        }
+        break;
+
+    case EMonsterHitJudgeType::SocketSphere:
+        {
+            
+            
+            if (!GetMesh())
+            {
+                UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | Mesh null"));
+                return false;
+            }
+
+            const FName SocketName = !FinalHitSocket.IsNone() ? FinalHitSocket : FinalStartSocket;
+            if (SocketName.IsNone() || !GetMesh()->DoesSocketExist(SocketName))
+            {
+                UE_LOG(MHMonsterCharacterBase, Warning,
+                    TEXT("ConsumeMonsterAttackHitOnce | Invalid SocketSphere socket=%s"),
+                    *SocketName.ToString());
+                return false;
+            }
+
+            const FVector SocketLoc = GetMesh()->GetSocketLocation(SocketName);
+
+            TArray<FHitResult> Hits;
+            FCollisionQueryParams Params(SCENE_QUERY_STAT(MonsterSocketSphere), false, this);
+            Params.AddIgnoredActor(this);
+
+            const bool bAnyHit = GetWorld()->SweepMultiByChannel(
+                Hits,
+                SocketLoc,
+                SocketLoc,
+                FQuat::Identity,
+                ECC_Pawn,
+                FCollisionShape::MakeSphere(FinalTraceRadius),
+                Params
+            );
+
+            bHit = bAnyHit && FindCombatTargetHit(Hits, HitResult);
+
+            UE_LOG(MHMonsterCharacterBase, Warning,
+                TEXT("ConsumeMonsterAttackHitOnce | SocketSphere | Socket=%s Radius=%.1f Hit=%d"),
+                *SocketName.ToString(),
+                FinalTraceRadius,
+                bHit ? 1 : 0);
+        }
+        break;
+
+    case EMonsterHitJudgeType::SocketSweep:
+        {
+    if (!GetMesh())
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | Mesh null"));
+        return false;
+    }
+
+    if (FinalStartSocket.IsNone() || FinalEndSocket.IsNone() ||
+        !GetMesh()->DoesSocketExist(FinalStartSocket) ||
+        !GetMesh()->DoesSocketExist(FinalEndSocket))
     {
         UE_LOG(MHMonsterCharacterBase, Warning,
-            TEXT("ConsumeMonsterAttackHitOnce | Out of range | Dist=%.1f Range=%.1f"),
-            Dist,
-            FinalAttackRange);
+            TEXT("ConsumeMonsterAttackHitOnce | Invalid SocketSweep sockets Start=%s End=%s"),
+            *FinalStartSocket.ToString(),
+            *FinalEndSocket.ToString());
+        return false;
+    }
+
+    const FVector Start = GetMesh()->GetSocketLocation(FinalStartSocket);
+    const FVector End   = GetMesh()->GetSocketLocation(FinalEndSocket);
+    const FVector TargetLoc = CombatTarget ? CombatTarget->GetActorLocation() : FVector::ZeroVector;
+
+    // 디버그 표시
+    DrawDebugSphere(GetWorld(), Start, FinalTraceRadius, 16, FColor::Red, false, 2.0f);
+    DrawDebugSphere(GetWorld(), End, FinalTraceRadius, 16, FColor::Blue, false, 2.0f);
+    DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 2.0f, 0, 2.0f);
+    DrawDebugSphere(GetWorld(), TargetLoc, 30.f, 12, FColor::Yellow, false, 2.0f);
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("SocketSweep Debug | Start=%s End=%s Target=%s Radius=%.1f DistToStart=%.1f DistToEnd=%.1f"),
+        *Start.ToString(),
+        *End.ToString(),
+        *TargetLoc.ToString(),
+        FinalTraceRadius,
+        FVector::Dist(Start, TargetLoc),
+        FVector::Dist(End, TargetLoc));
+
+    TArray<FHitResult> Hits;
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(MonsterSocketSweep), false, this);
+    Params.AddIgnoredActor(this);
+            
+            FCollisionObjectQueryParams ObjectQueryParams;
+            ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);        
+            
+            const bool bAnyHit = GetWorld()->SweepMultiByObjectType(
+            Hits,
+            Start,
+            End,
+            FQuat::Identity,
+            ObjectQueryParams,
+            FCollisionShape::MakeSphere(FinalTraceRadius),
+            Params
+    );
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("SocketSweep Debug | AnyHit=%d NumHits=%d CombatTarget=%s"),
+        bAnyHit ? 1 : 0,
+        Hits.Num(),
+        *GetNameSafe(CombatTarget));
+
+            
+    for (const FHitResult& HR : Hits)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("SocketSweep Hit Actor=%s Component=%s Bone=%s"),
+            *GetNameSafe(HR.GetActor()),
+            *GetNameSafe(HR.GetComponent()),
+            *HR.BoneName.ToString());
+    }
+
+    bHit = bAnyHit && FindCombatTargetHit(Hits, HitResult);
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("ConsumeMonsterAttackHitOnce | SocketSweep | Start=%s End=%s Radius=%.1f Hit=%d"),
+        *FinalStartSocket.ToString(),
+        *FinalEndSocket.ToString(),
+        FinalTraceRadius,
+        bHit ? 1 : 0);
+}
+break;
+        
+        
+        /*{
+            if (!GetMesh())
+            {
+                UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | Mesh null"));
+                return false;
+            }
+
+            if (FinalStartSocket.IsNone() || FinalEndSocket.IsNone() ||
+                !GetMesh()->DoesSocketExist(FinalStartSocket) ||
+                !GetMesh()->DoesSocketExist(FinalEndSocket))
+            {
+                UE_LOG(MHMonsterCharacterBase, Warning,
+                    TEXT("ConsumeMonsterAttackHitOnce | Invalid SocketSweep sockets Start=%s End=%s"),
+                    *FinalStartSocket.ToString(),
+                    *FinalEndSocket.ToString());
+                return false;
+            }
+
+            const FVector Start = GetMesh()->GetSocketLocation(FinalStartSocket);
+            const FVector End = GetMesh()->GetSocketLocation(FinalEndSocket);
+
+            TArray<FHitResult> Hits;
+            FCollisionQueryParams Params(SCENE_QUERY_STAT(MonsterSocketSweep), false, this);
+            Params.AddIgnoredActor(this);
+
+            const bool bAnyHit = GetWorld()->SweepMultiByChannel(
+                Hits,
+                Start,
+                End,
+                FQuat::Identity,
+                ECC_Pawn,
+                FCollisionShape::MakeSphere(FinalTraceRadius),
+                Params
+            );
+
+            bHit = bAnyHit && FindCombatTargetHit(Hits, HitResult);
+
+            UE_LOG(MHMonsterCharacterBase, Warning,
+                TEXT("ConsumeMonsterAttackHitOnce | SocketSweep | Start=%s End=%s Radius=%.1f Hit=%d"),
+                *FinalStartSocket.ToString(),
+                *FinalEndSocket.ToString(),
+                FinalTraceRadius,
+                bHit ? 1 : 0);
+        }
+        break;*/
+
+    default:
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("ConsumeMonsterAttackHitOnce | Unknown HitJudgeType"));
+        return false;
+    }
+
+    if (!bHit)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("ConsumeMonsterAttackHitOnce | No valid hit | Tag=%s"),
+            *AttackTag.ToString());
         return false;
     }
 
@@ -425,12 +658,6 @@ bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag
         UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | BuildMonsterDamageSpec failed"));
         return false;
     }
-
-    FHitResult HitResult;
-    HitResult.Location = CombatTarget->GetActorLocation();
-    HitResult.ImpactPoint = CombatTarget->GetActorLocation();
-    HitResult.ImpactNormal = (CombatTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal();
-    HitResult.Normal = HitResult.ImpactNormal;
 
     const FMHHitAcknowledge HitAck =
         IMHDamageSpecReceiverInterface::Execute_ReceiveDamageSpec(
@@ -964,6 +1191,12 @@ void AMHMonsterCharacterBase::EnterGroggy(int32 GroggyIndex)
         return;
     }
 
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("EnterGroggy | Index=%d HP=%.1f Montage=%s"),
+        GroggyIndex,
+        HealthAttributeSets ? HealthAttributeSets->GetHealth() : -1.f,
+        *GetNameSafe(GroggyMontage));
+
     bGroggyPlaying = true;
 
     if (AbilitySystemComponent)
@@ -975,10 +1208,11 @@ void AMHMonsterCharacterBase::EnterGroggy(int32 GroggyIndex)
 
     SetMonsterAttacking(false);
 
-    if (AAIController* AIC = Cast<AAIController>(GetController()))
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
     {
-        AIC->StopMovement();
-        AIC->ClearFocus(EAIFocusPriority::Gameplay);
+        MonsterAI->StopMovement();
+        MonsterAI->ClearFocus(EAIFocusPriority::Gameplay);
+        MonsterAI->SetGroggy(true);
     }
 
     if (GetCharacterMovement())
@@ -990,9 +1224,16 @@ void AMHMonsterCharacterBase::EnterGroggy(int32 GroggyIndex)
     {
         if (UAnimInstance* AnimInst = MeshComp->GetAnimInstance())
         {
+            AnimInst->Montage_Stop(0.1f);
+
             if (GroggyMontage)
             {
                 const float PlayedLen = AnimInst->Montage_Play(GroggyMontage, 1.0f);
+
+                UE_LOG(MHMonsterCharacterBase, Warning,
+                    TEXT("EnterGroggy | Montage_Play=%.2f AnimInst=%s"),
+                    PlayedLen,
+                    *GetNameSafe(AnimInst));
 
                 if (PlayedLen <= 0.f)
                 {
@@ -1001,16 +1242,19 @@ void AMHMonsterCharacterBase::EnterGroggy(int32 GroggyIndex)
             }
             else
             {
+                UE_LOG(MHMonsterCharacterBase, Error, TEXT("EnterGroggy | GroggyMontage is NULL"));
                 FinishGroggy();
             }
         }
         else
         {
+            UE_LOG(MHMonsterCharacterBase, Error, TEXT("EnterGroggy | AnimInstance is NULL"));
             FinishGroggy();
         }
     }
     else
     {
+        UE_LOG(MHMonsterCharacterBase, Error, TEXT("EnterGroggy | Mesh is NULL"));
         FinishGroggy();
     }
 
@@ -1020,12 +1264,47 @@ void AMHMonsterCharacterBase::EnterGroggy(int32 GroggyIndex)
 
 void AMHMonsterCharacterBase::FinishGroggy()
 {
+    if (!bGroggyPlaying)
+    {
+        return;
+    }
+
+    UE_LOG(MHMonsterCharacterBase, Warning,TEXT("Finish Groggy | groggy finish start"))
     bGroggyPlaying = false;
+
+    if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
+    {
+        MonsterAI->SetGroggy(false);
+        UE_LOG(MHMonsterCharacterBase, Warning,TEXT("Finish Groggy | groggy finish end"))
+    }
+
+    const float CurrentHealth = HealthAttributeSets->GetHealth();
+    const float MaxHealth = HealthAttributeSets->GetMaxHealth();
+
+    if (MaxHealth > KINDA_SMALL_NUMBER)
+    {
+        const float HealthRatio = CurrentHealth / MaxHealth;
+
+        if (HealthRatio <= Phase2HealthRatioThreshold)
+        {
+            bPendingPhase2OnNextHit = true;
+
+            UE_LOG(MHMonsterCharacterBase, Warning,
+                TEXT("FinishGroggy | Phase2 reserved for next hit | HP=%.1f / %.1f"),
+                CurrentHealth, MaxHealth);
+        }
+    }
 }
 
 void AMHMonsterCharacterBase::CheckPhaseTransition()
 {
-    
+    UE_LOG(MHMonsterCharacterBase, Warning,
+    TEXT("CheckPhaseTransition | Groggy=%d PhaseTransition=%d Phase2Entered=%d HP=%.1f MaxHP=%.1f"),
+    bGroggyPlaying ? 1 : 0,
+    bPhaseTransitionPlaying ? 1 : 0,
+    bPhase2Entered ? 1 : 0,
+    HealthAttributeSets ? HealthAttributeSets->GetHealth() : -1.f,
+    HealthAttributeSets ? HealthAttributeSets->GetMaxHealth() : -1.f);
     if (bGroggyPlaying || bPhaseTransitionPlaying)
     {
         return;
@@ -1135,7 +1414,7 @@ void AMHMonsterCharacterBase::FinishPhase2Transition()
     }
 
     bPhaseTransitionPlaying = false;
-
+    bPendingPhase2OnNextHit = false;
     UE_LOG(MHMonsterCharacterBase, Warning, TEXT("FinishPhase2Transition | %s"), *GetName());
 
     if (AbilitySystemComponent && PhaseTransitionStateTag.IsValid())

@@ -78,6 +78,8 @@ namespace MHGameplayTags
 	
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Monster_Attack_Basic_P2, "Ability.Monster.Attack.Basic.P2");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Monster_Attack_Charge_P2, "Ability.Monster.Attack.Charge.P2");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Monster_Attack_Heating, "Ability.Monster.Attack.Heating");
+	
 	
 #pragma endregion
 	

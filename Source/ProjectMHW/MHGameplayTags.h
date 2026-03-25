@@ -94,6 +94,7 @@ namespace MHGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Monster_Attack_Charge);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Monster_Attack_Basic_P2);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Monster_Attack_Charge_P2);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Monster_Attack_Heating);
 	
 #pragma endregion
 	
