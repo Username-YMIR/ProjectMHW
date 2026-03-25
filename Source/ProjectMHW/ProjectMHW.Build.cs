@@ -19,6 +19,7 @@ public class ProjectMHW : ModuleRules
 			"GameplayStateTreeModule",
 			"UMG",
 			"Slate",
+			"SlateCore",
 			"GameplayAbilities", 
 			"GameplayTags",
 			"GameplayTasks",
