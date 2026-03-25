@@ -80,3 +80,13 @@ void AMHMonsterAIController::SetPhase2(bool phase2)
 	}
 	
 }
+
+void AMHMonsterAIController::SetGroggy(bool groggy)
+{
+	if (Blackboard)
+	{
+		Blackboard->SetValueAsBool(TEXT("bGroggy"), groggy);
+		UE_LOG(LogTemp, Warning, TEXT("SetGroggy -> %d"), groggy ? 1 : 0);
+	}
+	
+}
