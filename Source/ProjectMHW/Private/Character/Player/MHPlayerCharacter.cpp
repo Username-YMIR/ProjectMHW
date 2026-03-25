@@ -3871,6 +3871,10 @@ bool AMHPlayerCharacter::CanStartSharpenItemUse() const
         return false;
     }
 
+    if (WeaponSheathState != EMHWeaponSheathState::Sheathed)
+    {
+        return false;
+    }
     if (GetCurrentSharpnessValue() >= GetMaxSharpnessValue())
     {
         return false;
