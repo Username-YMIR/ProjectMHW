@@ -4602,7 +4602,7 @@ void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue& InputA
 {
     (void)InputActionValue;
 
-    SelectedConsumable = EMHConsumableSelection::Sharpen;
+    SetSelectedConsumable(EMHConsumableSelection::Sharpen);
     UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Selected=Sharpen"));
 }
 
@@ -4610,8 +4610,19 @@ void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputAc
 {
     (void)InputActionValue;
 
-    SelectedConsumable = EMHConsumableSelection::Potion;
+    SetSelectedConsumable(EMHConsumableSelection::Potion);
     UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Selected=Potion"));
+}
+
+void AMHPlayerCharacter::SetSelectedConsumable(const EMHConsumableSelection InSelection)
+{
+    if (SelectedConsumable == InSelection)
+    {
+        return;
+    }
+
+    SelectedConsumable = InSelection;
+    OnConsumableSelectionChanged.Broadcast(SelectedConsumable);
 }
 
 void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActionValue)
