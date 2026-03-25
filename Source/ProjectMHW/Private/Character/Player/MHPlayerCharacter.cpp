@@ -17,7 +17,9 @@
 #include "Weapons/LongSword/MHLongSwordComboComponent.h"
 #include "Weapons/GreatSword/MHGreatSwordActionComponent.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/Abilities/Status/MHGA_MHSharpen.h"
 #include "AbilitySystem/Abilities/Weapon/LongSword/MHGA_LongSwordCombo.h"
+#include "AbilitySystem/Abilities/Weapon/GreatSword/MHGA_GreatSwordAttack.h"
 #include "GameplayTags/MHGreatSwordGameplayTags.h"
 #include "GameplayTags/MHCombatStateGameplayTags.h"
 #include "GameplayTags/MHInputPatternGameplayTags.h"
@@ -309,6 +311,7 @@ void AMHPlayerCharacter::Input_Move(const FInputActionValue& InputActionValue)
     if (!MovementVector.IsNearlyZero())
     {
         LastNonZeroMoveInput2D = MovementVector;
+        CancelSharpenAbilityIfActive();
     }
 
     if (!Controller)
@@ -368,6 +371,7 @@ void AMHPlayerCharacter::Input_SprintCompleted(const FInputActionValue& InputAct
 void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
 {
     bDodgeHeld = true;
+    CancelSharpenAbilityIfActive();
 
     if (IsGreatSwordEquipped())
     {
@@ -574,6 +578,7 @@ void AMHPlayerCharacter::ApplyDebugDamageFromSource(AActor* InSourceActor, float
 void AMHPlayerCharacter::Input_AttackPrimary(const FInputActionValue& InputActionValue)
 {
     bAttackPrimaryHeld = true;
+    CancelSharpenAbilityIfActive();
 
     if (IsGreatSwordEquipped())
     {
@@ -597,6 +602,7 @@ void AMHPlayerCharacter::Input_AttackPrimaryCompleted(const FInputActionValue& I
 void AMHPlayerCharacter::Input_AttackSecondary(const FInputActionValue& InputActionValue)
 {
     bAttackSecondaryHeld = true;
+    CancelSharpenAbilityIfActive();
 
     if (IsGreatSwordEquipped())
     {
@@ -615,6 +621,7 @@ void AMHPlayerCharacter::Input_AttackSecondaryCompleted(const FInputActionValue&
 void AMHPlayerCharacter::Input_WeaponSpecial(const FInputActionValue& InputActionValue)
 {
     bWeaponSpecialHeld = true;
+    CancelSharpenAbilityIfActive();
 
     if (IsGreatSwordEquipped())
     {
@@ -637,6 +644,8 @@ void AMHPlayerCharacter::Input_WeaponSpecialCompleted(const FInputActionValue& I
 
 void AMHPlayerCharacter::Input_AttackSimultaneous(const FInputActionValue& InputActionValue)
 {
+    CancelSharpenAbilityIfActive();
+
     if (IsGreatSwordEquipped())
     {
         TryHandleGreatSwordSimultaneousInput();
@@ -1033,6 +1042,8 @@ FMHHitAcknowledge AMHPlayerCharacter::ReceiveDamageSpec_Implementation(
         return BuildRejectedHitAcknowledge();
     }
 
+    CancelSharpenAbilityIfActive();
+
     ClearExpiredLongSwordDamageIgnoreState();
 
     if (bIgnoreDamageUntilCurrentActionEnd)
@@ -1212,7 +1223,6 @@ void AMHPlayerCharacter::UnequipCurrentWeapon(bool bDestroyWeapon)
     CurrentSharpnessColor = EMHSharpnessColor::Red;
     CurrentSharpnessValue = 0.0f;
     SetSharpnessAttributeValues(0.0f, 0.0f);
-    CurrentSharpnessLength = 0.0f;
 
     RefreshWeaponAnimationLayerState();
 }
@@ -2421,10 +2431,6 @@ void AMHPlayerCharacter::ApplyEquippedWeaponStatEffect()
 
     CurrentSharpnessColor = Stat.MaxSharpnessColor;
     CurrentSharpnessValue = GetTotalSharpnessLength(Stat.SharpnessLength);
-    CurrentSharpnessLength = GetMaxSharpnessValueFromColor(
-        Stat.SharpnessLength,
-        Stat.MaxSharpnessColor
-    );
     SetSharpnessAttributeValues(CurrentSharpnessValue, CurrentSharpnessValue);
 
     // -----------------------
@@ -2452,7 +2458,6 @@ void AMHPlayerCharacter::RemoveEquippedWeaponStatEffect()
         EquippedWeaponStatEffectHandle.Invalidate();
     }
 
-    CurrentSharpnessLength = 0.0f;
     if (CombatAttributeSet)
     {
         CombatAttributeSet->SetSharpnessModifier(1.0f);
@@ -2475,57 +2480,6 @@ void AMHPlayerCharacter::RefreshEquippedWeaponStatEffect()
 {
     RemoveEquippedWeaponStatEffect();
     ApplyEquippedWeaponStatEffect();
-}
-
-float AMHPlayerCharacter::ResolveSharpnessModifierFromColor(const EMHSharpnessColor InColor) const
-{
-    switch (InColor)
-    {
-    case EMHSharpnessColor::White:
-        return 1.32f;
-    case EMHSharpnessColor::Blue:
-        return 1.20f;
-    case EMHSharpnessColor::Green:
-        return 1.05f;
-    case EMHSharpnessColor::Yellow:
-        return 1.00f;
-    case EMHSharpnessColor::Orange:
-        return 0.85f;
-    case EMHSharpnessColor::Red:
-    default:
-        return 0.70f;
-    }
-}
-
-void AMHPlayerCharacter::SyncSharpnessModifierToCombatAttribute()
-{
-    const float SharpnessModifier = ResolveSharpnessModifierFromColor(CurrentSharpnessColor);
-
-    if (CombatAttributeSet)
-    {
-        CombatAttributeSet->SetSharpnessModifier(SharpnessModifier);
-    }
-
-    if (AbilitySystemComponent)
-    {
-        AbilitySystemComponent->SetNumericAttributeBase(UMHCombatAttributeSet::GetSharpnessModifierAttribute(), SharpnessModifier);
-    }
-
-    UE_LOG(
-        LogMHPlayerCharacter,
-        Verbose,
-        TEXT("%s : Sharpness modifier synced. Color=%d Modifier=%.2f"),
-        *GetName(),
-        static_cast<int32>(CurrentSharpnessColor),
-        SharpnessModifier
-    );
-}
-
-float AMHPlayerCharacter::GetMaxSharpnessValueFromColor(
-    const FMHSharpnessData& Data,
-    EMHSharpnessColor Color) const
-{
-    return GetSharpnessLength(Data, Color);
 }
 
 void AMHPlayerCharacter::SetSharpnessAttributeValues(float InCurrentSharpness, float InMaxSharpness)
@@ -2595,21 +2549,6 @@ void AMHPlayerCharacter::ConsumeSharpness(float Amount)
     const float CurrentSharpness = GetCurrentSharpnessValue();
     const float NewSharpness = FMath::Clamp(CurrentSharpness - FMath::Max(0.0f, Amount), 0.0f, MaxSharpness);
     SetSharpnessAttributeValues(NewSharpness, MaxSharpness);
-
-    if (EquippedWeapon)
-    {
-        CurrentSharpnessLength = GetMaxSharpnessValueFromColor(
-            EquippedWeapon->GetAttackStats().SharpnessLength,
-            CurrentSharpnessColor
-        );
-    }
-}
-
-bool AMHPlayerCharacter::DowngradeSharpnessColor()
-{
-    const EMHSharpnessColor PreviousColor = CurrentSharpnessColor;
-    CurrentSharpnessColor = GetLowerSharpnessColor(CurrentSharpnessColor);
-    return PreviousColor != CurrentSharpnessColor;
 }
 
 float AMHPlayerCharacter::GetCurrentSharpnessValue() const
@@ -3283,6 +3222,147 @@ bool AMHPlayerCharacter::TryRequestLongSwordEarlyTransition()
     return ComboAbility->TryEvaluateEarlyTransitionNow();
 }
 
+bool AMHPlayerCharacter::IsEquippedWeaponPrimaryAbilityActive() const
+{
+    if (!AbilitySystemComponent || !EquippedWeapon)
+    {
+        return false;
+    }
+
+    const TSubclassOf<UGameplayAbility> AbilityClass = EquippedWeapon->GetPrimaryAttackAbilityClass();
+    if (!AbilityClass)
+    {
+        return false;
+    }
+
+    const FGameplayAbilitySpec* Spec = AbilitySystemComponent->FindAbilitySpecFromClass(AbilityClass);
+    return Spec && Spec->IsActive();
+}
+
+bool AMHPlayerCharacter::EndActiveEquippedWeaponAttackAbility(bool bWasCancelled)
+{
+    if (!AbilitySystemComponent || !EquippedWeapon)
+    {
+        return false;
+    }
+
+    const TSubclassOf<UGameplayAbility> AbilityClass = EquippedWeapon->GetPrimaryAttackAbilityClass();
+    if (!AbilityClass)
+    {
+        return false;
+    }
+
+    FGameplayAbilitySpec* Spec = AbilitySystemComponent->FindAbilitySpecFromClass(AbilityClass);
+    if (!Spec || !Spec->IsActive())
+    {
+        return false;
+    }
+
+    UGameplayAbility* ActiveAbility = Spec->GetPrimaryInstance();
+    if (UMHGA_LongSwordCombo* ComboAbility = Cast<UMHGA_LongSwordCombo>(ActiveAbility))
+    {
+        ComboAbility->RequestExternalEndAbility(bWasCancelled);
+        return true;
+    }
+
+    if (UMHGA_GreatSwordAttack* GreatSwordAbility = Cast<UMHGA_GreatSwordAttack>(ActiveAbility))
+    {
+        GreatSwordAbility->RequestExternalEndAbility(bWasCancelled);
+        return true;
+    }
+
+    return false;
+}
+
+bool AMHPlayerCharacter::CancelSharpenAbilityIfActive()
+{
+    if (!AbilitySystemComponent || !SharpenAbilityClass)
+    {
+        return false;
+    }
+
+    FGameplayAbilitySpec* Spec = AbilitySystemComponent->FindAbilitySpecFromClass(SharpenAbilityClass);
+    if (!Spec || !Spec->IsActive())
+    {
+        return false;
+    }
+
+    UGameplayAbility* ActiveAbility = Spec->GetPrimaryInstance();
+    UGA_MHSharpen* SharpenAbility = Cast<UGA_MHSharpen>(ActiveAbility);
+    if (!SharpenAbility)
+    {
+        return false;
+    }
+
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Sharpen] Cancelled by external action"));
+    SharpenAbility->RequestExternalEndAbility(true);
+    return true;
+}
+
+bool AMHPlayerCharacter::CanStartSharpenItemUse() const
+{
+    if (!EquippedWeapon || GetMaxSharpnessValue() <= 0.0f)
+    {
+        return false;
+    }
+
+    if (GetCurrentSharpnessValue() >= GetMaxSharpnessValue())
+    {
+        return false;
+    }
+
+    if (GetVelocity().Size2D() > 3.0f)
+    {
+        return false;
+    }
+
+    if (bRollMontagePlaying)
+    {
+        return false;
+    }
+
+    return !IsEquippedWeaponPrimaryAbilityActive();
+}
+
+void AMHPlayerCharacter::HandleSharpnessBounce()
+{
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Log,
+        TEXT("[Sharpness] Handle bounce. WeaponType=%d"),
+        static_cast<int32>(CurrentWeaponType)
+    );
+
+    EndActiveEquippedWeaponAttackAbility(true);
+
+    if (AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
+    {
+        if (UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
+        {
+            ComboComp->ResetCombo();
+        }
+
+        HandleComboMontageStateTransition(true);
+    }
+    else if (AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
+    {
+        if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
+        {
+            ActionComponent->NotifyActionFinished();
+        }
+    }
+
+    if (UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
+    {
+        AnimInstance->Montage_Stop(0.05f);
+
+        if (SharpnessBounceMontage)
+        {
+            AnimInstance->Montage_Play(SharpnessBounceMontage);
+        }
+    }
+}
+
 bool AMHPlayerCharacter::CanStartSheathe() const
 {
     if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
@@ -3886,6 +3966,21 @@ void AMHPlayerCharacter::TryUseSelectedItem()
     switch (SelectedConsumable)
     {
     case EMHConsumableSelection::Sharpen:
+        if (!CanStartSharpenItemUse())
+        {
+            UE_LOG(
+                LogMHPlayerCharacter,
+                Log,
+                TEXT("[Sharpen] TryUse rejected Current=%.1f Max=%.1f Velocity=%.2f AttackActive=%d Roll=%d"),
+                GetCurrentSharpnessValue(),
+                GetMaxSharpnessValue(),
+                GetVelocity().Size2D(),
+                IsEquippedWeaponPrimaryAbilityActive() ? 1 : 0,
+                bRollMontagePlaying ? 1 : 0
+            );
+            return;
+        }
+
         AbilityClass = SharpenAbilityClass;
         break;
     case EMHConsumableSelection::Potion:

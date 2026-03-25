@@ -23,6 +23,7 @@ class PROJECTMHW_API UMHGA_LongSwordCombo : public UGameplayAbility
 public:
     UMHGA_LongSwordCombo();
     bool TryEvaluateEarlyTransitionNow();
+    void RequestExternalEndAbility(bool bInWasCancelled = true);
 
 protected:
     virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
@@ -33,9 +34,6 @@ protected:
 #pragma region DamageSystem_GJ
 protected:
     /** 외부 시스템에서 현재 콤보 어빌리티를 조기 종료할 때 호출_이건주 */
-    UFUNCTION(BlueprintCallable, Category="Ability|LongSword")
-    void RequestExternalEndAbility(bool bInWasCancelled = true);
-
 private:
     /** 현재 콤보 노드 기준 DamageSpec을 생성해서 무기 인스턴스에 전달 _이건주*/
     bool PushDamageSpecToWeapon(const FMHLongSwordComboNode& InNode);

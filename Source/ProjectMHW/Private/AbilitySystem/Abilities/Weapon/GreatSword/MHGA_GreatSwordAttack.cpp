@@ -22,6 +22,16 @@ UMHGA_GreatSwordAttack::UMHGA_GreatSwordAttack()
     PhysicalDamageDataTag = MHGameplayTags::Data_Damage_Physical;
 }
 
+void UMHGA_GreatSwordAttack::RequestExternalEndAbility(bool bInWasCancelled)
+{
+    if (!IsActive())
+    {
+        return;
+    }
+
+    EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, bInWasCancelled);
+}
+
 void UMHGA_GreatSwordAttack::ActivateAbility(
     const FGameplayAbilitySpecHandle Handle,
     const FGameplayAbilityActorInfo* ActorInfo,

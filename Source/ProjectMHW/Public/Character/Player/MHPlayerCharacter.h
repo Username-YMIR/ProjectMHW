@@ -50,6 +50,7 @@ class USkeletalMesh;
 class UAnimInstance;
 class UAnimMontage;
 class UGameplayEffect;
+class UGameplayAbility;
 class UDataTable;
 class AMHWeaponInstance;
 class AMHGreatSwordInstance;
@@ -426,10 +427,7 @@ protected:
     // 현재 예리도 수치
     UPROPERTY(Transient)
     float CurrentSharpnessValue = 0.0f;
-    
-    UPROPERTY(Transient)
-    float CurrentSharpnessLength = 0.0f;
-    
+
     UPROPERTY(Transient)
     FGameplayTag CurrentWeaponElementTag;
 
@@ -446,20 +444,16 @@ protected:
     // 교체/초기 장착 시 호출
     void RefreshEquippedWeaponStatEffect();
     // 예리도 값
-    float GetMaxSharpnessValueFromColor(const FMHSharpnessData& Data, EMHSharpnessColor Color) const;
     void SetSharpnessAttributeValues(float InCurrentSharpness, float InMaxSharpness);
     void UpdateSharpnessModifierFromCurrentColor();
     
     // 예리도 소모
     void ConsumeSharpness(float Amount);
     // 예리도 단계 하락
-    bool DowngradeSharpnessColor();
 
     // 현재 예리도 색상에 대응하는 전투 배율을 계산한다.
-    float ResolveSharpnessModifierFromColor(EMHSharpnessColor InColor) const;
 
     // 현재 예리도 상태를 전투 어트리뷰트에 동기화한다.
-    void SyncSharpnessModifierToCombatAttribute();
 
 #pragma endregion
 
@@ -491,6 +485,9 @@ protected:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true"))
     TSubclassOf<UGameplayEffect> PlayerIncomingDamageEffectClass;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Sharpness", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UAnimMontage> SharpnessBounceMontage = nullptr;
 
 #pragma region Debug
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug|Damage", meta = (AllowPrivateAccess = "true"))
@@ -895,7 +892,11 @@ public:
     float GetCurrentHealableHealthValue() const;
     float GetCurrentSharpnessValue() const;
     float GetMaxSharpnessValue() const;
+    UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
+    EMHSharpnessColor GetCurrentSharpnessColor() const { return CurrentSharpnessColor; }
     void RefreshSharpnessState();
+    void HandleSharpnessBounce();
+    bool CanStartSharpenItemUse() const;
 
 protected:
     void Input_ItemSelectSharpen(const FInputActionValue& InputActionValue);
@@ -911,6 +912,9 @@ protected:
     EMHSharpnessColor GetLowerSharpnessColor(EMHSharpnessColor InColor) const;
     EMHSharpnessColor GetHigherSharpnessColor(EMHSharpnessColor InColor) const;
     bool CanUpgradeSharpnessColor() const;
+    bool CancelSharpenAbilityIfActive();
+    bool EndActiveEquippedWeaponAttackAbility(bool bWasCancelled);
+    bool IsEquippedWeaponPrimaryAbilityActive() const;
 
 private:
     bool bSyncingSharpnessState = false;

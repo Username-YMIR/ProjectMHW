@@ -354,6 +354,7 @@ void AMHMeleeWeaponInstance::OnWeaponBeginOverlap(
 			HitAcknowledge.bShouldStopAttackWindow = true;
 			HitAcknowledge.ResultType = EMHHitResultType::Bounced;
 
+			PlayerOwner->HandleSharpnessBounce();
 			HitActors.Add(OtherActor);
 			SetAttackCollisionEnabled(false);
 			return;

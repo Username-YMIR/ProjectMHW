@@ -25,6 +25,7 @@ protected:
 	void BindToPlayerCharacter();
 	void UnbindFromPlayerCharacter();
 	void SyncInitialValues();
+	void UpdateSharpnessBarVisual();
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "MH|PlayerStatus")

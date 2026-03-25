@@ -212,6 +212,7 @@ void UMHPlayerStatusWidget::SetCurrentSharpness(float InCurrentSharpness)
 	if (SharpnessBar)
 	{
 		SharpnessBar->SetCurrentValue(CurrentSharpness);
+		UpdateSharpnessBarVisual();
 	}
 }
 
@@ -222,6 +223,7 @@ void UMHPlayerStatusWidget::SetMaxSharpness(float InMaxSharpness)
 	if (SharpnessBar)
 	{
 		SharpnessBar->SetMaxValue(MaxSharpness);
+		UpdateSharpnessBarVisual();
 	}
 }
 
@@ -233,7 +235,32 @@ void UMHPlayerStatusWidget::SetSharpnessValues(float InCurrentSharpness, float I
 	if (SharpnessBar)
 	{
 		SharpnessBar->SetValues(CurrentSharpness, MaxSharpness);
+		UpdateSharpnessBarVisual();
 	}
+}
+
+void UMHPlayerStatusWidget::UpdateSharpnessBarVisual()
+{
+	if (!SharpnessBar)
+	{
+		return;
+	}
+
+	const AMHPlayerCharacter* PlayerCharacter = CachedPlayerCharacter.Get();
+	if (!PlayerCharacter)
+	{
+		PlayerCharacter = Cast<AMHPlayerCharacter>(GetMHPawn());
+	}
+
+	if (!PlayerCharacter
+		|| !PlayerCharacter->GetEquippedWeapon()
+		|| PlayerCharacter->GetMaxSharpnessValue() <= 0.0f)
+	{
+		SharpnessBar->ResetFillColor();
+		return;
+	}
+
+	SharpnessBar->SetSharpnessFillColor(PlayerCharacter->GetCurrentSharpnessColor());
 }
 
 void UMHPlayerStatusWidget::HandleHealthChanged(float InCurrentHealth, float InMaxHealth)
