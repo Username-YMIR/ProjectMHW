@@ -1697,7 +1697,9 @@ bool AMHPlayerCharacter::TryStartAutoSheatheAfterLongSwordMove(const FGameplayTa
         return false;
     }
 
-    StartSheathe();
+    WeaponSheathState = EMHWeaponSheathState::Sheathed;
+    AttachWeaponToBack();
+    RefreshWeaponAnimationLayerState();
     return true;
 }
 

@@ -301,6 +301,7 @@ void UMHLongSwordComboGraph::PopulateDefaults_LongSword()
         MakeBranch(InputPattern_LS_SpecialSheathe, Move_LS_SpecialSheathe, 50, false, EMHLongSwordForesightPhase::Primary),
 
         // 2차 구간: 후반 베기 이후 파생
+        MakeBranch(InputPattern_LS_Spirit, Move_LS_SpiritRoundslash, 100, true, EMHLongSwordForesightPhase::Secondary),
         MakeBranch(InputPattern_LS_AdvancingSlash, Move_LS_AdvancingSlash, 10, false, EMHLongSwordForesightPhase::Secondary),
         MakeBranch(InputPattern_LS_FadeSlash, Move_LS_FadeSlash, 20, false, EMHLongSwordForesightPhase::Secondary),
         MakeBranch(InputPattern_LS_LateralFadeSlash, Move_LS_LateralFadeSlash, 21, false, EMHLongSwordForesightPhase::Secondary),
