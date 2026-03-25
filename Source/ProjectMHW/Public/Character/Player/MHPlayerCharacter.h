@@ -14,6 +14,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogMHPlayerCharacter, Log, All);
 
 // 어트리뷰트셋 값 변경 시 사용하는 델리게이트 _이건주
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMHOnVitalChanged, float, CurrentValue, float, MaxValue);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMHOnSpiritLevelChanged, int32, CurrentLevel, int32, MaxLevel);
 
 // 소비템 선택
 UENUM(BlueprintType)
@@ -850,6 +851,10 @@ protected:
     // 베어내리기 계열에서 좌우 이동베기 Variant를 사용할 수 있는지 확인한다.
     bool ShouldUseDirectionalLateralFadeSlash() const;
     bool ShouldUseLateralFadeSlashPattern() const;
+    
+public:
+    float GetSpiritLevelRemainingTime() const;
+    float GetSpiritLevelDuration() const;
 #pragma endregion
 
 
@@ -935,6 +940,12 @@ public:
     
     UPROPERTY(BlueprintAssignable, Category="UI|Attributes")
     FMHOnVitalChanged OnSpiritGaugeChanged;
+
+    UPROPERTY(BlueprintAssignable, Category="UI|Attributes")
+    FMHOnSpiritLevelChanged OnSpiritLevelChanged;
+
+    UPROPERTY(BlueprintAssignable, Category="UI|Attributes")
+    FMHOnVitalChanged OnSpiritLevelTimerChanged;
     
     UPROPERTY(BlueprintAssignable, Category="UI|Attributes")
     FMHOnVitalChanged OnSharpnessChanged;
@@ -955,6 +966,10 @@ protected:
     void HandleMaxShapnessAttributeChanged(const FOnAttributeChangeData& ChangeData);
     void HandleSpiritAttributeChanged(const FOnAttributeChangeData& ChangeData);
     void HandleMaxSpiritAttributeChanged(const FOnAttributeChangeData& ChangeData);
+    void RefreshSpiritLevelDecayState(bool bResetTimer);
+    void HandleSpiritLevelDecayTick();
+    void BroadcastSpiritLevelChanged();
+    void BroadcastSpiritLevelTimerChanged();
 
     // 중복 바인딩 가드 플래그
     bool bAttributeDelegatesBound = false;
@@ -969,6 +984,8 @@ public:
     float GetCurrentHealableHealthValue() const;
     float GetCurrentSharpnessValue() const;
     float GetMaxSharpnessValue() const;
+    float GetCurrentSharpnessSegmentValue() const;
+    float GetCurrentSharpnessSegmentMax() const;
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     EMHSharpnessColor GetCurrentSharpnessColor() const { return CurrentSharpnessColor; }
     void RefreshSharpnessState();
@@ -995,6 +1012,14 @@ protected:
 
 private:
     bool bSyncingSharpnessState = false;
+    FTimerHandle SpiritLevelDecayTimerHandle;
+    float SpiritLevelRemainingTime = 0.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Combat|LongSword", meta = (ClampMin = "0.1", AllowPrivateAccess = "true"))
+    float SpiritLevelDuration = 60.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Combat|LongSword", meta = (ClampMin = "0.01", AllowPrivateAccess = "true"))
+    float SpiritLevelDecayTickInterval = 0.1f;
     
 
 private:

@@ -51,6 +51,8 @@ void UMHPlayerStatusWidget::BindToPlayerCharacter()
 	PlayerCharacter->OnHealthChanged.AddDynamic(this, &ThisClass::HandleHealthChanged);
 	PlayerCharacter->OnHealableHealthChanged.AddDynamic(this, &ThisClass::HandleHealableHealthChanged);
 	PlayerCharacter->OnSpiritGaugeChanged.AddDynamic(this, &ThisClass::HandleSpiritGaugeChanged);
+	PlayerCharacter->OnSpiritLevelChanged.AddDynamic(this, &ThisClass::HandleSpiritLevelChanged);
+	PlayerCharacter->OnSpiritLevelTimerChanged.AddDynamic(this, &ThisClass::HandleSpiritLevelTimerChanged);
 	PlayerCharacter->OnStaminaChanged.AddDynamic(this, &ThisClass::HandleStaminaChanged);
 	PlayerCharacter->OnSharpnessChanged.AddDynamic(this, &ThisClass::HandleSharpnessChanged);
 }
@@ -65,6 +67,8 @@ void UMHPlayerStatusWidget::UnbindFromPlayerCharacter()
 	CachedPlayerCharacter->OnHealthChanged.RemoveDynamic(this, &ThisClass::HandleHealthChanged);
 	CachedPlayerCharacter->OnHealableHealthChanged.RemoveDynamic(this, &ThisClass::HandleHealableHealthChanged);
 	CachedPlayerCharacter->OnSpiritGaugeChanged.RemoveDynamic(this, &ThisClass::HandleSpiritGaugeChanged);
+	CachedPlayerCharacter->OnSpiritLevelChanged.RemoveDynamic(this, &ThisClass::HandleSpiritLevelChanged);
+	CachedPlayerCharacter->OnSpiritLevelTimerChanged.RemoveDynamic(this, &ThisClass::HandleSpiritLevelTimerChanged);
 	CachedPlayerCharacter->OnStaminaChanged.RemoveDynamic(this, &ThisClass::HandleStaminaChanged);
 	CachedPlayerCharacter->OnSharpnessChanged.RemoveDynamic(this, &ThisClass::HandleSharpnessChanged);
 
@@ -92,6 +96,14 @@ void UMHPlayerStatusWidget::SyncInitialValues()
 	SetSpiritGaugeValues(
 		PlayerCharacter->GetCurrentSpiritGaugeValue(),
 		PlayerCharacter->GetMaxSpiritGaugeValue()
+	);
+	HandleSpiritLevelChanged(
+		PlayerCharacter->GetCurrentSpiritLevelValue(),
+		PlayerCharacter->GetMaxSpiritLevelValue()
+	);
+	SetSpiritGaugeTimerValues(
+		PlayerCharacter->GetSpiritLevelRemainingTime(),
+		PlayerCharacter->GetSpiritLevelDuration()
 	);
 
 	SetStaminaValues(
@@ -170,7 +182,14 @@ void UMHPlayerStatusWidget::SetSpiritGaugeValues(float InCurrentSpiritGauge, flo
 	if (SpiritGaugeBar)
 	{
 		SpiritGaugeBar->SetFrontValues(CurrentSpiritGauge, MaxSpiritGauge);
-		SpiritGaugeBar->SetBackValues(CurrentSpiritGauge, MaxSpiritGauge);
+	}
+}
+
+void UMHPlayerStatusWidget::SetSpiritGaugeTimerValues(float InRemainingTime, float InDuration)
+{
+	if (SpiritGaugeBar)
+	{
+		SpiritGaugeBar->SetBackValues(InRemainingTime, FMath::Max(0.f, InDuration));
 	}
 }
 
@@ -256,10 +275,14 @@ void UMHPlayerStatusWidget::UpdateSharpnessBarVisual()
 		|| !PlayerCharacter->GetEquippedWeapon()
 		|| PlayerCharacter->GetMaxSharpnessValue() <= 0.0f)
 	{
+		SharpnessBar->SetValues(0.0f, 0.0f);
 		SharpnessBar->ResetFillColor();
 		return;
 	}
 
+	SharpnessBar->SetValues(
+		PlayerCharacter->GetCurrentSharpnessSegmentValue(),
+		PlayerCharacter->GetCurrentSharpnessSegmentMax());
 	SharpnessBar->SetSharpnessFillColor(PlayerCharacter->GetCurrentSharpnessColor());
 }
 
@@ -286,6 +309,19 @@ void UMHPlayerStatusWidget::HandleSpiritGaugeChanged(float InCurrentSpiritGauge,
 	SetSpiritGaugeValues(InCurrentSpiritGauge, InMaxSpiritGauge);
 }
 
+void UMHPlayerStatusWidget::HandleSpiritLevelChanged(int32 InCurrentSpiritLevel, int32 InMaxSpiritLevel)
+{
+	(void)InMaxSpiritLevel;
+
+	CachedSpiritLevel = FMath::Clamp(InCurrentSpiritLevel, 0, 3);
+	UpdateSpiritGaugeVisual();
+}
+
+void UMHPlayerStatusWidget::HandleSpiritLevelTimerChanged(float InRemainingTime, float InDuration)
+{
+	SetSpiritGaugeTimerValues(InRemainingTime, InDuration);
+}
+
 void UMHPlayerStatusWidget::HandleStaminaChanged(float InCurrentStamina, float InMaxStamina)
 {
 	SetStaminaValues(InCurrentStamina, InMaxStamina);
@@ -294,4 +330,50 @@ void UMHPlayerStatusWidget::HandleStaminaChanged(float InCurrentStamina, float I
 void UMHPlayerStatusWidget::HandleSharpnessChanged(float InCurrentSharpness, float InMaxSharpness)
 {
 	SetSharpnessValues(InCurrentSharpness, InMaxSharpness);
+}
+
+void UMHPlayerStatusWidget::UpdateSpiritGaugeVisual()
+{
+	ApplySpiritGaugeLevelStyle(CachedSpiritLevel);
+}
+
+void UMHPlayerStatusWidget::ApplySpiritGaugeLevelStyle(const int32 InSpiritLevel)
+{
+	if (!SpiritGaugeBar)
+	{
+		return;
+	}
+
+	SpiritGaugeBar->SetFrontFillColor(GetSpiritLevelFrontColor(InSpiritLevel));
+	SpiritGaugeBar->SetBackFillColor(GetSpiritLevelBackColor(InSpiritLevel));
+}
+
+FLinearColor UMHPlayerStatusWidget::GetSpiritLevelFrontColor(const int32 InSpiritLevel) const
+{
+	switch (FMath::Clamp(InSpiritLevel, 0, 3))
+	{
+	case 1:
+		return SpiritGaugeLevel1FrontColor;
+	case 2:
+		return SpiritGaugeLevel2FrontColor;
+	case 3:
+		return SpiritGaugeLevel3FrontColor;
+	default:
+		return SpiritGaugeLevel0FrontColor;
+	}
+}
+
+FLinearColor UMHPlayerStatusWidget::GetSpiritLevelBackColor(const int32 InSpiritLevel) const
+{
+	switch (FMath::Clamp(InSpiritLevel, 0, 3))
+	{
+	case 1:
+		return SpiritGaugeLevel1BackColor;
+	case 2:
+		return SpiritGaugeLevel2BackColor;
+	case 3:
+		return SpiritGaugeLevel3BackColor;
+	default:
+		return SpiritGaugeLevel0BackColor;
+	}
 }

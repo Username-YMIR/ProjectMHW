@@ -38,6 +38,7 @@
 #include "Combat/Attributes/MHCombatAttributeSet.h"
 #include "Combat/Attributes/MHHealthAttributeSet.h"
 #include "Combat/Attributes/MHPlayerAttributeSet.h"
+#include "TimerManager.h"
 #include "Combat/Attributes/MHResistanceAttributeSet.h"
 #include "Combat/Effects/MHGameplayEffect_Damage.h"
 #include "Combat/Effects/MHGameplayEffect_PlayerDamage.h"
@@ -2694,7 +2695,14 @@ void AMHPlayerCharacter::IncreaseSpiritLevel(const int32 InAmount)
         return;
     }
 
+    const int32 PreviousSpiritLevel = CurrentSpiritLevel;
     CurrentSpiritLevel = FMath::Clamp(CurrentSpiritLevel + InAmount, 0, 3);
+
+    if (CurrentSpiritLevel != PreviousSpiritLevel)
+    {
+        RefreshSpiritLevelDecayState(true);
+        BroadcastSpiritLevelChanged();
+    }
 }
 
 void AMHPlayerCharacter::DecreaseSpiritLevel(const int32 InAmount)
@@ -2704,7 +2712,24 @@ void AMHPlayerCharacter::DecreaseSpiritLevel(const int32 InAmount)
         return;
     }
 
+    const int32 PreviousSpiritLevel = CurrentSpiritLevel;
     CurrentSpiritLevel = FMath::Clamp(CurrentSpiritLevel - InAmount, 0, 3);
+
+    if (CurrentSpiritLevel != PreviousSpiritLevel)
+    {
+        RefreshSpiritLevelDecayState(CurrentSpiritLevel > 0);
+        BroadcastSpiritLevelChanged();
+    }
+}
+
+float AMHPlayerCharacter::GetSpiritLevelRemainingTime() const
+{
+    return FMath::Max(0.0f, SpiritLevelRemainingTime);
+}
+
+float AMHPlayerCharacter::GetSpiritLevelDuration() const
+{
+    return FMath::Max(0.0f, SpiritLevelDuration);
 }
 
 bool AMHPlayerCharacter::IsAttackAllowedForForesightCounter(const FGameplayTag& InAttackTag) const
@@ -3165,6 +3190,44 @@ float AMHPlayerCharacter::GetMaxSharpnessValue() const
     }
 
     return GetTotalSharpnessLength(EquippedWeapon->GetAttackStats().SharpnessLength);
+}
+
+float AMHPlayerCharacter::GetCurrentSharpnessSegmentValue() const
+{
+    if (!EquippedWeapon)
+    {
+        return 0.0f;
+    }
+
+    float SegmentValue = 0.0f;
+    float SegmentMax = 0.0f;
+    GetSharpnessSegmentValues(
+        EquippedWeapon->GetAttackStats().SharpnessLength,
+        CurrentSharpnessColor,
+        GetCurrentSharpnessValue(),
+        SegmentValue,
+        SegmentMax);
+
+    return SegmentValue;
+}
+
+float AMHPlayerCharacter::GetCurrentSharpnessSegmentMax() const
+{
+    if (!EquippedWeapon)
+    {
+        return 0.0f;
+    }
+
+    float SegmentValue = 0.0f;
+    float SegmentMax = 0.0f;
+    GetSharpnessSegmentValues(
+        EquippedWeapon->GetAttackStats().SharpnessLength,
+        CurrentSharpnessColor,
+        GetCurrentSharpnessValue(),
+        SegmentValue,
+        SegmentMax);
+
+    return SegmentMax;
 }
 
 EMHHitResultType AMHPlayerCharacter::HandleWeaponAttackHit(
@@ -4724,6 +4787,8 @@ void AMHPlayerCharacter::BroadcastInitialAttributeSnapshot()
     OnHealableHealthChanged.Broadcast(GetCurrentHealableHealthValue(), GetMaxHealthValue());
     OnStaminaChanged.Broadcast(GetCurrentStaminaValue(), GetMaxStaminaValue());
     OnSpiritGaugeChanged.Broadcast(GetCurrentSpiritGaugeValue(), GetMaxSpiritGaugeValue());
+    BroadcastSpiritLevelChanged();
+    BroadcastSpiritLevelTimerChanged();
     OnSharpnessChanged.Broadcast(GetCurrentSharpnessValue(), GetMaxSharpnessValue());
     //TODO: 이건주
 }
@@ -4783,13 +4848,79 @@ void AMHPlayerCharacter::HandleMaxShapnessAttributeChanged(const FOnAttributeCha
 
 void AMHPlayerCharacter::HandleSpiritAttributeChanged(const FOnAttributeChangeData& ChangeData)
 {
-    OnSpiritGaugeChanged.Broadcast(ChangeData.NewValue, GetCurrentSpiritGaugeValue());
-
+    OnSpiritGaugeChanged.Broadcast(ChangeData.NewValue, GetMaxSpiritGaugeValue());
 }
 
 void AMHPlayerCharacter::HandleMaxSpiritAttributeChanged(const FOnAttributeChangeData& ChangeData)
 {
-    OnSpiritGaugeChanged.Broadcast(ChangeData.NewValue, GetMaxSpiritGaugeValue());
+    OnSpiritGaugeChanged.Broadcast(GetCurrentSpiritGaugeValue(), ChangeData.NewValue);
+}
+
+void AMHPlayerCharacter::RefreshSpiritLevelDecayState(const bool bResetTimer)
+{
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    if (CurrentSpiritLevel <= 0)
+    {
+        SpiritLevelRemainingTime = 0.0f;
+        World->GetTimerManager().ClearTimer(SpiritLevelDecayTimerHandle);
+        BroadcastSpiritLevelTimerChanged();
+        return;
+    }
+
+    if (bResetTimer || SpiritLevelRemainingTime <= 0.0f)
+    {
+        SpiritLevelRemainingTime = GetSpiritLevelDuration();
+    }
+
+    if (!World->GetTimerManager().IsTimerActive(SpiritLevelDecayTimerHandle))
+    {
+        World->GetTimerManager().SetTimer(
+            SpiritLevelDecayTimerHandle,
+            this,
+            &ThisClass::HandleSpiritLevelDecayTick,
+            FMath::Max(0.01f, SpiritLevelDecayTickInterval),
+            true
+        );
+    }
+
+    BroadcastSpiritLevelTimerChanged();
+}
+
+void AMHPlayerCharacter::HandleSpiritLevelDecayTick()
+{
+    if (CurrentSpiritLevel <= 0)
+    {
+        RefreshSpiritLevelDecayState(false);
+        return;
+    }
+
+    SpiritLevelRemainingTime = FMath::Max(
+        0.0f,
+        SpiritLevelRemainingTime - FMath::Max(0.01f, SpiritLevelDecayTickInterval)
+    );
+    BroadcastSpiritLevelTimerChanged();
+
+    if (SpiritLevelRemainingTime > 0.0f)
+    {
+        return;
+    }
+
+    DecreaseSpiritLevel();
+}
+
+void AMHPlayerCharacter::BroadcastSpiritLevelChanged()
+{
+    OnSpiritLevelChanged.Broadcast(GetCurrentSpiritLevelValue(), GetMaxSpiritLevelValue());
+}
+
+void AMHPlayerCharacter::BroadcastSpiritLevelTimerChanged()
+{
+    OnSpiritLevelTimerChanged.Broadcast(GetSpiritLevelRemainingTime(), GetSpiritLevelDuration());
 }
 
 #pragma endregion

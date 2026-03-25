@@ -6,6 +6,8 @@
 UMHLayeredProgressBarWidget::UMHLayeredProgressBarWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	CurrentFrontFillColor = DefaultFrontFillColor;
+	CurrentBackFillColor = DefaultBackFillColor;
 }
 
 void UMHLayeredProgressBarWidget::SetFrontMaxValue(float InMaxValue)
@@ -46,6 +48,30 @@ void UMHLayeredProgressBarWidget::SetBackValues(float InCurrentValue, float InMa
 	UpdateBackProgressBar();
 }
 
+void UMHLayeredProgressBarWidget::SetFrontFillColor(const FLinearColor& InFillColor)
+{
+	CurrentFrontFillColor = InFillColor;
+	UpdateFrontProgressBar();
+}
+
+void UMHLayeredProgressBarWidget::SetBackFillColor(const FLinearColor& InFillColor)
+{
+	CurrentBackFillColor = InFillColor;
+	UpdateBackProgressBar();
+}
+
+void UMHLayeredProgressBarWidget::ResetFrontFillColor()
+{
+	CurrentFrontFillColor = DefaultFrontFillColor;
+	UpdateFrontProgressBar();
+}
+
+void UMHLayeredProgressBarWidget::ResetBackFillColor()
+{
+	CurrentBackFillColor = DefaultBackFillColor;
+	UpdateBackProgressBar();
+}
+
 void UMHLayeredProgressBarWidget::UpdateFrontProgressBar()
 {
 	const float FrontPercent = FMath::Clamp(
@@ -57,6 +83,7 @@ void UMHLayeredProgressBarWidget::UpdateFrontProgressBar()
 	if (FrontProgressBar)
 	{
 		FrontProgressBar->SetPercent(FrontPercent);
+		FrontProgressBar->SetFillColorAndOpacity(CurrentFrontFillColor);
 	}
 }
 
@@ -71,5 +98,6 @@ void UMHLayeredProgressBarWidget::UpdateBackProgressBar()
 	if (BackProgressBar)
 	{
 		BackProgressBar->SetPercent(BackPercent);
+		BackProgressBar->SetFillColorAndOpacity(CurrentBackFillColor);
 	}
 }

@@ -48,6 +48,18 @@ public:
 	void SetBackValues(float InCurrentValue, float InMaxValue);
 
 	UFUNCTION(BlueprintCallable, Category = "MH|LayeredProgressBar")
+	void SetFrontFillColor(const FLinearColor& InFillColor);
+
+	UFUNCTION(BlueprintCallable, Category = "MH|LayeredProgressBar")
+	void SetBackFillColor(const FLinearColor& InFillColor);
+
+	UFUNCTION(BlueprintCallable, Category = "MH|LayeredProgressBar")
+	void ResetFrontFillColor();
+
+	UFUNCTION(BlueprintCallable, Category = "MH|LayeredProgressBar")
+	void ResetBackFillColor();
+
+	UFUNCTION(BlueprintCallable, Category = "MH|LayeredProgressBar")
 	void UpdateFrontProgressBar();
 	
 	UFUNCTION(BlueprintCallable, Category = "MH|LayeredProgressBar")
@@ -89,4 +101,16 @@ protected:
 	/** 후면 현재값 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "MH|LayeredProgressBar")
 	float BackCurrentValue = 100.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "MH|LayeredProgressBar|Color")
+	FLinearColor DefaultFrontFillColor = FLinearColor(0.92f, 0.92f, 0.92f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "MH|LayeredProgressBar|Color")
+	FLinearColor DefaultBackFillColor = FLinearColor(0.92f, 0.92f, 0.92f, 1.0f);
+
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "MH|LayeredProgressBar|Color")
+	FLinearColor CurrentFrontFillColor = FLinearColor::White;
+
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "MH|LayeredProgressBar|Color")
+	FLinearColor CurrentBackFillColor = FLinearColor::White;
 };

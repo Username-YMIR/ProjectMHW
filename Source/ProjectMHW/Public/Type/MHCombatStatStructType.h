@@ -221,6 +221,51 @@ inline float GetTotalSharpnessLength(const FMHSharpnessData& Data)
 		+ FMath::Max(0.0f, Data.White);
 }
 
+inline float GetSharpnessSegmentStart(const FMHSharpnessData& Data, EMHSharpnessColor Color)
+{
+	switch (Color)
+	{
+	case EMHSharpnessColor::Red:
+		return 0.0f;
+	case EMHSharpnessColor::Orange:
+		return FMath::Max(0.0f, Data.Red);
+	case EMHSharpnessColor::Yellow:
+		return FMath::Max(0.0f, Data.Red)
+			+ FMath::Max(0.0f, Data.Orange);
+	case EMHSharpnessColor::Green:
+		return FMath::Max(0.0f, Data.Red)
+			+ FMath::Max(0.0f, Data.Orange)
+			+ FMath::Max(0.0f, Data.Yellow);
+	case EMHSharpnessColor::Blue:
+		return FMath::Max(0.0f, Data.Red)
+			+ FMath::Max(0.0f, Data.Orange)
+			+ FMath::Max(0.0f, Data.Yellow)
+			+ FMath::Max(0.0f, Data.Green);
+	case EMHSharpnessColor::White:
+		return FMath::Max(0.0f, Data.Red)
+			+ FMath::Max(0.0f, Data.Orange)
+			+ FMath::Max(0.0f, Data.Yellow)
+			+ FMath::Max(0.0f, Data.Green)
+			+ FMath::Max(0.0f, Data.Blue);
+	default:
+		return 0.0f;
+	}
+}
+
+inline void GetSharpnessSegmentValues(
+	const FMHSharpnessData& Data,
+	EMHSharpnessColor Color,
+	float CurrentSharpnessValue,
+	float& OutSegmentValue,
+	float& OutSegmentMax)
+{
+	const float SegmentStart = GetSharpnessSegmentStart(Data, Color);
+	const float SegmentMax = FMath::Max(0.0f, GetSharpnessLength(Data, Color));
+
+	OutSegmentMax = SegmentMax;
+	OutSegmentValue = FMath::Clamp(CurrentSharpnessValue - SegmentStart, 0.0f, SegmentMax);
+}
+
 inline EMHSharpnessColor ResolveSharpnessColorFromValue(const FMHSharpnessData& Data, float CurrentSharpnessValue)
 {
 	const float ClampedValue = FMath::Max(0.0f, CurrentSharpnessValue);
