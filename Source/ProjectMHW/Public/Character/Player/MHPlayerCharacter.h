@@ -25,6 +25,8 @@ enum class EMHConsumableSelection : uint8
     Potion
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMHOnConsumableSelectionChanged, EMHConsumableSelection, NewSelection);
+
 UENUM(BlueprintType)
 enum class EMHLongSwordCounterWindowType : uint8
 {
@@ -979,8 +981,12 @@ public:
     // delegate 추가
     UPROPERTY(BlueprintAssignable, Category="UI|Attributes")
     FMHOnVitalChanged OnHealableHealthChanged;
+    UPROPERTY(BlueprintAssignable, Category="UI|Items")
+    FMHOnConsumableSelectionChanged OnConsumableSelectionChanged;
 
     bool IsItemUseHeld() const { return bItemUseHeld; }
+    UFUNCTION(BlueprintPure, Category="UI|Items")
+    EMHConsumableSelection GetSelectedConsumable() const { return SelectedConsumable; }
     float GetCurrentHealableHealthValue() const;
     float GetCurrentSharpnessValue() const;
     float GetMaxSharpnessValue() const;
@@ -993,6 +999,7 @@ public:
     bool CanStartSharpenItemUse() const;
 
 protected:
+    void SetSelectedConsumable(EMHConsumableSelection InSelection);
     void Input_ItemSelectSharpen(const FInputActionValue& InputActionValue);
     void Input_ItemSelectPotion(const FInputActionValue& InputActionValue);
     void Input_ItemUseStarted(const FInputActionValue& InputActionValue);
