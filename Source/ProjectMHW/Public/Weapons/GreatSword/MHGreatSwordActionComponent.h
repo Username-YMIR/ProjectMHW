@@ -78,7 +78,7 @@ public:
     UMHGreatSwordActionComponent();
 
     // 좌클릭 입력 시작 시 현재 문맥에 맞는 대검 기술을 결정한다.
-    bool HandlePrimaryPressed(bool bInForwardInput, bool bInSheathed);
+    bool HandlePrimaryPressed(bool bInForwardInput, bool bInSheathed, bool bInWeaponSpecialHeld);
 
     // 좌클릭 입력 종료 시 현재 차징을 실제 공격으로 확정한다.
     bool HandlePrimaryReleased();

@@ -1697,9 +1697,7 @@ bool AMHPlayerCharacter::TryStartAutoSheatheAfterLongSwordMove(const FGameplayTa
         return false;
     }
 
-    WeaponSheathState = EMHWeaponSheathState::Sheathed;
-    AttachWeaponToBack();
-    RefreshWeaponAnimationLayerState();
+    StartSheathe();
     return true;
 }
 
@@ -2296,7 +2294,7 @@ bool AMHPlayerCharacter::TryHandleGreatSwordPrimaryInput()
 
     const bool bForwardInput = CachedMoveInput2D.Y > 0.1f;
     const bool bSheathed = WeaponSheathState == EMHWeaponSheathState::Sheathed;
-    if (!ActionComponent->HandlePrimaryPressed(bForwardInput, bSheathed))
+    if (!ActionComponent->HandlePrimaryPressed(bForwardInput, bSheathed, bWeaponSpecialHeld))
     {
         return false;
     }
@@ -2349,6 +2347,11 @@ bool AMHPlayerCharacter::TryHandleGreatSwordSecondaryInput()
     AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
     UMHGreatSwordActionComponent* ActionComponent = GreatSword ? GreatSword->GetActionComponent() : nullptr;
     if (!ActionComponent)
+    {
+        return false;
+    }
+
+    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
     {
         return false;
     }
@@ -2437,6 +2440,11 @@ bool AMHPlayerCharacter::TryHandleGreatSwordSimultaneousInput()
     AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
     UMHGreatSwordActionComponent* ActionComponent = GreatSword ? GreatSword->GetActionComponent() : nullptr;
     if (!ActionComponent)
+    {
+        return false;
+    }
+
+    if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
     {
         return false;
     }
@@ -4604,7 +4612,7 @@ void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue& InputA
 {
     (void)InputActionValue;
 
-    SetSelectedConsumable(EMHConsumableSelection::Sharpen);
+    SelectedConsumable = EMHConsumableSelection::Sharpen;
     UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Selected=Sharpen"));
 }
 
@@ -4612,19 +4620,8 @@ void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputAc
 {
     (void)InputActionValue;
 
-    SetSelectedConsumable(EMHConsumableSelection::Potion);
+    SelectedConsumable = EMHConsumableSelection::Potion;
     UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Selected=Potion"));
-}
-
-void AMHPlayerCharacter::SetSelectedConsumable(const EMHConsumableSelection InSelection)
-{
-    if (SelectedConsumable == InSelection)
-    {
-        return;
-    }
-
-    SelectedConsumable = InSelection;
-    OnConsumableSelectionChanged.Broadcast(SelectedConsumable);
 }
 
 void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActionValue)

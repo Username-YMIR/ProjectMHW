@@ -113,7 +113,7 @@ bool UMHGreatSwordActionComponent::HandleDodgePressed(const bool bInSheathed, co
     return false;
 }
 
-bool UMHGreatSwordActionComponent::HandlePrimaryPressed(const bool bInForwardInput, const bool bInSheathed)
+bool UMHGreatSwordActionComponent::HandlePrimaryPressed(const bool bInForwardInput, const bool bInSheathed, const bool bInWeaponSpecialHeld)
 {
     if (IsCharging() || IsGuarding())
     {
@@ -125,6 +125,14 @@ bool UMHGreatSwordActionComponent::HandlePrimaryPressed(const bool bInForwardInp
         if (!IsAnyTransitionWindowOpen())
         {
             BufferInput(EMHGreatSwordBufferedInputType::Primary, bInForwardInput, bInSheathed);
+            return true;
+        }
+
+        if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_Tackle && bInWeaponSpecialHeld)
+        {
+            PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
+            LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
+            QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
             return true;
         }
 
@@ -669,14 +677,33 @@ bool UMHGreatSwordActionComponent::ResolvePrimaryDuringEarlyTransition(const boo
     {
         if (ChargeFollowUpSourceMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlash)
         {
-            BeginCharging(EMHGreatSwordChargeFamily::Strong, false);
+            if (bInForwardInput)
+            {
+                BeginCharging(EMHGreatSwordChargeFamily::Strong, false);
+            }
+            else
+            {
+                QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
+            }
             return true;
         }
 
         if (ChargeFollowUpSourceMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlash)
         {
-            BeginCharging(EMHGreatSwordChargeFamily::TrueCharge, false);
+            if (bInForwardInput)
+            {
+                BeginCharging(EMHGreatSwordChargeFamily::TrueCharge, false);
+            }
+            else
+            {
+                QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
+            }
             return true;
+        }
+
+        if (ChargeFollowUpSourceMoveTag == MHGreatSwordGameplayTags::Move_GS_TrueChargeSlash)
+        {
+            return false;
         }
     }
 
@@ -693,10 +720,38 @@ bool UMHGreatSwordActionComponent::ResolvePrimaryDuringEarlyTransition(const boo
         return true;
     }
 
-    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlash
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlash
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_TrueChargeSlash
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_OverheadSlash
+    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlash)
+    {
+        if (bInForwardInput)
+        {
+            BeginCharging(EMHGreatSwordChargeFamily::Strong, false);
+        }
+        else
+        {
+            QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
+        }
+        return true;
+    }
+
+    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlash)
+    {
+        if (bInForwardInput)
+        {
+            BeginCharging(EMHGreatSwordChargeFamily::TrueCharge, false);
+        }
+        else
+        {
+            QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
+        }
+        return true;
+    }
+
+    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_TrueChargeSlash)
+    {
+        return false;
+    }
+
+    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_OverheadSlash
         || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_RisingSlash
         || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_WideSlash)
     {
@@ -726,10 +781,8 @@ bool UMHGreatSwordActionComponent::ResolveSecondaryDuringEarlyTransition()
     if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_DrawForwardSlash
         || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlash
         || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlash
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_TrueChargeSlash
         || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_WideSlash
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_RisingSlash
-        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_JumpingWideSlash)
+        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_RisingSlash)
     {
         QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_OverheadSlash, EMHGreatSwordActionState::Acting);
         return true;
@@ -746,23 +799,22 @@ bool UMHGreatSwordActionComponent::ResolveSecondaryDuringEarlyTransition()
 
 bool UMHGreatSwordActionComponent::ResolveWeaponSpecialDuringEarlyTransition()
 {
-    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_Tackle)
-    {
-        PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
-        LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
-        QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
-        return true;
-    }
-
-    bGuardHeld = true;
-    QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_Guard, EMHGreatSwordActionState::Guarding);
-    return true;
+    return false;
 }
 
 bool UMHGreatSwordActionComponent::ResolveSimultaneousDuringEarlyTransition()
 {
-    QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_RisingSlash, EMHGreatSwordActionState::Acting);
-    return true;
+    if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_DrawForwardSlash
+        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlash
+        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlash
+        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_OverheadSlash
+        || LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_WideSlash)
+    {
+        QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_RisingSlash, EMHGreatSwordActionState::Acting);
+        return true;
+    }
+
+    return false;
 }
 
 void UMHGreatSwordActionComponent::QueuePendingMove(const FGameplayTag& InMoveTag, const EMHGreatSwordActionState InNextState)
