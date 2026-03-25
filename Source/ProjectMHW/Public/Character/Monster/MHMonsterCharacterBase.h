@@ -9,6 +9,8 @@
 #include "MonsterType/MHMonsterType.h"
 #include "GameplayTagContainer.h"
 #include "GameplayEffectTypes.h"
+#include "NiagaraSystem.h"
+#include "NiagaraComponent.h"
 #include "Combat/Attributes/MHHealthAttributeSet.h"
 #include "MHMonsterCharacterBase.generated.h"
 
@@ -19,6 +21,8 @@ class UGameplayEffect;
 class UMHHealthAttributeSet;
 class UMHCombatAttributeSet;
 class AMHDamageTextWidgetActor;
+class UNiagaraSystem;
+
 
 DECLARE_LOG_CATEGORY_EXTERN(MHMonsterCharacterBase, Log, All);
 
@@ -273,6 +277,42 @@ public:
 
 #pragma endregion 
 
+#pragma region Naiagara
+    
+protected:
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|FX")
+    TObjectPtr<UNiagaraSystem> TailPhase2FireSystem = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|FX")
+    FName TailFireSocketName = TEXT("TailAttackSocket");
+
+    UPROPERTY()
+    TObjectPtr<UNiagaraComponent> TailPhase2FireComp = nullptr;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|FX")
+    TObjectPtr<UNiagaraSystem> TailSlamGroundImpactSystem = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|FX")
+    FName TailSlamImpactSocketName = TEXT("TailAttackSocket");
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|FX")
+    float TailSlamTraceStartOffsetZ = 50.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|FX")
+    float TailSlamTraceDownDistance = 300.f;
+    
+public:
+    UFUNCTION(BlueprintCallable, Category="Monster|FX")
+    void StartTailPhase2FireFX();
+
+    UFUNCTION(BlueprintCallable, Category="Monster|FX")
+    void StopTailPhase2FireFX(bool bImmediate = false);
+    
+    UFUNCTION(BlueprintCallable, Category="Monster|FX")
+    void SpawnTailSlamGroundImpactFX();
+#pragma endregion 
+    
+    
 protected:
     // =========================
     // Monster State

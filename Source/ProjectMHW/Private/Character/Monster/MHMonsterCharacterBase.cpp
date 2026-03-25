@@ -23,7 +23,11 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Combat/Attributes/MHCombatAttributeSet.h"
+
 #include "Widgets/Actors/MHDamageTextWidgetActor.h"
+
+#include "Kismet/KismetMathLibrary.h"
+
 
 DEFINE_LOG_CATEGORY(MHMonsterCharacterBase)
 
@@ -1487,6 +1491,133 @@ void AMHMonsterCharacterBase::FinishPhase2Transition()
     
 }
 
+void AMHMonsterCharacterBase::StartTailPhase2FireFX()
+{
+    if (!TailPhase2FireSystem || !GetMesh())
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("StartTailPhase2FireFX | Invalid System or Mesh"));
+        return;
+    }
+
+    if (IsValid(TailPhase2FireComp))
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("StartTailPhase2FireFX | Already Active"));
+        return;
+    }
+
+    TailPhase2FireComp = UNiagaraFunctionLibrary::SpawnSystemAttached(
+        TailPhase2FireSystem,
+        GetMesh(),
+        TailFireSocketName,
+        FVector::ZeroVector,
+        FRotator::ZeroRotator,
+        FVector(1.f),
+        EAttachLocation::KeepRelativeOffset,
+        false, // AutoDestroy
+        ENCPoolMethod::None,
+        true,
+        true
+    );
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("StartTailPhase2FireFX | Spawned FX on socket=%s"),
+        *TailFireSocketName.ToString());
+    
+}
+
+void AMHMonsterCharacterBase::StopTailPhase2FireFX(bool bImmediate)
+{
+    if (!IsValid(TailPhase2FireComp))
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("StopTailPhase2FireFX | No Active FX"));
+        return;
+    }
+
+    if (bImmediate)
+    {
+        TailPhase2FireComp->DeactivateImmediate();
+    }
+    else
+    {
+        TailPhase2FireComp->Deactivate();
+    }
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("StopTailPhase2FireFX | Deactivated"));
+
+    TailPhase2FireComp = nullptr;
+    
+    
+}
+
+void AMHMonsterCharacterBase::SpawnTailSlamGroundImpactFX()
+{
+    if (!TailSlamGroundImpactSystem || !GetMesh() || !GetWorld())
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("SpawnTailSlamGroundImpactFX | Invalid System or Mesh"));
+        return;
+    }
+
+    if (!GetMesh()->DoesSocketExist(TailSlamImpactSocketName))
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("SpawnTailSlamGroundImpactFX | Invalid Socket=%s"),
+            *TailSlamImpactSocketName.ToString());
+        return;
+    }
+
+    const FVector SocketLoc = GetMesh()->GetSocketLocation(TailSlamImpactSocketName);
+    const FVector TraceStart = SocketLoc + FVector(0.f, 0.f, TailSlamTraceStartOffsetZ);
+    const FVector TraceEnd = SocketLoc - FVector(0.f, 0.f, TailSlamTraceDownDistance);
+
+    FHitResult Hit;
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(TailSlamGroundImpact), false, this);
+    Params.AddIgnoredActor(this);
+
+    const bool bHit = GetWorld()->LineTraceSingleByChannel(
+        Hit,
+        TraceStart,
+        TraceEnd,
+        ECC_Visibility,
+        Params
+    );
+
+    DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Orange, false, 2.0f, 0, 2.0f);
+
+    if (!bHit)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("SpawnTailSlamGroundImpactFX | Ground Trace Miss"));
+        return;
+    }
+
+    const FVector SpawnLoc = Hit.ImpactPoint;
+    const FRotator SpawnRot = UKismetMathLibrary::MakeRotFromZ(Hit.ImpactNormal);
+
+    UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+        GetWorld(),
+        TailSlamGroundImpactSystem,
+        SpawnLoc,
+        SpawnRot,
+        FVector(1.f),
+        true,   // AutoDestroy
+        true,   // AutoActivate
+        ENCPoolMethod::None,
+        true
+    );
+
+    DrawDebugSphere(GetWorld(), SpawnLoc, 25.f, 12, FColor::Red, false, 2.0f);
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("SpawnTailSlamGroundImpactFX | Spawned at %s Normal=%s"),
+        *SpawnLoc.ToString(),
+        *Hit.ImpactNormal.ToString());
+}
+
 
 bool AMHMonsterCharacterBase::HasDeadTag() const
 {
@@ -2057,41 +2188,7 @@ void AMHMonsterCharacterBase::DrawSightConeDebug(const FVector& SocketLocation, 
 
     const FVector PitchDownDir =
         FRotationMatrix(SocketRotation + FRotator(-SightVerticalHalfAngleDeg, 0.f, 0.f)).GetUnitAxis(EAxis::X);
-
-    DrawDebugLine(
-        GetWorld(),
-        SocketLocation,
-        SocketLocation + PitchUpDir * SightDetectRange,
-        PitchColor,
-        false,
-        0.12f,
-        0,
-        1.2f
-    );
-
-    DrawDebugLine(
-        GetWorld(),
-        SocketLocation,
-        SocketLocation + PitchDownDir * SightDetectRange,
-        PitchColor,
-        false,
-        0.12f,
-        0,
-        1.2f
-    );
-
-    // 인식 거리 구체
-    DrawDebugSphere(
-        GetWorld(),
-        SocketLocation,
-        SightDetectRange,
-        24,
-        FColor::Silver,
-        false,
-        0.12f,
-        0,
-        0.8f
-    );
+    
     
 }
 
