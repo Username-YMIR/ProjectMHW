@@ -4,11 +4,24 @@
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "Character/Player/MHPlayerCharacter.h"
+#include "Combat/Attributes/MHPlayerAttributeSet.h"
 #include "MHGameplayTags.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogMHSharpenAbility, Log, All);
 
 UGA_MHSharpen::UGA_MHSharpen()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_MHSharpen::RequestExternalEndAbility(bool bInWasCancelled)
+{
+	if (!IsActive())
+	{
+		return;
+	}
+
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, bInWasCancelled);
 }
 
 void UGA_MHSharpen::ActivateAbility(
@@ -22,21 +35,45 @@ void UGA_MHSharpen::ActivateAbility(
 	AMHPlayerCharacter* Player = Cast<AMHPlayerCharacter>(GetAvatarActorFromActorInfo());
 	if (!Player)
 	{
+		UE_LOG(LogMHSharpenAbility, Warning, TEXT("[Sharpen] Activate failed: Player null"));
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
-	if (!SharpenMontage || !SharpenTickEffectClass)
+	if (!SharpenMontage)
 	{
+		UE_LOG(LogMHSharpenAbility, Warning, TEXT("[Sharpen] Activate failed: SharpenMontage invalid"));
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
+	if (!Player->CanStartSharpenItemUse())
+	{
+		UE_LOG(
+			LogMHSharpenAbility,
+			Log,
+			TEXT("[Sharpen] Activate blocked Current=%.1f Max=%.1f Velocity=%.2f"),
+			Player->GetCurrentSharpnessValue(),
+			Player->GetMaxSharpnessValue(),
+			Player->GetVelocity().Size2D()
+		);
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
 	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
+		UE_LOG(LogMHSharpenAbility, Warning, TEXT("[Sharpen] Activate failed: CommitAbility failed"));
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
+
+	UE_LOG(
+		LogMHSharpenAbility,
+		Log,
+		TEXT("[Sharpen] Activate Current=%.1f Max=%.1f"),
+		Player->GetCurrentSharpnessValue(),
+		Player->GetMaxSharpnessValue());
 
 	bSharpenStarted = false;
 
@@ -95,79 +132,50 @@ void UGA_MHSharpen::EndAbility(
 
 void UGA_MHSharpen::OnSharpenStart(FGameplayEventData Payload)
 {
+	(void)Payload;
+
 	if (bSharpenStarted)
 	{
+		UE_LOG(LogMHSharpenAbility, Verbose, TEXT("[Sharpen] OnSharpenStart ignored: already started"));
+		return;
+	}
+
+	AMHPlayerCharacter* Player = Cast<AMHPlayerCharacter>(GetAvatarActorFromActorInfo());
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (!Player || !ASC)
+	{
+		UE_LOG(LogMHSharpenAbility, Warning, TEXT("[Sharpen] OnSharpenStart failed: Player or ASC null"));
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 		return;
 	}
 
 	bSharpenStarted = true;
 
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().SetTimer(
-			SharpenTickTimerHandle,
-			this,
-			&ThisClass::TickSharpen,
-			0.2f,
-			true
-		);
-	}
+	const float MaxSharpness = Player->GetMaxSharpnessValue();
+	ASC->SetNumericAttributeBase(UMHPlayerAttributeSet::GetSharpnessAttribute(), MaxSharpness);
+	Player->RefreshSharpnessState();
+
+	UE_LOG(
+		LogMHSharpenAbility,
+		Log,
+		TEXT("[Sharpen] OnSharpenStart restored to max Current=%.1f Max=%.1f"),
+		Player->GetCurrentSharpnessValue(),
+		Player->GetMaxSharpnessValue()
+	);
 }
 
 void UGA_MHSharpen::TickSharpen()
 {
-	AMHPlayerCharacter* Player = Cast<AMHPlayerCharacter>(GetAvatarActorFromActorInfo());
-	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
-	if (!Player || !ASC)
-	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-		return;
-	}
-
-	if (!Player->IsItemUseHeld())
-	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-		return;
-	}
-
-	if (Player->GetCurrentSharpnessValue() >= Player->GetMaxSharpnessValue())
-	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
-		return;
-	}
-
-	FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
-	FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(SharpenTickEffectClass, 1.f, Context);
-	if (!Spec.IsValid() || !Spec.Data.IsValid())
-	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-		return;
-	}
-
-	ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
-
-	if (Player->GetCurrentSharpnessValue() >= Player->GetMaxSharpnessValue())
-	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
-	}
 }
 
 void UGA_MHSharpen::HandleMontageCompleted()
 {
-	AMHPlayerCharacter* Player = Cast<AMHPlayerCharacter>(GetAvatarActorFromActorInfo());
-	if (!bSharpenStarted)
-	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
-		return;
-	}
-
-	if (!Player || !Player->IsItemUseHeld() || Player->GetCurrentSharpnessValue() >= Player->GetMaxSharpnessValue())
-	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
-	}
+	UE_LOG(LogMHSharpenAbility, Log, TEXT("[Sharpen] Montage completed"));
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
 
 void UGA_MHSharpen::HandleMontageInterrupted()
 {
+	UE_LOG(LogMHSharpenAbility, Warning, TEXT("[Sharpen] Montage interrupted"));
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 }

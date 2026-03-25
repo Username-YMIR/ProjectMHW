@@ -6,6 +6,16 @@
 UMHProgressBarWidget::UMHProgressBarWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	CurrentFillColor = DefaultFillColor;
+}
+
+void UMHProgressBarWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+
+	CurrentFillColor = DefaultFillColor;
+
+	UpdateProgressBar();
 }
 
 void UMHProgressBarWidget::SetMaxValue(float InMaxValue)
@@ -27,6 +37,46 @@ void UMHProgressBarWidget::SetValues(float InCurrentValue, float InMaxValue)
 	UpdateProgressBar();
 }
 
+void UMHProgressBarWidget::SetFillColor(const FLinearColor& InFillColor)
+{
+	CurrentFillColor = InFillColor;
+	UpdateProgressBar();
+}
+
+void UMHProgressBarWidget::ResetFillColor()
+{
+	CurrentFillColor = DefaultFillColor;
+	UpdateProgressBar();
+}
+
+void UMHProgressBarWidget::SetSharpnessFillColor(EMHSharpnessColor InSharpnessColor)
+{
+	switch (InSharpnessColor)
+	{
+	case EMHSharpnessColor::Red:
+		SetFillColor(SharpnessRedColor);
+		break;
+	case EMHSharpnessColor::Orange:
+		SetFillColor(SharpnessOrangeColor);
+		break;
+	case EMHSharpnessColor::Yellow:
+		SetFillColor(SharpnessYellowColor);
+		break;
+	case EMHSharpnessColor::Green:
+		SetFillColor(SharpnessGreenColor);
+		break;
+	case EMHSharpnessColor::Blue:
+		SetFillColor(SharpnessBlueColor);
+		break;
+	case EMHSharpnessColor::White:
+		SetFillColor(SharpnessWhiteColor);
+		break;
+	default:
+		ResetFillColor();
+		break;
+	}
+}
+
 void UMHProgressBarWidget::UpdateProgressBar()
 {
 	if (!ProgressBar)
@@ -41,4 +91,5 @@ void UMHProgressBarWidget::UpdateProgressBar()
 	);
 
 	ProgressBar->SetPercent(Percent);
+	ProgressBar->SetFillColorAndOpacity(CurrentFillColor);
 }

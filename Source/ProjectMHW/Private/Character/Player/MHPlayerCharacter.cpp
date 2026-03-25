@@ -20,8 +20,10 @@
 #include "Weapons/LongSword/MHLongSwordComboComponent.h"
 #include "Weapons/GreatSword/MHGreatSwordActionComponent.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/Abilities/Status/MHGA_MHSharpen.h"
 #include "AbilitySystem/Abilities/Weapon/LongSword/MHGA_LongSwordCombo.h"
 #include "AbilitySystem/Abilities/Status/MHGA_Potion.h"
+#include "AbilitySystem/Abilities/Weapon/GreatSword/MHGA_GreatSwordAttack.h"
 #include "GameplayTags/MHGreatSwordGameplayTags.h"
 #include "GameplayTags/MHCombatStateGameplayTags.h"
 #include "GameplayTags/MHInputPatternGameplayTags.h"
@@ -47,6 +49,7 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "InputCoreTypes.h"
 #include "Items/Effects/MHGameplayEffect_WeaponStat.h"
+#include "Interfaces/MHDamageSpecReceiverInterface.h"
 
 DEFINE_LOG_CATEGORY(LogMHPlayerCharacter);
 
@@ -87,6 +90,26 @@ namespace
         return Result;
     }
 
+    static const TCHAR* ResolveSharpnessColorText(const EMHSharpnessColor InColor)
+    {
+        switch (InColor)
+        {
+        case EMHSharpnessColor::Red:
+            return TEXT("Red");
+        case EMHSharpnessColor::Orange:
+            return TEXT("Orange");
+        case EMHSharpnessColor::Yellow:
+            return TEXT("Yellow");
+        case EMHSharpnessColor::Green:
+            return TEXT("Green");
+        case EMHSharpnessColor::Blue:
+            return TEXT("Blue");
+        case EMHSharpnessColor::White:
+            return TEXT("White");
+        default:
+            return TEXT("Unknown");
+        }
+    }
 }
 
 AMHPlayerCharacter::AMHPlayerCharacter()
@@ -156,6 +179,8 @@ void AMHPlayerCharacter::BeginPlay()
 
     SyncStaminaAttributesFromConfig();
     ApplyDefaultPlayerAttributes();
+    RefreshSharpnessState();
+    BroadcastInitialAttributeSnapshot();
 
     // 무브먼트 업데이트 델리게이트 바인딩
     if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
@@ -308,6 +333,7 @@ void AMHPlayerCharacter::Input_Move(const FInputActionValue& InputActionValue)
     if (!MovementVector.IsNearlyZero())
     {
         LastNonZeroMoveInput2D = MovementVector;
+        CancelSharpenAbilityIfActive();
     }
 
     if (!Controller)
@@ -382,6 +408,7 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
     }
 
     bDodgeHeld = true;
+    CancelSharpenAbilityIfActive();
 
     if (IsGreatSwordEquipped())
     {
@@ -602,6 +629,7 @@ void AMHPlayerCharacter::Input_AttackPrimary(const FInputActionValue& InputActio
     }
 
     bAttackPrimaryHeld = true;
+    CancelSharpenAbilityIfActive();
 
     if (IsGreatSwordEquipped())
     {
@@ -635,6 +663,7 @@ void AMHPlayerCharacter::Input_AttackSecondary(const FInputActionValue& InputAct
     }
 
     bAttackSecondaryHeld = true;
+    CancelSharpenAbilityIfActive();
 
     if (IsGreatSwordEquipped())
     {
@@ -663,6 +692,7 @@ void AMHPlayerCharacter::Input_WeaponSpecial(const FInputActionValue& InputActio
     }
 
     bWeaponSpecialHeld = true;
+    CancelSharpenAbilityIfActive();
 
     if (IsGreatSwordEquipped())
     {
@@ -690,10 +720,14 @@ void AMHPlayerCharacter::Input_WeaponSpecialCompleted(const FInputActionValue& I
 
 void AMHPlayerCharacter::Input_AttackSimultaneous(const FInputActionValue& InputActionValue)
 {
+
     if (bDamageHitReactInputLocked)
     {
         return;
     }
+
+    CancelSharpenAbilityIfActive();
+
 
     if (IsGreatSwordEquipped())
     {
@@ -1560,6 +1594,8 @@ FMHHitAcknowledge AMHPlayerCharacter::ReceiveDamageSpec_Implementation(
         return BuildRejectedHitAcknowledge();
     }
 
+    CancelSharpenAbilityIfActive();
+
     ClearExpiredLongSwordDamageIgnoreState();
 
     if (IsDamageHitReactActive())
@@ -1750,7 +1786,7 @@ void AMHPlayerCharacter::UnequipCurrentWeapon(bool bDestroyWeapon)
     CurrentWeaponElementTag = FGameplayTag();
     CurrentSharpnessColor = EMHSharpnessColor::Red;
     CurrentSharpnessValue = 0.0f;
-    CurrentSharpnessLength = 0.0f;
+    SetSharpnessAttributeValues(0.0f, 0.0f);
 
     RefreshWeaponAnimationLayerState();
 }
@@ -2959,13 +2995,8 @@ void AMHPlayerCharacter::ApplyEquippedWeaponStatEffect()
     // -----------------------
 
     CurrentSharpnessColor = Stat.MaxSharpnessColor;
-
-    CurrentSharpnessValue = GetMaxSharpnessValueFromColor(
-        Stat.SharpnessLength,
-        Stat.MaxSharpnessColor
-    );
-    CurrentSharpnessLength = CurrentSharpnessValue;
-    SyncSharpnessModifierToCombatAttribute();
+    CurrentSharpnessValue = GetTotalSharpnessLength(Stat.SharpnessLength);
+    SetSharpnessAttributeValues(CurrentSharpnessValue, CurrentSharpnessValue);
 
     // -----------------------
     // 3. Element 저장
@@ -2992,7 +3023,6 @@ void AMHPlayerCharacter::RemoveEquippedWeaponStatEffect()
         EquippedWeaponStatEffectHandle.Invalidate();
     }
 
-    CurrentSharpnessLength = 0.0f;
     if (CombatAttributeSet)
     {
         CombatAttributeSet->SetSharpnessModifier(1.0f);
@@ -3017,133 +3047,143 @@ void AMHPlayerCharacter::RefreshEquippedWeaponStatEffect()
     ApplyEquippedWeaponStatEffect();
 }
 
-float AMHPlayerCharacter::ResolveSharpnessModifierFromColor(const EMHSharpnessColor InColor) const
+void AMHPlayerCharacter::SetSharpnessAttributeValues(float InCurrentSharpness, float InMaxSharpness)
 {
-    switch (InColor)
-    {
-    case EMHSharpnessColor::White:
-        return 1.32f;
-    case EMHSharpnessColor::Blue:
-        return 1.20f;
-    case EMHSharpnessColor::Green:
-        return 1.05f;
-    case EMHSharpnessColor::Yellow:
-        return 1.00f;
-    case EMHSharpnessColor::Orange:
-        return 0.85f;
-    case EMHSharpnessColor::Red:
-    default:
-        return 0.70f;
-    }
-}
+    const float ClampedMaxSharpness = FMath::Max(0.0f, InMaxSharpness);
+    const float ClampedCurrentSharpness = FMath::Clamp(InCurrentSharpness, 0.0f, ClampedMaxSharpness);
 
-void AMHPlayerCharacter::SyncSharpnessModifierToCombatAttribute()
-{
-    const float SharpnessModifier = ResolveSharpnessModifierFromColor(CurrentSharpnessColor);
-
-    if (CombatAttributeSet)
-    {
-        CombatAttributeSet->SetSharpnessModifier(SharpnessModifier);
-    }
+    bSyncingSharpnessState = true;
 
     if (AbilitySystemComponent)
     {
-        AbilitySystemComponent->SetNumericAttributeBase(UMHCombatAttributeSet::GetSharpnessModifierAttribute(), SharpnessModifier);
+        AbilitySystemComponent->SetNumericAttributeBase(
+            UMHPlayerAttributeSet::GetMaxSharpnessAttribute(),
+            ClampedMaxSharpness);
+        AbilitySystemComponent->SetNumericAttributeBase(
+            UMHPlayerAttributeSet::GetSharpnessAttribute(),
+            ClampedCurrentSharpness);
     }
+    else if (PlayerAttributeSet)
+    {
+        PlayerAttributeSet->SetMaxSharpness(ClampedMaxSharpness);
+        PlayerAttributeSet->SetSharpness(ClampedCurrentSharpness);
+    }
+
+    bSyncingSharpnessState = false;
+
+    NormalizeSharpnessStateFromAttribute();
+    OnSharpnessChanged.Broadcast(GetCurrentSharpnessValue(), GetMaxSharpnessValue());
 
     UE_LOG(
         LogMHPlayerCharacter,
-        Verbose,
-        TEXT("%s : Sharpness modifier synced. Color=%d Modifier=%.2f"),
-        *GetName(),
-        static_cast<int32>(CurrentSharpnessColor),
-        SharpnessModifier
-    );
+        Log,
+        TEXT("[Sharpness] Set Attributes Current=%.1f Max=%.1f Color=%s Modifier=%.2f"),
+        GetCurrentSharpnessValue(),
+        GetMaxSharpnessValue(),
+        ResolveSharpnessColorText(CurrentSharpnessColor),
+        CombatAttributeSet ? CombatAttributeSet->GetSharpnessModifier() : -1.0f);
 }
 
-float AMHPlayerCharacter::GetMaxSharpnessValueFromColor(
-    const FMHSharpnessData& Data,
-    EMHSharpnessColor Color) const
+void AMHPlayerCharacter::UpdateSharpnessModifierFromCurrentColor()
 {
-    switch (Color)
+    const float SharpnessModifier =
+        (EquippedWeapon && GetMaxSharpnessValue() > 0.0f)
+        ? GetSharpnessMultiplier(CurrentSharpnessColor)
+        : 1.0f;
+
+    if (AbilitySystemComponent)
     {
-    case EMHSharpnessColor::Red:    return Data.Red;
-    case EMHSharpnessColor::Orange: return Data.Orange;
-    case EMHSharpnessColor::Yellow: return Data.Yellow;
-    case EMHSharpnessColor::Green:  return Data.Green;
-    case EMHSharpnessColor::Blue:   return Data.Blue;
-    case EMHSharpnessColor::White:  return Data.White;
-    default: return 0.f;
+        AbilitySystemComponent->SetNumericAttributeBase(
+            UMHCombatAttributeSet::GetSharpnessModifierAttribute(),
+            SharpnessModifier);
+    }
+    else if (CombatAttributeSet)
+    {
+        CombatAttributeSet->SetSharpnessModifier(SharpnessModifier);
     }
 }
 
 void AMHPlayerCharacter::ConsumeSharpness(float Amount)
 {
-    if (!EquippedWeapon)
+    const float MaxSharpness = GetMaxSharpnessValue();
+    if (MaxSharpness <= 0.0f)
+    {
         return;
-
-    const FMHAttackStats& Stat = EquippedWeapon->GetAttackStats();
-
-    CurrentSharpnessValue -= Amount;
-
-    while (CurrentSharpnessValue <= 0.f)
-    {
-        if (!DowngradeSharpnessColor())
-        {
-            CurrentSharpnessValue = 0.f;
-            break;
-        }
-
-        CurrentSharpnessValue = GetMaxSharpnessValueFromColor(
-            Stat.SharpnessLength,
-            CurrentSharpnessColor
-        );
     }
 
-    CurrentSharpnessLength = GetMaxSharpnessValueFromColor(Stat.SharpnessLength, CurrentSharpnessColor);
-    SyncSharpnessModifierToCombatAttribute();
-}
-
-bool AMHPlayerCharacter::DowngradeSharpnessColor()
-{
-    switch (CurrentSharpnessColor)
-    {
-    case EMHSharpnessColor::White:  CurrentSharpnessColor = EMHSharpnessColor::Blue; return true;
-    case EMHSharpnessColor::Blue:   CurrentSharpnessColor = EMHSharpnessColor::Green; return true;
-    case EMHSharpnessColor::Green:  CurrentSharpnessColor = EMHSharpnessColor::Yellow; return true;
-    case EMHSharpnessColor::Yellow: CurrentSharpnessColor = EMHSharpnessColor::Orange; return true;
-    case EMHSharpnessColor::Orange: CurrentSharpnessColor = EMHSharpnessColor::Red; return true;
-    case EMHSharpnessColor::Red:    return false;
-    }
-
-    return false;
+    const float CurrentSharpness = GetCurrentSharpnessValue();
+    const float NewSharpness = FMath::Clamp(CurrentSharpness - FMath::Max(0.0f, Amount), 0.0f, MaxSharpness);
+    SetSharpnessAttributeValues(NewSharpness, MaxSharpness);
 }
 
 float AMHPlayerCharacter::GetCurrentSharpnessValue() const
 {
-    return FMath::Max(0.0f, CurrentSharpnessValue);
+    return PlayerAttributeSet
+        ? FMath::Max(0.0f, PlayerAttributeSet->GetSharpness())
+        : FMath::Max(0.0f, CurrentSharpnessValue);
 }
 
 float AMHPlayerCharacter::GetMaxSharpnessValue() const
 {
+    if (PlayerAttributeSet)
+    {
+        return FMath::Max(0.0f, PlayerAttributeSet->GetMaxSharpness());
+    }
+
     if (!EquippedWeapon)
     {
         return 0.0f;
     }
 
-    const FMHAttackStats& Stat = EquippedWeapon->GetAttackStats();
-    return FMath::Max(0.0f, GetMaxSharpnessValueFromColor(Stat.SharpnessLength, CurrentSharpnessColor));
+    return GetTotalSharpnessLength(EquippedWeapon->GetAttackStats().SharpnessLength);
 }
 
-void AMHPlayerCharacter::HandleWeaponAttackHit(
+EMHHitResultType AMHPlayerCharacter::HandleWeaponAttackHit(
     AActor* Target,
     AMHWeaponInstance* Weapon)
 {
+    (void)Target;
+
     // 1. Sharpness
+    if (!Weapon || Weapon != EquippedWeapon)
+    {
+        return EMHHitResultType::NormalHit;
+    }
+
+    if (GetMaxSharpnessValue() <= 0.0f)
+    {
+        return EMHHitResultType::NormalHit;
+    }
+
+    if (GetCurrentSharpnessValue() <= 0.0f)
+    {
+        UE_LOG(
+            LogMHPlayerCharacter,
+            Log,
+            TEXT("[Sharpness] Bounce Weapon=%s Current=%.1f Max=%.1f Color=%s"),
+            *GetNameSafe(Weapon),
+            GetCurrentSharpnessValue(),
+            GetMaxSharpnessValue(),
+            ResolveSharpnessColorText(CurrentSharpnessColor));
+        return EMHHitResultType::Bounced;
+    }
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Log,
+        TEXT("[Sharpness] Hit Before Current=%.1f Max=%.1f Color=%s"),
+        GetCurrentSharpnessValue(),
+        GetMaxSharpnessValue(),
+        ResolveSharpnessColorText(CurrentSharpnessColor));
     ConsumeSharpness(5.f);
-    
-    // 2. SpiritGuage
-    AddSpiritGauge(5.f);
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Log,
+        TEXT("[Sharpness] Hit After Current=%.1f Max=%.1f Color=%s"),
+        GetCurrentSharpnessValue(),
+        GetMaxSharpnessValue(),
+        ResolveSharpnessColorText(CurrentSharpnessColor));
+    return EMHHitResultType::NormalHit;
 
     // // 3. 무기별 처리
     // if (Weapon)
@@ -3747,6 +3787,147 @@ bool AMHPlayerCharacter::TryRequestLongSwordEarlyTransition()
     return ComboAbility->TryEvaluateEarlyTransitionNow();
 }
 
+bool AMHPlayerCharacter::IsEquippedWeaponPrimaryAbilityActive() const
+{
+    if (!AbilitySystemComponent || !EquippedWeapon)
+    {
+        return false;
+    }
+
+    const TSubclassOf<UGameplayAbility> AbilityClass = EquippedWeapon->GetPrimaryAttackAbilityClass();
+    if (!AbilityClass)
+    {
+        return false;
+    }
+
+    const FGameplayAbilitySpec* Spec = AbilitySystemComponent->FindAbilitySpecFromClass(AbilityClass);
+    return Spec && Spec->IsActive();
+}
+
+bool AMHPlayerCharacter::EndActiveEquippedWeaponAttackAbility(bool bWasCancelled)
+{
+    if (!AbilitySystemComponent || !EquippedWeapon)
+    {
+        return false;
+    }
+
+    const TSubclassOf<UGameplayAbility> AbilityClass = EquippedWeapon->GetPrimaryAttackAbilityClass();
+    if (!AbilityClass)
+    {
+        return false;
+    }
+
+    FGameplayAbilitySpec* Spec = AbilitySystemComponent->FindAbilitySpecFromClass(AbilityClass);
+    if (!Spec || !Spec->IsActive())
+    {
+        return false;
+    }
+
+    UGameplayAbility* ActiveAbility = Spec->GetPrimaryInstance();
+    if (UMHGA_LongSwordCombo* ComboAbility = Cast<UMHGA_LongSwordCombo>(ActiveAbility))
+    {
+        ComboAbility->RequestExternalEndAbility(bWasCancelled);
+        return true;
+    }
+
+    if (UMHGA_GreatSwordAttack* GreatSwordAbility = Cast<UMHGA_GreatSwordAttack>(ActiveAbility))
+    {
+        GreatSwordAbility->RequestExternalEndAbility(bWasCancelled);
+        return true;
+    }
+
+    return false;
+}
+
+bool AMHPlayerCharacter::CancelSharpenAbilityIfActive()
+{
+    if (!AbilitySystemComponent || !SharpenAbilityClass)
+    {
+        return false;
+    }
+
+    FGameplayAbilitySpec* Spec = AbilitySystemComponent->FindAbilitySpecFromClass(SharpenAbilityClass);
+    if (!Spec || !Spec->IsActive())
+    {
+        return false;
+    }
+
+    UGameplayAbility* ActiveAbility = Spec->GetPrimaryInstance();
+    UGA_MHSharpen* SharpenAbility = Cast<UGA_MHSharpen>(ActiveAbility);
+    if (!SharpenAbility)
+    {
+        return false;
+    }
+
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Sharpen] Cancelled by external action"));
+    SharpenAbility->RequestExternalEndAbility(true);
+    return true;
+}
+
+bool AMHPlayerCharacter::CanStartSharpenItemUse() const
+{
+    if (!EquippedWeapon || GetMaxSharpnessValue() <= 0.0f)
+    {
+        return false;
+    }
+
+    if (GetCurrentSharpnessValue() >= GetMaxSharpnessValue())
+    {
+        return false;
+    }
+
+    if (GetVelocity().Size2D() > 3.0f)
+    {
+        return false;
+    }
+
+    if (bRollMontagePlaying)
+    {
+        return false;
+    }
+
+    return !IsEquippedWeaponPrimaryAbilityActive();
+}
+
+void AMHPlayerCharacter::HandleSharpnessBounce()
+{
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Log,
+        TEXT("[Sharpness] Handle bounce. WeaponType=%d"),
+        static_cast<int32>(CurrentWeaponType)
+    );
+
+    EndActiveEquippedWeaponAttackAbility(true);
+
+    if (AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
+    {
+        if (UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
+        {
+            ComboComp->ResetCombo();
+        }
+
+        HandleComboMontageStateTransition(true);
+    }
+    else if (AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
+    {
+        if (UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
+        {
+            ActionComponent->NotifyActionFinished();
+        }
+    }
+
+    if (UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
+    {
+        AnimInstance->Montage_Stop(0.05f);
+
+        if (SharpnessBounceMontage)
+        {
+            AnimInstance->Montage_Play(SharpnessBounceMontage);
+        }
+    }
+}
+
 bool AMHPlayerCharacter::CanStartSheathe() const
 {
     if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
@@ -4235,6 +4416,176 @@ bool AMHPlayerCharacter::ApplyIncomingPlayerDamageSpec(
 
 #pragma region Attribute Delegate _이건주
 
+void AMHPlayerCharacter::NormalizeSharpnessStateFromAttribute()
+{
+    if (!PlayerAttributeSet)
+    {
+        CurrentSharpnessColor = EMHSharpnessColor::Red;
+        CurrentSharpnessValue = 0.0f;
+        UpdateSharpnessModifierFromCurrentColor();
+        return;
+    }
+
+    const float MaxSharpness = FMath::Max(0.0f, PlayerAttributeSet->GetMaxSharpness());
+    const float CurrentSharpness = FMath::Clamp(PlayerAttributeSet->GetSharpness(), 0.0f, MaxSharpness);
+
+    CurrentSharpnessValue = CurrentSharpness;
+
+    if (EquippedWeapon && MaxSharpness > 0.0f)
+    {
+        CurrentSharpnessColor = ResolveSharpnessColorFromValue(
+            EquippedWeapon->GetAttackStats().SharpnessLength,
+            CurrentSharpness);
+    }
+    else
+    {
+        CurrentSharpnessColor = EMHSharpnessColor::Red;
+    }
+
+    UpdateSharpnessModifierFromCurrentColor();
+}
+
+EMHSharpnessColor AMHPlayerCharacter::GetLowerSharpnessColor(EMHSharpnessColor InColor) const
+{
+    switch (InColor)
+    {
+    case EMHSharpnessColor::White:  return EMHSharpnessColor::Blue;
+    case EMHSharpnessColor::Blue:   return EMHSharpnessColor::Green;
+    case EMHSharpnessColor::Green:  return EMHSharpnessColor::Yellow;
+    case EMHSharpnessColor::Yellow: return EMHSharpnessColor::Orange;
+    case EMHSharpnessColor::Orange: return EMHSharpnessColor::Red;
+    case EMHSharpnessColor::Red:
+    default:
+        return EMHSharpnessColor::Red;
+    }
+}
+
+EMHSharpnessColor AMHPlayerCharacter::GetHigherSharpnessColor(EMHSharpnessColor InColor) const
+{
+    switch (InColor)
+    {
+    case EMHSharpnessColor::Red:    return EMHSharpnessColor::Orange;
+    case EMHSharpnessColor::Orange: return EMHSharpnessColor::Yellow;
+    case EMHSharpnessColor::Yellow: return EMHSharpnessColor::Green;
+    case EMHSharpnessColor::Green:  return EMHSharpnessColor::Blue;
+    case EMHSharpnessColor::Blue:   return EMHSharpnessColor::White;
+    case EMHSharpnessColor::White:
+    default:
+        return EMHSharpnessColor::White;
+    }
+}
+
+bool AMHPlayerCharacter::CanUpgradeSharpnessColor() const
+{
+    if (!EquippedWeapon)
+    {
+        return false;
+    }
+
+    return CurrentSharpnessColor != EquippedWeapon->GetAttackStats().MaxSharpnessColor;
+}
+
+void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue& InputActionValue)
+{
+    (void)InputActionValue;
+
+    SelectedConsumable = EMHConsumableSelection::Sharpen;
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Selected=Sharpen"));
+}
+
+void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputActionValue)
+{
+    (void)InputActionValue;
+
+    SelectedConsumable = EMHConsumableSelection::Potion;
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Selected=Potion"));
+}
+
+void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActionValue)
+{
+    (void)InputActionValue;
+
+    bItemUseHeld = true;
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Use Started Selected=%d"), static_cast<int32>(SelectedConsumable));
+    TryUseSelectedItem();
+}
+
+void AMHPlayerCharacter::Input_ItemUseCompleted(const FInputActionValue& InputActionValue)
+{
+    (void)InputActionValue;
+
+    bItemUseHeld = false;
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Use Completed"));
+}
+
+void AMHPlayerCharacter::TryUseSelectedItem()
+{
+    if (!AbilitySystemComponent)
+    {
+        UE_LOG(LogMHPlayerCharacter, Warning, TEXT("[Item] TryUseSelectedItem failed: ASC null"));
+        return;
+    }
+
+    TSubclassOf<UGameplayAbility> AbilityClass = nullptr;
+
+    switch (SelectedConsumable)
+    {
+    case EMHConsumableSelection::Sharpen:
+        if (!CanStartSharpenItemUse())
+        {
+            UE_LOG(
+                LogMHPlayerCharacter,
+                Log,
+                TEXT("[Sharpen] TryUse rejected Current=%.1f Max=%.1f Velocity=%.2f AttackActive=%d Roll=%d"),
+                GetCurrentSharpnessValue(),
+                GetMaxSharpnessValue(),
+                GetVelocity().Size2D(),
+                IsEquippedWeaponPrimaryAbilityActive() ? 1 : 0,
+                bRollMontagePlaying ? 1 : 0
+            );
+            return;
+        }
+
+        AbilityClass = SharpenAbilityClass;
+        break;
+    case EMHConsumableSelection::Potion:
+        AbilityClass = PotionAbilityClass;
+        break;
+    case EMHConsumableSelection::None:
+    default:
+        break;
+    }
+
+    if (!AbilityClass)
+    {
+        UE_LOG(LogMHPlayerCharacter, Warning, TEXT("[Item] TryUseSelectedItem failed: AbilityClass null"));
+        return;
+    }
+
+    const bool bActivated = AbilitySystemComponent->TryActivateAbilityByClass(AbilityClass);
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Log,
+        TEXT("[Item] TryUseSelectedItem Ability=%s Activated=%d"),
+        *GetNameSafe(AbilityClass),
+        bActivated ? 1 : 0);
+}
+
+void AMHPlayerCharacter::RefreshSharpnessState()
+{
+    NormalizeSharpnessStateFromAttribute();
+    OnSharpnessChanged.Broadcast(GetCurrentSharpnessValue(), GetMaxSharpnessValue());
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Log,
+        TEXT("[Sharpness] Refresh Current=%.1f Max=%.1f Color=%s Modifier=%.2f"),
+        GetCurrentSharpnessValue(),
+        GetMaxSharpnessValue(),
+        ResolveSharpnessColorText(CurrentSharpnessColor),
+        CombatAttributeSet ? CombatAttributeSet->GetSharpnessModifier() : -1.0f);
+}
+
 void AMHPlayerCharacter::InitializeAbilitySystem()
 {
     Super::InitializeAbilitySystem();
@@ -4278,6 +4629,14 @@ void AMHPlayerCharacter::BindAttributeDelegates()
     ).AddUObject(this, &ThisClass::HandleStaminaAttributeChanged);
 
     AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHPlayerAttributeSet::GetSharpnessAttribute()
+    ).AddUObject(this, &ThisClass::HandleShapnessAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+        UMHPlayerAttributeSet::GetMaxSharpnessAttribute()
+    ).AddUObject(this, &ThisClass::HandleMaxShapnessAttributeChanged);
+
+    AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
         UMHPlayerAttributeSet::GetMaxStaminaAttribute()
     ).AddUObject(this, &ThisClass::HandleMaxStaminaAttributeChanged);
     
@@ -4299,6 +4658,8 @@ void AMHPlayerCharacter::BroadcastInitialAttributeSnapshot()
     OnHealthChanged.Broadcast(GetCurrentHealthValue(), GetMaxHealthValue());
     OnHealableHealthChanged.Broadcast(GetCurrentHealableHealthValue(), GetMaxHealthValue());
     OnStaminaChanged.Broadcast(GetCurrentStaminaValue(), GetMaxStaminaValue());
+    OnSpiritGaugeChanged.Broadcast(GetCurrentSpiritGaugeValue(), GetMaxSpiritGaugeValue());
+    OnSharpnessChanged.Broadcast(GetCurrentSharpnessValue(), GetMaxSharpnessValue());
     //TODO: 이건주
 }
 
@@ -4329,12 +4690,28 @@ void AMHPlayerCharacter::HandleHealableHealthAttributeChanged(const FOnAttribute
 
 void AMHPlayerCharacter::HandleShapnessAttributeChanged(const FOnAttributeChangeData& ChangeData)
 {
+    (void)ChangeData;
+
+    if (bSyncingSharpnessState)
+    {
+        return;
+    }
+
+    RefreshSharpnessState();
     //TODO: Getter 함수 추가 _이건주
     // OnSharpnessChanged.Broadcast(ChangeData.NewValue, GetCurrentSharpnessGaugeValue());
 }
 
 void AMHPlayerCharacter::HandleMaxShapnessAttributeChanged(const FOnAttributeChangeData& ChangeData)
 {
+    (void)ChangeData;
+
+    if (bSyncingSharpnessState)
+    {
+        return;
+    }
+
+    RefreshSharpnessState();
     //TODO: Getter 함수 추가 _이건주
     // OnSharpnessChanged.Broadcast(ChangeData.NewValue, GetMaxSharpnessGaugeValue());
 }
@@ -4350,92 +4727,93 @@ void AMHPlayerCharacter::HandleMaxSpiritAttributeChanged(const FOnAttributeChang
     OnSpiritGaugeChanged.Broadcast(ChangeData.NewValue, GetMaxSpiritGaugeValue());
 }
 
-void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue& InputActionValue)
-{
-    if (bDamageHitReactInputLocked)
-    {
-        return;
-    }
 
-    (void)InputActionValue;
-    SelectedConsumable = EMHConsumableSelection::Sharpen;
-}
 
-void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputActionValue)
-{
-    if (bDamageHitReactInputLocked)
-    {
-        return;
-    }
-
-    (void)InputActionValue;
-    SelectedConsumable = EMHConsumableSelection::Potion;
-    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Selected consumable: Potion"));
-}
-
-void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActionValue)
-{
-    if (bDamageHitReactInputLocked)
-    {
-        return;
-    }
-
-    (void)InputActionValue;
-    bItemUseHeld = true;
-    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Use started: selection=%d"), static_cast<uint8>(SelectedConsumable));
-    TryUseSelectedItem();
-}
-
-void AMHPlayerCharacter::Input_ItemUseCompleted(const FInputActionValue& InputActionValue)
-{
-    if (bDamageHitReactInputLocked)
-    {
-        return;
-    }
-
-    (void)InputActionValue;
-    bItemUseHeld = false;
-}
-
-void AMHPlayerCharacter::TryUseSelectedItem()
-{
-    if (bDamageHitReactInputLocked)
-    {
-        return;
-    }
-
-    if (!AbilitySystemComponent)
-    {
-        return;
-    }
-
-    switch (SelectedConsumable)
-    {
-    case EMHConsumableSelection::Sharpen:
-        if (SharpenAbilityClass)
-        {
-            AbilitySystemComponent->TryActivateAbilityByClass(SharpenAbilityClass);
-        }
-        break;
-    case EMHConsumableSelection::Potion:
-        if (PotionAbilityClass)
-        {
-            const bool bActivated = AbilitySystemComponent->TryActivateAbilityByClass(PotionAbilityClass);
-            UE_LOG(
-                LogMHPlayerCharacter,
-                Log,
-                TEXT("[Item] TryUseSelectedItem Potion: activated=%d HP=%.1f/%.1f Healable=%.1f"),
-                bActivated ? 1 : 0,
-                GetCurrentHealthValue(),
-                GetMaxHealthValue(),
-                GetCurrentHealableHealthValue()
-            );
-        }
-        break;
-    default:
-        break;
-    }
-}
-
+// void AMHPlayerCharacter::Input_ItemSelectSharpen(const FInputActionValue& InputActionValue)
+// {
+//     if (bDamageHitReactInputLocked)
+//     {
+//         return;
+//     }
+//
+//     (void)InputActionValue;
+//     SelectedConsumable = EMHConsumableSelection::Sharpen;
+// }
+//
+// void AMHPlayerCharacter::Input_ItemSelectPotion(const FInputActionValue& InputActionValue)
+// {
+//     if (bDamageHitReactInputLocked)
+//     {
+//         return;
+//     }
+//
+//     (void)InputActionValue;
+//     SelectedConsumable = EMHConsumableSelection::Potion;
+//     UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Selected consumable: Potion"));
+// }
+//
+// void AMHPlayerCharacter::Input_ItemUseStarted(const FInputActionValue& InputActionValue)
+// {
+//     if (bDamageHitReactInputLocked)
+//     {
+//         return;
+//     }
+//
+//     (void)InputActionValue;
+//     bItemUseHeld = true;
+//     UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Item] Use started: selection=%d"), static_cast<uint8>(SelectedConsumable));
+//     TryUseSelectedItem();
+// }
+//
+// void AMHPlayerCharacter::Input_ItemUseCompleted(const FInputActionValue& InputActionValue)
+// {
+//     if (bDamageHitReactInputLocked)
+//     {
+//         return;
+//     }
+//
+//     (void)InputActionValue;
+//     bItemUseHeld = false;
+// }
+//
+// void AMHPlayerCharacter::TryUseSelectedItem()
+// {
+//     if (bDamageHitReactInputLocked)
+//     {
+//         return;
+//     }
+//
+//     if (!AbilitySystemComponent)
+//     {
+//         return;
+//     }
+//
+//     switch (SelectedConsumable)
+//     {
+//     case EMHConsumableSelection::Sharpen:
+//         if (SharpenAbilityClass)
+//         {
+//             AbilitySystemComponent->TryActivateAbilityByClass(SharpenAbilityClass);
+//         }
+//         break;
+//     case EMHConsumableSelection::Potion:
+//         if (PotionAbilityClass)
+//         {
+//             const bool bActivated = AbilitySystemComponent->TryActivateAbilityByClass(PotionAbilityClass);
+//             UE_LOG(
+//                 LogMHPlayerCharacter,
+//                 Log,
+//                 TEXT("[Item] TryUseSelectedItem Potion: activated=%d HP=%.1f/%.1f Healable=%.1f"),
+//                 bActivated ? 1 : 0,
+//                 GetCurrentHealthValue(),
+//                 GetMaxHealthValue(),
+//                 GetCurrentHealableHealthValue()
+//             );
+//         }
+//         break;
+//     default:
+//         break;
+//     }
+// }
 
 #pragma endregion

@@ -17,6 +17,7 @@ class PROJECTMHW_API UGA_MHSharpen : public UGameplayAbility
 
 public:
 	UGA_MHSharpen();
+	void RequestExternalEndAbility(bool bInWasCancelled = true);
 
 protected:
 	virtual void ActivateAbility(

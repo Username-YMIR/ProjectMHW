@@ -196,3 +196,64 @@ inline float GetSharpnessMultiplier(EMHSharpnessColor Color)
 	default: return 1.0f;
 	}
 }
+
+inline float GetSharpnessLength(const FMHSharpnessData& Data, EMHSharpnessColor Color)
+{
+	switch (Color)
+	{
+	case EMHSharpnessColor::Red:    return Data.Red;
+	case EMHSharpnessColor::Orange: return Data.Orange;
+	case EMHSharpnessColor::Yellow: return Data.Yellow;
+	case EMHSharpnessColor::Green:  return Data.Green;
+	case EMHSharpnessColor::Blue:   return Data.Blue;
+	case EMHSharpnessColor::White:  return Data.White;
+	default: return 0.0f;
+	}
+}
+
+inline float GetTotalSharpnessLength(const FMHSharpnessData& Data)
+{
+	return FMath::Max(0.0f, Data.Red)
+		+ FMath::Max(0.0f, Data.Orange)
+		+ FMath::Max(0.0f, Data.Yellow)
+		+ FMath::Max(0.0f, Data.Green)
+		+ FMath::Max(0.0f, Data.Blue)
+		+ FMath::Max(0.0f, Data.White);
+}
+
+inline EMHSharpnessColor ResolveSharpnessColorFromValue(const FMHSharpnessData& Data, float CurrentSharpnessValue)
+{
+	const float ClampedValue = FMath::Max(0.0f, CurrentSharpnessValue);
+	const float RedThreshold = FMath::Max(0.0f, Data.Red);
+	const float OrangeThreshold = RedThreshold + FMath::Max(0.0f, Data.Orange);
+	const float YellowThreshold = OrangeThreshold + FMath::Max(0.0f, Data.Yellow);
+	const float GreenThreshold = YellowThreshold + FMath::Max(0.0f, Data.Green);
+	const float BlueThreshold = GreenThreshold + FMath::Max(0.0f, Data.Blue);
+
+	if (ClampedValue > BlueThreshold && Data.White > 0.0f)
+	{
+		return EMHSharpnessColor::White;
+	}
+
+	if (ClampedValue > GreenThreshold && Data.Blue > 0.0f)
+	{
+		return EMHSharpnessColor::Blue;
+	}
+
+	if (ClampedValue > YellowThreshold && Data.Green > 0.0f)
+	{
+		return EMHSharpnessColor::Green;
+	}
+
+	if (ClampedValue > OrangeThreshold && Data.Yellow > 0.0f)
+	{
+		return EMHSharpnessColor::Yellow;
+	}
+
+	if (ClampedValue > RedThreshold && Data.Orange > 0.0f)
+	{
+		return EMHSharpnessColor::Orange;
+	}
+
+	return EMHSharpnessColor::Red;
+}

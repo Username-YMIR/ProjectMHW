@@ -342,6 +342,25 @@ void AMHMeleeWeaponInstance::OnWeaponBeginOverlap(
 	);
 
 	FMHHitAcknowledge HitAcknowledge;
+	AMHPlayerCharacter* PlayerOwner = Cast<AMHPlayerCharacter>(OwnerActor);
+
+	if (OtherActor->GetClass()->ImplementsInterface(UMHDamageSpecReceiverInterface::StaticClass()) && PlayerOwner)
+	{
+		const EMHHitResultType LocalHitResult = PlayerOwner->HandleWeaponAttackHit(OtherActor, this);
+		if (LocalHitResult == EMHHitResultType::Bounced)
+		{
+			HitAcknowledge.bAcceptedHit = true;
+			HitAcknowledge.bConsumeHitOnce = true;
+			HitAcknowledge.bShouldStopAttackWindow = true;
+			HitAcknowledge.ResultType = EMHHitResultType::Bounced;
+
+			PlayerOwner->HandleSharpnessBounce();
+			HitActors.Add(OtherActor);
+			SetAttackCollisionEnabled(false);
+			return;
+		}
+	}
+
 	if (!TryDeliverDamageSpecToTarget(OtherActor, ResolvedHitResult, HitAcknowledge))
 	{
 		UE_LOG(
@@ -358,7 +377,7 @@ void AMHMeleeWeaponInstance::OnWeaponBeginOverlap(
 		&& HitAcknowledge.bAcceptedHit
 		&& HitAcknowledge.ResultType == EMHHitResultType::NormalHit)
 	{
-		if (AMHPlayerCharacter* PlayerOwner = Cast<AMHPlayerCharacter>(OwnerActor))
+		if (PlayerOwner)
 		{
 			PlayerOwner->Notify_LongSwordAttackHitConfirmed(CurrentAttackTag);
 		}

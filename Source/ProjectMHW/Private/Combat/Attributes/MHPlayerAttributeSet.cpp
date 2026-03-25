@@ -32,7 +32,7 @@ void UMHPlayerAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribu
 	}
 	else if (Attribute == GetSharpnessAttribute())
 	{
-		NewValue = FMath::Max(0.f, NewValue);
+		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxSharpness());
 	}
 }
 
@@ -51,11 +51,12 @@ void UMHPlayerAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCa
 	}
 	else if (Data.EvaluatedData.Attribute == GetSharpnessAttribute())
 	{
-		SetSharpness(FMath::Max(0.f, GetSharpness()));
+		SetSharpness(FMath::Clamp(GetSharpness(), 0.f, GetMaxSharpness()));
 	}
 	else if (Data.EvaluatedData.Attribute == GetMaxSharpnessAttribute())
 	{
 		SetMaxSharpness(FMath::Max(0.f, GetMaxSharpness()));
+		SetSharpness(FMath::Clamp(GetSharpness(), 0.f, GetMaxSharpness()));
 	}
 }
 

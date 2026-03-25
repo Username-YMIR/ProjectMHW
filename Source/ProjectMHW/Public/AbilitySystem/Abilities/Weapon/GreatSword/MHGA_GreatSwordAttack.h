@@ -19,6 +19,7 @@ class PROJECTMHW_API UMHGA_GreatSwordAttack : public UGameplayAbility
 
 public:
     UMHGA_GreatSwordAttack();
+    void RequestExternalEndAbility(bool bInWasCancelled = true);
 
 protected:
     virtual void ActivateAbility(
