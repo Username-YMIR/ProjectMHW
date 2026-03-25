@@ -1019,11 +1019,9 @@ protected:
 
 private:
     bool bSyncingSharpnessState = false;
+    static constexpr float FixedSpiritLevelDuration = 60.0f;
     FTimerHandle SpiritLevelDecayTimerHandle;
     float SpiritLevelRemainingTime = 0.0f;
-
-    UPROPERTY(EditDefaultsOnly, Category="Combat|LongSword", meta = (ClampMin = "0.1", AllowPrivateAccess = "true"))
-    float SpiritLevelDuration = 60.0f;
 
     UPROPERTY(EditDefaultsOnly, Category="Combat|LongSword", meta = (ClampMin = "0.01", AllowPrivateAccess = "true"))
     float SpiritLevelDecayTickInterval = 0.1f;

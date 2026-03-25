@@ -2697,8 +2697,15 @@ void AMHPlayerCharacter::IncreaseSpiritLevel(const int32 InAmount)
         return;
     }
 
+    const int32 MaxSpiritLevel = GetMaxSpiritLevelValue();
+    if (CurrentSpiritLevel >= MaxSpiritLevel)
+    {
+        RefreshSpiritLevelDecayState(true);
+        return;
+    }
+
     const int32 PreviousSpiritLevel = CurrentSpiritLevel;
-    CurrentSpiritLevel = FMath::Clamp(CurrentSpiritLevel + InAmount, 0, 3);
+    CurrentSpiritLevel = FMath::Clamp(CurrentSpiritLevel + InAmount, 0, MaxSpiritLevel);
 
     if (CurrentSpiritLevel != PreviousSpiritLevel)
     {
@@ -2731,7 +2738,7 @@ float AMHPlayerCharacter::GetSpiritLevelRemainingTime() const
 
 float AMHPlayerCharacter::GetSpiritLevelDuration() const
 {
-    return FMath::Max(0.0f, SpiritLevelDuration);
+    return FixedSpiritLevelDuration;
 }
 
 bool AMHPlayerCharacter::IsAttackAllowedForForesightCounter(const FGameplayTag& InAttackTag) const
