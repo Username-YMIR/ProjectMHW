@@ -66,7 +66,6 @@ struct FMHGreatSwordRuntimeSnapshot
     bool bHasBufferedInput = false;
     EMHGreatSwordBufferedInputType BufferedInputType = EMHGreatSwordBufferedInputType::None;
     bool bBufferedForwardInput = false;
-    bool bBufferedSheathed = false;
 };
 
 UCLASS(ClassGroup=(Weapon), Blueprintable, BlueprintType, meta=(BlueprintSpawnableComponent))
@@ -78,7 +77,7 @@ public:
     UMHGreatSwordActionComponent();
 
     // 좌클릭 입력 시작 시 현재 문맥에 맞는 대검 기술을 결정한다.
-    bool HandlePrimaryPressed(bool bInForwardInput, bool bInSheathed, bool bInWeaponSpecialHeld);
+    bool HandlePrimaryPressed(bool bInForwardInput, bool bInSheathed);
 
     // 좌클릭 입력 종료 시 현재 차징을 실제 공격으로 확정한다.
     bool HandlePrimaryReleased();
@@ -202,7 +201,7 @@ protected:
     void ClearBufferedInput();
 
     // 입력을 조기 전환 버퍼에 저장한다.
-    void BufferInput(EMHGreatSwordBufferedInputType InInputType, bool bInForwardInput, bool bInSheathed);
+    void BufferInput(EMHGreatSwordBufferedInputType InInputType, bool bInForwardInput);
 
     // 조기 전환 윈도우가 열렸을 때 버퍼 입력을 소비한다.
     bool TryConsumeBufferedTransitionInput();
@@ -313,7 +312,4 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
     bool bBufferedForwardInput = false;
-
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GreatSword|Runtime")
-    bool bBufferedSheathed = false;
 };

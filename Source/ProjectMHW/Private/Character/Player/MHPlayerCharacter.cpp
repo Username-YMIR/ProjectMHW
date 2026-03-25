@@ -2294,7 +2294,7 @@ bool AMHPlayerCharacter::TryHandleGreatSwordPrimaryInput()
 
     const bool bForwardInput = CachedMoveInput2D.Y > 0.1f;
     const bool bSheathed = WeaponSheathState == EMHWeaponSheathState::Sheathed;
-    if (!ActionComponent->HandlePrimaryPressed(bForwardInput, bSheathed, bWeaponSpecialHeld))
+    if (!ActionComponent->HandlePrimaryPressed(bForwardInput, bSheathed))
     {
         return false;
     }

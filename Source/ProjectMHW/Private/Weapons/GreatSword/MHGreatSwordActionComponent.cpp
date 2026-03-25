@@ -43,7 +43,6 @@ void UMHGreatSwordActionComponent::CaptureRuntimeSnapshot(FMHGreatSwordRuntimeSn
     OutSnapshot.bHasBufferedInput = bHasBufferedInput;
     OutSnapshot.BufferedInputType = BufferedInputType;
     OutSnapshot.bBufferedForwardInput = bBufferedForwardInput;
-    OutSnapshot.bBufferedSheathed = bBufferedSheathed;
 }
 
 void UMHGreatSwordActionComponent::RestoreRuntimeSnapshot(const FMHGreatSwordRuntimeSnapshot& InSnapshot)
@@ -70,7 +69,6 @@ void UMHGreatSwordActionComponent::RestoreRuntimeSnapshot(const FMHGreatSwordRun
     bHasBufferedInput = InSnapshot.bHasBufferedInput;
     BufferedInputType = InSnapshot.BufferedInputType;
     bBufferedForwardInput = InSnapshot.bBufferedForwardInput;
-    bBufferedSheathed = InSnapshot.bBufferedSheathed;
 }
 
 bool UMHGreatSwordActionComponent::HandleDodgePressed(const bool bInSheathed, const EMHDirectionalVariant InDirectionalVariant)
@@ -113,7 +111,7 @@ bool UMHGreatSwordActionComponent::HandleDodgePressed(const bool bInSheathed, co
     return false;
 }
 
-bool UMHGreatSwordActionComponent::HandlePrimaryPressed(const bool bInForwardInput, const bool bInSheathed, const bool bInWeaponSpecialHeld)
+bool UMHGreatSwordActionComponent::HandlePrimaryPressed(const bool bInForwardInput, const bool bInSheathed)
 {
     if (IsCharging() || IsGuarding())
     {
@@ -124,15 +122,7 @@ bool UMHGreatSwordActionComponent::HandlePrimaryPressed(const bool bInForwardInp
     {
         if (!IsAnyTransitionWindowOpen())
         {
-            BufferInput(EMHGreatSwordBufferedInputType::Primary, bInForwardInput, bInSheathed);
-            return true;
-        }
-
-        if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_Tackle && bInWeaponSpecialHeld)
-        {
-            PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
-            LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
-            QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
+            BufferInput(EMHGreatSwordBufferedInputType::Primary, bInForwardInput);
             return true;
         }
 
@@ -185,7 +175,7 @@ bool UMHGreatSwordActionComponent::HandleSecondaryPressed()
     {
         if (!IsAnyTransitionWindowOpen())
         {
-            BufferInput(EMHGreatSwordBufferedInputType::Secondary, false, false);
+            BufferInput(EMHGreatSwordBufferedInputType::Secondary, false);
             return true;
         }
 
@@ -212,7 +202,7 @@ bool UMHGreatSwordActionComponent::HandleWeaponSpecialPressed(const bool bInShea
     {
         if (!IsAnyTransitionWindowOpen())
         {
-            BufferInput(EMHGreatSwordBufferedInputType::WeaponSpecial, false, bInSheathed);
+            BufferInput(EMHGreatSwordBufferedInputType::WeaponSpecial, false);
             return true;
         }
 
@@ -251,7 +241,7 @@ bool UMHGreatSwordActionComponent::HandleSimultaneousPressed()
     {
         if (!IsAnyTransitionWindowOpen())
         {
-            BufferInput(EMHGreatSwordBufferedInputType::Simultaneous, false, false);
+            BufferInput(EMHGreatSwordBufferedInputType::Simultaneous, false);
             return true;
         }
 
@@ -604,23 +594,20 @@ void UMHGreatSwordActionComponent::ClearBufferedInput()
     bHasBufferedInput = false;
     BufferedInputType = EMHGreatSwordBufferedInputType::None;
     bBufferedForwardInput = false;
-    bBufferedSheathed = false;
 }
 
-void UMHGreatSwordActionComponent::BufferInput(const EMHGreatSwordBufferedInputType InInputType, const bool bInForwardInput, const bool bInSheathed)
+void UMHGreatSwordActionComponent::BufferInput(const EMHGreatSwordBufferedInputType InInputType, const bool bInForwardInput)
 {
     bHasBufferedInput = true;
     BufferedInputType = InInputType;
     bBufferedForwardInput = bInForwardInput;
-    bBufferedSheathed = bInSheathed;
 
     UE_LOG(
         LogMHGreatSwordActionComponent,
         Verbose,
-        TEXT("대검 입력 버퍼 저장. Input=%d Forward=%d Sheathed=%d Move=%s"),
+        TEXT("대검 입력 버퍼 저장. Input=%d Forward=%d Move=%s"),
         static_cast<int32>(BufferedInputType),
         bBufferedForwardInput ? 1 : 0,
-        bBufferedSheathed ? 1 : 0,
         *LastCommittedMoveTag.ToString()
     );
 }
@@ -655,6 +642,22 @@ bool UMHGreatSwordActionComponent::ResolvePrimaryDuringEarlyTransition(const boo
 {
     if (LastCommittedMoveTag == MHGreatSwordGameplayTags::Move_GS_Tackle)
     {
+        // 태클 직후 좌 입력은 전방 입력 유무로 옆으로 치기와 다음 차지를 구분한다.
+        if (!bInForwardInput)
+        {
+            PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
+            LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
+
+            UE_LOG(
+                LogMHGreatSwordActionComponent,
+                Verbose,
+                TEXT("대검 태클 후 좌 입력을 옆으로 치기로 처리합니다.")
+            );
+
+            QueuePendingMove(MHGreatSwordGameplayTags::Move_GS_WideSlash, EMHGreatSwordActionState::Acting);
+            return true;
+        }
+
         EMHGreatSwordChargeFamily NextFamily = PendingPostTackleChargeFamily;
 
         if (NextFamily == EMHGreatSwordChargeFamily::None)
@@ -669,6 +672,14 @@ bool UMHGreatSwordActionComponent::ResolvePrimaryDuringEarlyTransition(const boo
 
         PendingPostTackleChargeFamily = EMHGreatSwordChargeFamily::None;
         LastTackleSourceChargeFamily = EMHGreatSwordChargeFamily::None;
+
+        UE_LOG(
+            LogMHGreatSwordActionComponent,
+            Verbose,
+            TEXT("대검 태클 후 앞+좌 입력을 다음 차지 단계로 처리합니다. Family=%d"),
+            static_cast<int32>(NextFamily)
+        );
+
         BeginCharging(NextFamily, false);
         return true;
     }
