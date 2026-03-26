@@ -56,7 +56,7 @@ DEFINE_LOG_CATEGORY(LogMHPlayerCharacter);
 
 namespace
 {
-    /** 입력 2D 벡터를 카메라 yaw 기준 월드 방향으로 변환한다. */
+    /** ??낆젾 2D 甕겸돧苑ｇ몴?燁삳?李??yaw 疫꿸퀣? ?遺얜굡 獄쎻뫚堉??곗쨮 癰궰??묐립?? */
     static FVector ResolveWorldMoveDirection(const AController* InController, const FVector2D& InMoveInput)
     {
         if (InMoveInput.IsNearlyZero())
@@ -111,6 +111,31 @@ namespace
             return TEXT("Unknown");
         }
     }
+
+    // 납도 상태와 전이 윈도우를 반영해 대검 기본 입력 패턴을 결정한다.
+    static FGameplayTag ResolveGreatSwordPrimaryPatternTag(const UMHGreatSwordActionComponent* InActionComponent, const bool bInForwardInput, const bool bInSheathed)
+    {
+        using namespace MHInputPatternGameplayTags;
+
+        if (bInSheathed)
+        {
+            return bInForwardInput ? InputPattern_GS_DrawCharge : InputPattern_GS_DrawOnly;
+        }
+
+        const bool bUseForwardPrimary = bInForwardInput
+            && InActionComponent
+            && InActionComponent->GetActionState() == EMHGreatSwordActionState::Acting
+            && InActionComponent->IsAnyTransitionWindowOpen();
+
+        return bUseForwardPrimary ? InputPattern_GS_ForwardPrimary : InputPattern_GS_Primary;
+    }
+
+    // 무기 특수 입력은 납도 시 발도 가드, 발도 시 일반 가드로 해석한다.
+    static FGameplayTag ResolveGreatSwordWeaponSpecialPatternTag(const bool bInSheathed)
+    {
+        using namespace MHInputPatternGameplayTags;
+        return bInSheathed ? InputPattern_GS_DrawGuard : InputPattern_GS_WeaponSpecial;
+    }
 }
 
 AMHPlayerCharacter::AMHPlayerCharacter()
@@ -120,24 +145,24 @@ AMHPlayerCharacter::AMHPlayerCharacter()
     PrimaryActorTick.bCanEverTick = false;
     PrimaryActorTick.bStartWithTickEnabled = false;
 
-    // 회전 사용 비활성화
+    // ???읈 ??????쑵??源딆넅
     bUseControllerRotationPitch = false;
     bUseControllerRotationRoll = false;
     bUseControllerRotationYaw = false;
 
-    // 스프링암
+    // ??쎈늄筌띻낯釉?
     CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
     CameraBoom->SetupAttachment(GetRootComponent());
     CameraBoom->TargetArmLength = 280.0f;
     CameraBoom->SocketOffset = FVector(0.f, 0.f, 65.f);
     CameraBoom->bUsePawnControlRotation = true;
 
-    // 카메라
+    // 燁삳?李??
     FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
     FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
     FollowCamera->bUsePawnControlRotation = false;
 
-    // 이동 세팅
+    // ??猷??紐낅샒
     if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
     {
         MoveComp->bOrientRotationToMovement = true;
@@ -147,7 +172,7 @@ AMHPlayerCharacter::AMHPlayerCharacter()
     }
 
 
-    // 데칼 영향 제거
+    // ?怨쀫? ?怨밸샨 ??볤탢
     if (USkeletalMeshComponent* MeshComp = GetMesh())
     {
         MeshComp->bReceivesDecals = false;
@@ -164,7 +189,7 @@ AMHPlayerCharacter::AMHPlayerCharacter()
     // DebugIncomingAttackTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Attack.Debug.Counterable")), false);
     WeaponStatEffectClass = UMHGameplayEffect_WeaponStat::StaticClass();
 
-    // 플레이어 기본 스태미나는 현재 프로젝트 기준으로 100으로 고정한다.
+    // ???쟿??곷선 疫꿸퀡????쎄묶沃섎챶援???袁⑹삺 ?袁⑥쨮??븍뱜 疫꿸퀣???곗쨮 100??곗쨮 ?⑥쥙???뺣뼄.
     StaminaConfig.MaxStamina = 100.0f;
 }
 
@@ -183,7 +208,7 @@ void AMHPlayerCharacter::BeginPlay()
     RefreshSharpnessState();
     BroadcastInitialAttributeSnapshot();
 
-    // 무브먼트 업데이트 델리게이트 바인딩
+    // ?얜??뺟솒?노뱜 ??낅쑓??꾨뱜 ?紐꺿봺野껊슣???獄쏅뗄???
     if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
     {
         OnCharacterMovementUpdated.AddDynamic(this, &AMHPlayerCharacter::HandleMovementUpdated);
@@ -248,22 +273,22 @@ void AMHPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
     if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_WeaponSpecial))
     {
-        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_WeaponSpecial, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_WeaponSpecial); //손승우 추가
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_WeaponSpecial, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_WeaponSpecial); //?癒?뱟???곕떽?
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_WeaponSpecial, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_WeaponSpecialCompleted);
     }
 
     if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_AttackSimultaneous))
     {
-        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AttackSimultaneous, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_AttackSimultaneous); //손승우 추가
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AttackSimultaneous, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_AttackSimultaneous); //?癒?뱟???곕떽?
     }
 
     if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_AimHold))
     {
-        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AimHold, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_AimHoldStarted); //손승우 추가
-        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AimHold, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_AimHoldCompleted); //손승우 추가
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AimHold, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_AimHoldStarted); //?癒?뱟???곕떽?
+        MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_AimHold, ETriggerEvent::Completed, this, &AMHPlayerCharacter::Input_AimHoldCompleted); //?癒?뱟???곕떽?
     }
 
-    // 입력 액션 자산과 별개로 디버그 피격 키를 직접 바인딩해서 간파/거합 검증에 사용한다.
+    // ??낆젾 ??る??癒?텦??癰귢쑨而삥에??遺얠쒔域???④봄 ??? 筌욊낯??獄쏅뗄???븍퉸??揶쏄쑵??椰꾧퀬鍮 野꺜筌앹빘肉??????뺣뼄.
     if (InputConfigDataAsset->FindNativeInputActionByTag(MHGameplayTags::Input_ItemSelectSharpen))
     {
         MHInputComponent->BindNativeInputAction(InputConfigDataAsset, MHGameplayTags::Input_ItemSelectSharpen, ETriggerEvent::Started, this, &AMHPlayerCharacter::Input_ItemSelectSharpen);
@@ -285,7 +310,7 @@ void AMHPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
 void AMHPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-    // 무브먼트 업데이트 델리게이트 해제
+    // ?얜??뺟솒?노뱜 ??낅쑓??꾨뱜 ?紐꺿봺野껊슣?????곸젫
     if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
     {
         OnCharacterMovementUpdated.RemoveDynamic(this, &AMHPlayerCharacter::HandleMovementUpdated);
@@ -293,10 +318,10 @@ void AMHPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
     ClearBurningState();
 
-    // 무기 해제 함수화 _ 이건주
+    // ?얜떯由???곸젫 ??λ땾??_ ??욧탷雅?
     UnequipCurrentWeapon(false);
     
-    // // 무기 어빌리티 해제
+    // // ?얜떯由????당뵳?????곸젫
     // if (EquippedWeapon && AbilitySystemComponent)
     // {
     //     EquippedWeapon->ClearWeaponAbilities(AbilitySystemComponent);
@@ -330,7 +355,7 @@ void AMHPlayerCharacter::Input_Move(const FInputActionValue& InputActionValue)
         UpdateDirectionalTurnWindow(World->GetDeltaSeconds());
     }
 
-    // 방향 입력이 들어온 프레임만 마지막 유효 입력으로 갱신한다.
+    // 獄쎻뫚堉???낆젾????쇰선???袁⑥쟿?袁⑥춸 筌띾뜆?筌??醫륁뒞 ??낆젾??곗쨮 揶쏄퉮???뺣뼄.
     if (!MovementVector.IsNearlyZero())
     {
         LastNonZeroMoveInput2D = MovementVector;
@@ -379,7 +404,7 @@ void AMHPlayerCharacter::Input_SprintStarted(const FInputActionValue& InputActio
         return;
     }
 
-    // 가만히 선 발도 상태에서는 Shift 입력을 납도로 사용한다. //손승우 수정
+    // 揶쎛筌띾슦????獄쏆뮆猷??怨밴묶?癒?퐣??Shift ??낆젾????몃즲嚥??????뺣뼄. //?癒?뱟????륁젟
     if (CanStartSheathe())
     {
         StartSheathe();
@@ -442,6 +467,7 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
             TryRotateActorTowardsMoveInput();
         }
 
+        // 이번 프레임에 회피 실행이 실패하면 이 스냅샷으로 상태를 되돌린다.
         FMHGreatSwordRuntimeSnapshot ActionSnapshot;
         ActionComponent->CaptureRuntimeSnapshot(ActionSnapshot);
 
@@ -481,7 +507,7 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
         return;
     }
 
-    // 태도 발도 상태에서 특정 동시 입력이 들어오면 회피보다 특수 액션 패턴을 우선 처리한다.
+    // ??뺣즲 獄쏆뮆猷??怨밴묶?癒?퐣 ?諭????덈뻻 ??낆젾????쇰선??삠늺 ??곕돗癰귣????諭????る????쉘???怨쀪퐨 筌ｌ꼶???뺣뼄.
     if (TryResolveAndHandleLongSwordPattern(ResolveLongSwordPatternForDodgeInput()))
     {
         return;
@@ -537,7 +563,7 @@ void AMHPlayerCharacter::Input_DebugIncomingDamageKeyPressed()
 
     if (!AttackTagToUse.IsValid())
     {
-        UE_LOG(LogMHPlayerCharacter, Warning, TEXT("%s : 디버그 피격 키 입력을 처리할 수 없습니다. Attack.Debug.Counterable 태그를 찾지 못했습니다."), *GetName());
+        UE_LOG(LogMHPlayerCharacter, Warning, TEXT("%s : ?遺얠쒔域???④봄 ????낆젾??筌ｌ꼶???????곷뮸??덈뼄. Attack.Debug.Counterable ??볥젃??筌≪뼚? 筌륁궢六??щ빍??"), *GetName());
         return;
     }
 
@@ -546,7 +572,7 @@ void AMHPlayerCharacter::Input_DebugIncomingDamageKeyPressed()
     UE_LOG(
         LogMHPlayerCharacter,
         Log,
-        TEXT("%s : 디버그 피격 키 입력 처리. Physical=%.2f AttackTag=%s"),
+        TEXT("%s : ?遺얠쒔域???④봄 ????낆젾 筌ｌ꼶?? Physical=%.2f AttackTag=%s"),
         *GetName(),
         DebugIncomingPhysicalDamage,
         *AttackTagToUse.ToString()
@@ -736,9 +762,9 @@ void AMHPlayerCharacter::Input_AttackSimultaneous(const FInputActionValue& Input
         return;
     }
 
-    // Mouse5 단일 입력은 베어내리기 계열 전용 진입으로 사용한다.
-    // 좌클릭 + 우클릭 동시 입력과 동일한 기술군을 가리키지만,
-    // Mouse5 입력은 별도 액션으로 들어오므로 전용 해석 함수를 거친다.
+    // Mouse5 ??μ뵬 ??낆젾?? 甕곗쥙堉???곫묾??④쑴肉??袁⑹뒠 筌욊쑴???곗쨮 ?????뺣뼄.
+    // ?ル슦寃®뵳?+ ?怨좉깻????덈뻻 ??낆젾????덉뵬??疫꿸퀣?졿뤃怨쀬뱽 揶쎛?귐뗪텕筌왖筌?
+    // Mouse5 ??낆젾?? 癰귢쑬猷???る??곗쨮 ??쇰선???嚥??袁⑹뒠 ??곴퐤 ??λ땾??椰꾧퀣???
     TryResolveAndHandleLongSwordPattern(ResolveLongSwordPatternForAttackSimultaneousInput());
 }
 
@@ -749,7 +775,7 @@ void AMHPlayerCharacter::Input_AimHoldStarted(const FInputActionValue& InputActi
         return;
     }
 
-    bAimHeld = true; //손승우 추가
+    bAimHeld = true; //?癒?뱟???곕떽?
 }
 
 void AMHPlayerCharacter::Input_AimHoldCompleted(const FInputActionValue& InputActionValue)
@@ -759,7 +785,7 @@ void AMHPlayerCharacter::Input_AimHoldCompleted(const FInputActionValue& InputAc
         return;
     }
 
-    bAimHeld = false; //손승우 추가
+    bAimHeld = false; //?癒?뱟???곕떽?
 }
 
 
@@ -1176,7 +1202,7 @@ void AMHPlayerCharacter::CancelActivePotionUseOnDamageTaken()
         return;
     }
 
-    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[HitReact] 피격으로 포션 사용을 중단합니다."));
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[HitReact] ??④봄??곗쨮 ?????????餓λ쵎???몃빍??"));
 
     if (ActivePotionAbility.IsValid())
     {
@@ -1228,7 +1254,7 @@ void AMHPlayerCharacter::TryIgniteBurning()
             }
         }
 
-        UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Burn] 플레이어가 불타는 상태에 진입했습니다."));
+        UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Burn] ???쟿??곷선揶쎛 ?븍뜇????怨밴묶??筌욊쑴???됰뮸??덈뼄."));
         return;
     }
 
@@ -1315,7 +1341,7 @@ void AMHPlayerCharacter::HandleBurnDamageTick()
         return;
     }
 
-    UE_LOG(LogMHPlayerCharacter, Verbose, TEXT("[Burn] 화상 데미지 적용. HP=%.1f/%.1f"), GetCurrentHealthValue(), GetMaxHealthValue());
+    UE_LOG(LogMHPlayerCharacter, Verbose, TEXT("[Burn] ?遺욧맒 ?怨?筌왖 ?怨몄뒠. HP=%.1f/%.1f"), GetCurrentHealthValue(), GetMaxHealthValue());
 
     if (GetCurrentHealthValue() <= 0.0f)
     {
@@ -1335,7 +1361,7 @@ void AMHPlayerCharacter::HandleBurnRollSucceeded()
     UE_LOG(
         LogMHPlayerCharacter,
         Log,
-        TEXT("[Burn] 구르기 성공으로 화상 해제 카운트 증가. Count=%d / %d"),
+        TEXT("[Burn] ?닌됤뀮疫??源껊궗??곗쨮 ?遺욧맒 ??곸젫 燁삳똻???筌앹빓?. Count=%d / %d"),
         BurnRollCount,
         BurnRequiredRollCount
     );
@@ -1362,7 +1388,7 @@ void AMHPlayerCharacter::ClearBurningState()
 
     if (bBurningActive)
     {
-        UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Burn] 화상 상태가 해제되었습니다."));
+        UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Burn] ?遺욧맒 ?怨밴묶揶쎛 ??곸젫??뤿???щ빍??"));
     }
 
     bBurningActive = false;
@@ -1480,7 +1506,7 @@ bool AMHPlayerCharacter::TryPlayDamageHitReactMontage(AActor* SourceActor, const
     EndDelegate.BindUObject(this, &AMHPlayerCharacter::HandleDamageHitReactMontageEnded);
     AnimInstance->Montage_SetEndDelegate(EndDelegate, DamageHitReactMontage);
 
-    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[HitReact] 피격 몽타주 재생 시작"));
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[HitReact] ??④봄 筌륁??雅???源???뽰삂"));
     return true;
 }
 
@@ -1532,7 +1558,7 @@ bool AMHPlayerCharacter::TryPlayDeathMontage()
     EndDelegate.BindUObject(this, &AMHPlayerCharacter::HandleDeathMontageEnded);
     AnimInstance->Montage_SetEndDelegate(EndDelegate, DeathMontage);
 
-    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Death] 사망 몽타주 재생 시작"));
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Death] ??彛?筌륁??雅???源???뽰삂"));
     return true;
 }
 
@@ -1544,7 +1570,7 @@ void AMHPlayerCharacter::HandleDeathMontageEnded(UAnimMontage* Montage, bool bIn
     }
 
     ActiveDeathMontage = nullptr;
-    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Death] 사망 몽타주 종료"));
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Death] ??彛?筌륁??雅??ル굝利?));
 }
 
 bool AMHPlayerCharacter::IsDead() const
@@ -1585,7 +1611,7 @@ void AMHPlayerCharacter::HandleDeath()
     }
 
     TryPlayDeathMontage();
-    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Death] 플레이어 사망 처리 시작"));
+    UE_LOG(LogMHPlayerCharacter, Log, TEXT("[Death] ???쟿??곷선 ??彛?筌ｌ꼶????뽰삂"));
 }
 
 void AMHPlayerCharacter::HandleDamageAccepted(
@@ -1721,7 +1747,7 @@ void AMHPlayerCharacter::SpawnAndEquipDefaultWeapon()
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
     
     // ==========================
-    // 무기 장착 로직 함수화 (무기 교체 기능 지원)_이건주
+    // ?얜떯由??關媛?嚥≪뮇彛???λ땾??(?얜떯由??대Ŋ猿?疫꿸퀡??筌왖??_??욧탷雅?
     AMHWeaponInstance* SpawnedWeapon = World->SpawnActor<AMHWeaponInstance>(DefaultWeaponClass, SpawnParams);
     if (!SpawnedWeapon)
     {
@@ -1730,8 +1756,8 @@ void AMHPlayerCharacter::SpawnAndEquipDefaultWeapon()
 
     EquipWeaponInstance(SpawnedWeapon, true);
 
-    // 장착GE_장착 직후 _이건주
-    UE_LOG(LogTemp, Warning, TEXT("[Equip] Weapon=%s AP=%.2f CR=%.2f"),
+    // ?關媛멒E_?關媛?筌욊낱??_??욧탷雅?
+    UE_LOG(LogMHPlayerCharacter, Warning, TEXT("[Equip] Weapon=%s AP=%.2f CR=%.2f"),
     *GetNameSafe(EquippedWeapon),
     CombatAttributeSet ? CombatAttributeSet->GetAttackPower() : -1.f,
     CombatAttributeSet ? CombatAttributeSet->GetCriticalRate() : -1.f);
@@ -1745,7 +1771,7 @@ void AMHPlayerCharacter::SpawnAndEquipDefaultWeapon()
     //     return;
     // }
     //
-    // // 무기 어빌리티 부여
+    // // ?얜떯由????당뵳????봔??
     // if (AbilitySystemComponent)
     // {
     //     EquippedWeapon->GrantWeaponAbilities(AbilitySystemComponent);
@@ -1758,7 +1784,7 @@ void AMHPlayerCharacter::SpawnAndEquipDefaultWeapon()
     // AttachWeaponToBack();
     // RefreshWeaponAnimationLayerState();
     //
-    // //무기 스탯 GE 적용 _ 이건주
+    // //?얜떯由???쎄틛 GE ?怨몄뒠 _ ??욧탷雅?
     // RefreshEquippedWeaponStatEffect();
 }
 
@@ -1769,16 +1795,16 @@ bool AMHPlayerCharacter::EquipWeaponInstance(AMHWeaponInstance* InWeapon, bool b
         return false;
     }
 
-    // 현제 무기 해제
+    // ?袁⑹젫 ?얜떯由???곸젫
     UnequipCurrentWeapon(bDestroyPreviousWeapon);
 
-    // 새 무기 캐싱
+    // ???얜떯由?筌?Ŋ??
     EquippedWeapon = InWeapon;
     EquippedWeapon->SetOwner(this);
 
     if (AbilitySystemComponent)
     {
-        // 새 무기의 어빌리티 적용
+        // ???얜떯由?????당뵳????怨몄뒠
         EquippedWeapon->GrantWeaponAbilities(AbilitySystemComponent);
     }
 
@@ -1790,7 +1816,7 @@ bool AMHPlayerCharacter::EquipWeaponInstance(AMHWeaponInstance* InWeapon, bool b
     AttachWeaponToBack();
     RefreshWeaponAnimationLayerState();
     
-    // 무기 스탯 GE 적용
+    // ?얜떯由???쎄틛 GE ?怨몄뒠
     RefreshEquippedWeaponStatEffect();
 
     return true;
@@ -2190,11 +2216,11 @@ void AMHPlayerCharacter::ApplyLongSwordCounterSuccessReward(const FGameplayTag& 
         break;
 
     case EMHLongSwordCounterWindowType::SpecialSheatheSlash:
-        // 특수납도 베기는 성공 상태만 유지하고 별도 자원 보상은 주지 않는다.
+        // ?諭???몃즲 甕곗쥒由???源껊궗 ?怨밴묶筌??醫???랁?癰귢쑬猷??癒?뜚 癰귣똻湲?? 雅뚯눘? ??낅뮉??
         break;
 
     case EMHLongSwordCounterWindowType::SpecialSheatheSpirit:
-        // 특수납도 기인베기는 성공 상태를 유지해 기존 성공 분기 흐름을 이어간다.
+        // ?諭???몃즲 疫꿸퀣?ㅸ린醫됰┛???源껊궗 ?怨밴묶???醫???疫꿸퀣???源껊궗 ?브쑨由??癒?カ????곷선揶쏄쑬??
         break;
 
     default:
@@ -2266,10 +2292,49 @@ float AMHPlayerCharacter::ResolveLongSwordDamageMultiplier(const FGameplayTag& I
     return FMath::Max(0.0f, AttackMetaRow.DamageMultiplier) * GetCurrentSpiritDamageMultiplier();
 }
 
-// ===== GreatSwordInput =====
+#pragma region GreatSwordRuntimeFunctions
 bool AMHPlayerCharacter::IsGreatSwordEquipped() const
 {
     return CurrentWeaponType == EMHWeaponType::GreatSword && Cast<AMHGreatSwordInstance>(EquippedWeapon) != nullptr;
+}
+
+bool AMHPlayerCharacter::TryHandleGreatSwordPatternInput(const FGameplayTag& InPatternTag, const bool bInPromoteSheathedToUnsheathing)
+{
+    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+    UMHGreatSwordActionComponent* ActionComponent = GreatSword ? GreatSword->GetActionComponent() : nullptr;
+    if (!ActionComponent || !InPatternTag.IsValid())
+    {
+        return false;
+    }
+
+    // 해석된 입력을 이번 프레임에 실행하지 못하면 이 스냅샷으로 되돌린다.
+    FMHGreatSwordRuntimeSnapshot ActionSnapshot;
+    ActionComponent->CaptureRuntimeSnapshot(ActionSnapshot);
+
+    const EMHWeaponSheathState PreviousSheathState = WeaponSheathState;
+    const bool bPreviousPendingUnsheathe = bPendingUnsheatheFromComboEntry;
+    const bool bWasSheathed = WeaponSheathState == EMHWeaponSheathState::Sheathed;
+
+    if (!ActionComponent->HandleInputPatternWithBuffering(InPatternTag))
+    {
+        return false;
+    }
+
+    if (bInPromoteSheathedToUnsheathing && bWasSheathed)
+    {
+        WeaponSheathState = EMHWeaponSheathState::Unsheathing;
+        bPendingUnsheatheFromComboEntry = true;
+    }
+
+    if (TryExecuteGreatSwordPendingMove())
+    {
+        return true;
+    }
+
+    WeaponSheathState = PreviousSheathState;
+    bPendingUnsheatheFromComboEntry = bPreviousPendingUnsheathe;
+    ActionComponent->RestoreRuntimeSnapshot(ActionSnapshot);
+    return false;
 }
 
 bool AMHPlayerCharacter::TryHandleGreatSwordPrimaryInput()
@@ -2286,129 +2351,32 @@ bool AMHPlayerCharacter::TryHandleGreatSwordPrimaryInput()
         return false;
     }
 
-    FMHGreatSwordRuntimeSnapshot ActionSnapshot;
-    ActionComponent->CaptureRuntimeSnapshot(ActionSnapshot);
-
-    const EMHWeaponSheathState PreviousSheathState = WeaponSheathState;
-    const bool bPreviousPendingUnsheathe = bPendingUnsheatheFromComboEntry;
-
     const bool bForwardInput = CachedMoveInput2D.Y > 0.1f;
     const bool bSheathed = WeaponSheathState == EMHWeaponSheathState::Sheathed;
-    if (!ActionComponent->HandlePrimaryPressed(bForwardInput, bSheathed))
-    {
-        return false;
-    }
-
-    if (bSheathed)
-    {
-        WeaponSheathState = EMHWeaponSheathState::Unsheathing;
-        bPendingUnsheatheFromComboEntry = true;
-    }
-
-    if (TryExecuteGreatSwordPendingMove())
-    {
-        return true;
-    }
-
-    WeaponSheathState = PreviousSheathState;
-    bPendingUnsheatheFromComboEntry = bPreviousPendingUnsheathe;
-    ActionComponent->RestoreRuntimeSnapshot(ActionSnapshot);
-    return false;
+    const FGameplayTag PatternTag = ResolveGreatSwordPrimaryPatternTag(ActionComponent, bForwardInput, bSheathed);
+    return TryHandleGreatSwordPatternInput(PatternTag, bSheathed);
 }
 
 bool AMHPlayerCharacter::TryHandleGreatSwordPrimaryRelease()
 {
-    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
-    UMHGreatSwordActionComponent* ActionComponent = GreatSword ? GreatSword->GetActionComponent() : nullptr;
-    if (!ActionComponent)
-    {
-        return false;
-    }
-
-    FMHGreatSwordRuntimeSnapshot ActionSnapshot;
-    ActionComponent->CaptureRuntimeSnapshot(ActionSnapshot);
-
-    if (!ActionComponent->HandlePrimaryReleased())
-    {
-        return false;
-    }
-
-    if (TryExecuteGreatSwordPendingMove())
-    {
-        return true;
-    }
-
-    ActionComponent->RestoreRuntimeSnapshot(ActionSnapshot);
-    return false;
+    return TryHandleGreatSwordPatternInput(MHInputPatternGameplayTags::InputPattern_GS_PrimaryRelease, false);
 }
 
 bool AMHPlayerCharacter::TryHandleGreatSwordSecondaryInput()
 {
-    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
-    UMHGreatSwordActionComponent* ActionComponent = GreatSword ? GreatSword->GetActionComponent() : nullptr;
-    if (!ActionComponent)
-    {
-        return false;
-    }
-
     if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
     {
         return false;
     }
 
-    FMHGreatSwordRuntimeSnapshot ActionSnapshot;
-    ActionComponent->CaptureRuntimeSnapshot(ActionSnapshot);
-
-    if (!ActionComponent->HandleSecondaryPressed())
-    {
-        return false;
-    }
-
-    if (TryExecuteGreatSwordPendingMove())
-    {
-        return true;
-    }
-
-    ActionComponent->RestoreRuntimeSnapshot(ActionSnapshot);
-    return false;
+    return TryHandleGreatSwordPatternInput(MHInputPatternGameplayTags::InputPattern_GS_Secondary, false);
 }
 
 bool AMHPlayerCharacter::TryHandleGreatSwordWeaponSpecialInput()
 {
-    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
-    UMHGreatSwordActionComponent* ActionComponent = GreatSword ? GreatSword->GetActionComponent() : nullptr;
-    if (!ActionComponent)
-    {
-        return false;
-    }
-
-    FMHGreatSwordRuntimeSnapshot ActionSnapshot;
-    ActionComponent->CaptureRuntimeSnapshot(ActionSnapshot);
-
-    const EMHWeaponSheathState PreviousSheathState = WeaponSheathState;
-    const bool bPreviousPendingUnsheathe = bPendingUnsheatheFromComboEntry;
-
     const bool bSheathed = WeaponSheathState == EMHWeaponSheathState::Sheathed;
-    if (!ActionComponent->HandleWeaponSpecialPressed(bSheathed))
-    {
-        return false;
-    }
-
-    if (bSheathed)
-    {
-        WeaponSheathState = EMHWeaponSheathState::Unsheathing;
-        bPendingUnsheatheFromComboEntry = true;
-    }
-
-    if (TryExecuteGreatSwordPendingMove())
-    {
-        return true;
-    }
-
-    WeaponSheathState = PreviousSheathState;
-    bPendingUnsheatheFromComboEntry = bPreviousPendingUnsheathe;
-    ActionComponent->RestoreRuntimeSnapshot(ActionSnapshot);
-    return false;
+    const FGameplayTag PatternTag = ResolveGreatSwordWeaponSpecialPatternTag(bSheathed);
+    return TryHandleGreatSwordPatternInput(PatternTag, bSheathed);
 }
 
 bool AMHPlayerCharacter::TryHandleGreatSwordWeaponSpecialRelease()
@@ -2426,7 +2394,7 @@ bool AMHPlayerCharacter::TryHandleGreatSwordWeaponSpecialRelease()
         return false;
     }
 
-    if (!ActionComponent->HandleWeaponSpecialReleased())
+    if (!ActionComponent->HandleResolvedInputPattern(MHInputPatternGameplayTags::InputPattern_GS_WeaponSpecialRelease))
     {
         return false;
     }
@@ -2437,33 +2405,12 @@ bool AMHPlayerCharacter::TryHandleGreatSwordWeaponSpecialRelease()
 
 bool AMHPlayerCharacter::TryHandleGreatSwordSimultaneousInput()
 {
-    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
-    UMHGreatSwordActionComponent* ActionComponent = GreatSword ? GreatSword->GetActionComponent() : nullptr;
-    if (!ActionComponent)
-    {
-        return false;
-    }
-
     if (WeaponSheathState != EMHWeaponSheathState::Unsheathed)
     {
         return false;
     }
 
-    FMHGreatSwordRuntimeSnapshot ActionSnapshot;
-    ActionComponent->CaptureRuntimeSnapshot(ActionSnapshot);
-
-    if (!ActionComponent->HandleSimultaneousPressed())
-    {
-        return false;
-    }
-
-    if (TryExecuteGreatSwordPendingMove())
-    {
-        return true;
-    }
-
-    ActionComponent->RestoreRuntimeSnapshot(ActionSnapshot);
-    return false;
+    return TryHandleGreatSwordPatternInput(MHInputPatternGameplayTags::InputPattern_GS_Simultaneous, false);
 }
 
 bool AMHPlayerCharacter::TryExecuteGreatSwordPendingMove()
@@ -2485,6 +2432,7 @@ bool AMHPlayerCharacter::TryExecuteGreatSwordPendingMove()
         return true;
     }
 
+    // 유틸리티 기술은 몽타주로 처리하고, 공격 기술은 기본 어빌리티 경로로 넘긴다.
     const FGameplayTag PendingMoveTag = ActionComponent->GetPendingMoveTag();
     if (ActionComponent->IsUtilityMoveTag(PendingMoveTag))
     {
@@ -2578,7 +2526,7 @@ bool AMHPlayerCharacter::IsGreatSwordAttackChainDodgeContext() const
     const AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
     return GreatSword && GreatSword->GetActionComponent() && GreatSword->GetActionComponent()->IsAttackRollWindowOpen();
 }
-// ===== End GreatSwordInput =====
+#pragma endregion
 
 #pragma endregion
 
@@ -2771,7 +2719,7 @@ FMHHitAcknowledge AMHPlayerCharacter::BuildLongSwordInvulnerableHitAcknowledge()
 
 FVector2D AMHPlayerCharacter::GetPreferredMoveInput2D() const
 {
-    // 같은 프레임의 입력이 없더라도, 직전에 누르던 방향으로 회피/Variant를 해석할 수 있게 fallback을 둔다.
+    // 揶쏆늿? ?袁⑥쟿?袁⑹벥 ??낆젾????용쐭??곕즲, 筌욊낯????袁ⓥ뀮??獄쎻뫚堉??곗쨮 ??곕돗/Variant????곴퐤??????뉗쓺 fallback???遺얜뼄.
     if (!CachedMoveInput2D.IsNearlyZero())
     {
         return CachedMoveInput2D;
@@ -2954,7 +2902,7 @@ UAnimMontage* AMHPlayerCharacter::ResolveLongSwordMoveMontageOverride(const FGam
         return InDefaultMontage;
     }
 
-    // Fade 계열은 입력 방향에 따라 전용 Variant 몽타주를 우선 선택한다.
+    // Fade ?④쑴肉?? ??낆젾 獄쎻뫚堉???怨뺤뵬 ?袁⑹뒠 Variant 筌륁??雅뚯눖? ?怨쀪퐨 ?醫뤾문??뺣뼄.
     if (InMoveTag == MHLongSwordGameplayTags::Move_LS_FadeSlash)
     {
         if (!AnimConfig->FadeSlashBackwardMontage.IsNull())
@@ -2990,7 +2938,7 @@ UAnimMontage* AMHPlayerCharacter::ResolveLongSwordMoveMontageOverride(const FGam
 
 void AMHPlayerCharacter::ApplyEquippedWeaponStatEffect()
 {
-    // 스탯 적용 실패 원인 분석_이건주
+    // ??쎄틛 ?怨몄뒠 ??쎈솭 ?癒?뵥 ?브쑴苑???욧탷雅?
     UE_LOG(LogMHPlayerCharacter, Verbose, TEXT("%s : Weapon GE apply state. HasAuthority=%d bGASInitialized=%d ASC=%d ActorInfoValid=%d WeaponClass=%s Weapon=%s"),
     *GetName(),
     HasAuthority() ? 1 : 0,
@@ -3019,11 +2967,11 @@ void AMHPlayerCharacter::ApplyEquippedWeaponStatEffect()
     const FMHAttackStats& Stat = EquippedWeapon->GetAttackStats();
 
     // -----------------------
-    // 1. GE 적용 (순수 수치)
+    // 1. GE ?怨몄뒠 (??뽯땾 ??륂뒄)
     // -----------------------
 
     FGameplayEffectContextHandle ContextHandle = AbilitySystemComponent->MakeEffectContext();
-    ContextHandle.AddInstigator(this, this); // 추가
+    ContextHandle.AddInstigator(this, this); // ?곕떽?
     ContextHandle.AddSourceObject(EquippedWeapon);
 
     FGameplayEffectSpecHandle SpecHandle =
@@ -3042,7 +2990,7 @@ void AMHPlayerCharacter::ApplyEquippedWeaponStatEffect()
     Stat.Affinity);
 
 
-    // 어트리뷰트 셋에 무기 스탯 적용
+    // ??꾨뱜?귐됰윮?????퓠 ?얜떯由???쎄틛 ?怨몄뒠
     SpecHandle.Data->SetSetByCallerMagnitude(
         MHGameplayTags::Data_Weapon_AttackPower,
         Stat.AttackPower);
@@ -3055,7 +3003,7 @@ void AMHPlayerCharacter::ApplyEquippedWeaponStatEffect()
         AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 
     // -----------------------
-    // 2. Sharpness 초기화
+    // 2. Sharpness ?λ뜃由??
     // -----------------------
 
     CurrentSharpnessColor = Stat.MaxSharpnessColor;
@@ -3063,12 +3011,12 @@ void AMHPlayerCharacter::ApplyEquippedWeaponStatEffect()
     SetSharpnessAttributeValues(CurrentSharpnessValue, CurrentSharpnessValue);
 
     // -----------------------
-    // 3. Element 저장
+    // 3. Element ????
     // -----------------------
 
     CurrentWeaponElementTag = Stat.AttackElementTag;
     
-    // 장착GE_GE 적용 _이건주
+    // ?關媛멒E_GE ?怨몄뒠 _??욧탷雅?
     UE_LOG(LogMHPlayerCharacter, Verbose, TEXT("%s : Weapon GE applied. HandleValid=%d Weapon=%s ItemAP=%.2f ItemAffinity=%.2f ASC_AP=%.2f ASC_CR=%.2f"),
     *GetName(),
     EquippedWeaponStatEffectHandle.IsValid() ? 1 : 0,
@@ -3287,7 +3235,7 @@ EMHHitResultType AMHPlayerCharacter::HandleWeaponAttackHit(
         ResolveSharpnessColorText(CurrentSharpnessColor));
     return EMHHitResultType::NormalHit;
 
-    // // 3. 무기별 처리
+    // // 3. ?얜떯由계퉪?筌ｌ꼶??
     // if (Weapon)
     // {
     //     Weapon->OnAttackHit(Target);
@@ -3303,13 +3251,13 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForPrimaryInput() const
         return FGameplayTag::EmptyTag;
     }
 
-    // 특수납도 상태 좌클릭은 앉아발도베기로 고정한다.
+    // ?諭???몃즲 ?怨밴묶 ?ル슦寃®뵳?? ??깅툡獄쏆뮆猷꾥린醫됰┛嚥??⑥쥙???뺣뼄.
     if (IsInLongSwordSpecialSheatheState())
     {
         return InputPattern_LS_IaiSlash;
     }
 
-    // 납도 상태 좌클릭은 정지/이동 여부에 따라 두 가지 드로우만 허용한다.
+    // ??몃즲 ?怨밴묶 ?ル슦寃®뵳?? ?類?/??猷???????怨뺤뵬 ??揶쎛筌왖 ??뺤쨮?怨뺤춸 ??됱뒠??뺣뼄.
     if (WeaponSheathState == EMHWeaponSheathState::Sheathed)
     {
         return HasMovementInputForCombat() ? InputPattern_LS_DrawAdvancingSlash : InputPattern_LS_DrawOnly;
@@ -3321,7 +3269,7 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForPrimaryInput() const
         return FGameplayTag::EmptyTag;
     }
 
-    // 기인찌르기 이후 좌클릭은 기인투구깨기로 이어진다.
+    // 疫꿸퀣?ㅿ㎕??뀮疫???꾩뜎 ?ル슦寃®뵳?? 疫꿸퀣????꾣틦?ｋ┛嚥???곷선筌욊쑬??
     if (const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
     {
         if (const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
@@ -3333,20 +3281,20 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForPrimaryInput() const
         }
     }
 
-    // Mouse4 + 좌클릭 = 기인찌르기
+    // Mouse4 + ?ル슦寃®뵳?= 疫꿸퀣?ㅿ㎕??뀮疫?
     if (bWeaponSpecialHeld)
     {
         return InputPattern_LS_SpiritThrust;
     }
 
-    // 좌클릭 + 우클릭 = 베어내리기 계열
+    // ?ル슦寃®뵳?+ ?怨좉깻??= 甕곗쥙堉???곫묾??④쑴肉?
     if (bAttackSecondaryHeld)
     {
         return ShouldUseLateralFadeSlashPattern() ? InputPattern_LS_LateralFadeSlash : InputPattern_LS_FadeSlash;
     }
 
-    // 발도 시작/파생의 좌클릭 일반 공격은 현재 노드 기준 기본 파생으로 해석한다.
-    // 발도 상태 좌클릭은 현재 콤보 문맥에 따라 실제 일반 공격 입력 패턴으로 해석한다.
+    // 獄쏆뮆猷???뽰삂/???문???ル슦寃®뵳???곗뺘 ?⑤벀爰?? ?袁⑹삺 ?紐껊굡 疫꿸퀣? 疫꿸퀡?????문??곗쨮 ??곴퐤??뺣뼄.
+    // 獄쏆뮆猷??怨밴묶 ?ル슦寃®뵳?? ?袁⑹삺 ?꾠끇???얜챶????怨뺤뵬 ??쇱젫 ??곗뺘 ?⑤벀爰???낆젾 ???쉘??곗쨮 ??곴퐤??뺣뼄.
     if (const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
     {
         if (const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
@@ -3395,13 +3343,13 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForSecondaryInput() cons
         return FGameplayTag::EmptyTag;
     }
 
-    // 특수납도 상태 우클릭은 현재 설계상 별도 파생이 없다.
+    // ?諭???몃즲 ?怨밴묶 ?怨좉깻??? ?袁⑹삺 ??블??癰귢쑬猷????문????용뼄.
     if (IsInLongSwordSpecialSheatheState())
     {
         return FGameplayTag::EmptyTag;
     }
 
-    // 납도 상태 우클릭 단독 입력은 유효한 드로우 공격이 없다.
+    // ??몃즲 ?怨밴묶 ?怨좉깻????ㅻ즴 ??낆젾?? ?醫륁뒞????뺤쨮???⑤벀爰????용뼄.
     if (WeaponSheathState == EMHWeaponSheathState::Sheathed)
     {
         return FGameplayTag::EmptyTag;
@@ -3413,20 +3361,20 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForSecondaryInput() cons
         return FGameplayTag::EmptyTag;
     }
 
-    // Mouse4 + 우클릭 = 간파베기
+    // Mouse4 + ?怨좉깻??= 揶쏄쑵?녻린醫됰┛
     if (bWeaponSpecialHeld)
     {
         return InputPattern_LS_ForesightSlash;
     }
 
-    // 좌클릭 + 우클릭 = 베어내리기 계열
+    // ?ル슦寃®뵳?+ ?怨좉깻??= 甕곗쥙堉???곫묾??④쑴肉?
     if (bAttackPrimaryHeld)
     {
         return ShouldUseLateralFadeSlashPattern() ? InputPattern_LS_LateralFadeSlash : InputPattern_LS_FadeSlash;
     }
 
-    // 우클릭 단독은 찌르기 시작/파생 축이다.
-    // 기인베기2 / 기인내딛어베기에서는 우클릭도 베어올리기로 해석한다.
+    // ?怨좉깻????ㅻ즴?? 筌〓슢?ㅶ묾???뽰삂/???문 ?곕벡???
+    // 疫꿸퀣?ㅸ린醫됰┛2 / 疫꿸퀣???逾??荑뗦묾怨쀫퓠??뺣뮉 ?怨좉깻??猷?甕곗쥙堉???곫묾怨뺤쨮 ??곴퐤??뺣뼄.
     if (const AMHLongSwordInstance* LongSword = Cast<AMHLongSwordInstance>(EquippedWeapon))
     {
         if (const UMHLongSwordComboComponent* ComboComp = LongSword->GetComboComponent())
@@ -3453,16 +3401,16 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForWeaponSpecialInput() 
         return FGameplayTag::EmptyTag;
     }
 
-    // 실제 입력 키 txt 기준으로 5번/4번을 서로 치환해서 읽으므로,
-    // Input_WeaponSpecial 액션은 Mouse4(기인 축)로 해석한다.
+    // ??쇱젫 ??낆젾 ??txt 疫꿸퀣???곗쨮 5甕?4甕곕뜆????뺤쨮 燁살꼹???곴퐣 ??뚯몵沃샕嚥?
+    // Input_WeaponSpecial ??る?? Mouse4(疫꿸퀣????嚥???곴퐤??뺣뼄.
 
-    // 특수납도 상태 Mouse4는 앉아발도기인베기다.
+    // ?諭???몃즲 ?怨밴묶 Mouse4????깅툡獄쏆뮆猷꾣묾怨쀬뵥甕곗쥒由??
     if (IsInLongSwordSpecialSheatheState())
     {
         return InputPattern_LS_IaiSpiritSlash;
     }
 
-    // 납도 상태 Mouse4 단독은 기인베기1 드로우로 연결한다.
+    // ??몃즲 ?怨밴묶 Mouse4 ??ㅻ즴?? 疫꿸퀣?ㅸ린醫됰┛1 ??뺤쨮?怨뺤쨮 ?怨뚭퍙??뺣뼄.
     if (WeaponSheathState == EMHWeaponSheathState::Sheathed)
     {
         return InputPattern_LS_DrawSpiritSlash1;
@@ -3474,25 +3422,25 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForWeaponSpecialInput() 
         return FGameplayTag::EmptyTag;
     }
 
-    // Mouse4 + 우클릭 = 간파베기
+    // Mouse4 + ?怨좉깻??= 揶쏄쑵?녻린醫됰┛
     if (bAttackSecondaryHeld)
     {
         return InputPattern_LS_ForesightSlash;
     }
 
-    // Mouse4 + 스페이스 = 특수납도
+    // Mouse4 + ??쎈읂??곷뮞 = ?諭???몃즲
     if (bDodgeHeld)
     {
         return InputPattern_LS_SpecialSheathe;
     }
 
-    // Mouse4 + 좌클릭 = 기인찌르기
+    // Mouse4 + ?ル슦寃®뵳?= 疫꿸퀣?ㅿ㎕??뀮疫?
     if (bAttackPrimaryHeld)
     {
         return InputPattern_LS_SpiritThrust;
     }
 
-    // Mouse4 단독은 기인베기 축이다.
+    // Mouse4 ??ㅻ즴?? 疫꿸퀣?ㅸ린醫됰┛ ?곕벡???
     return InputPattern_LS_Spirit;
 }
 
@@ -3511,7 +3459,7 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForDodgeInput() const
         return FGameplayTag::EmptyTag;
     }
 
-    // 발도 상태에서는 Mouse4 + Space 조합만 특수납도로 사용한다.
+    // 獄쏆뮆猷??怨밴묶?癒?퐣??Mouse4 + Space 鈺곌퀬鍮筌??諭???몃즲嚥??????뺣뼄.
     if (bWeaponSpecialHeld)
     {
         return InputPattern_LS_SpecialSheathe;
@@ -3548,25 +3496,25 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForCompositeInput() cons
         return FGameplayTag::EmptyTag;
     }
 
-    // Mouse4 + Space = 특수납도
+    // Mouse4 + Space = ?諭???몃즲
     if (bWeaponSpecialHeld && bDodgeHeld)
     {
         return InputPattern_LS_SpecialSheathe;
     }
 
-    // Mouse4 + 우클릭 = 간파베기
+    // Mouse4 + ?怨좉깻??= 揶쏄쑵?녻린醫됰┛
     if (bWeaponSpecialHeld && bAttackSecondaryHeld)
     {
         return InputPattern_LS_ForesightSlash;
     }
 
-    // Mouse4 + 좌클릭 = 기인찌르기
+    // Mouse4 + ?ル슦寃®뵳?= 疫꿸퀣?ㅿ㎕??뀮疫?
     if (bWeaponSpecialHeld && bAttackPrimaryHeld)
     {
         return InputPattern_LS_SpiritThrust;
     }
 
-    // 좌클릭 + 우클릭 = 베어내리기 계열
+    // ?ル슦寃®뵳?+ ?怨좉깻??= 甕곗쥙堉???곫묾??④쑴肉?
     if (bAttackPrimaryHeld && bAttackSecondaryHeld)
     {
         return ShouldUseLateralFadeSlashPattern() ? InputPattern_LS_LateralFadeSlash : InputPattern_LS_FadeSlash;
@@ -3584,9 +3532,9 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForAttackSimultaneousInp
         return FGameplayTag::EmptyTag;
     }
 
-    // 실제 입력 키 txt 기준으로 4번/5번을 서로 치환해서 읽으므로,
-    // Input_AttackSimultaneous 액션은 Mouse5(베어내리기 계열)로 해석한다.
-    // 시작 공격에서는 좌우이동베기를 금지하고, 후속 파생 상태에서만 좌우이동베기를 연다.
+    // ??쇱젫 ??낆젾 ??txt 疫꿸퀣???곗쨮 4甕?5甕곕뜆????뺤쨮 燁살꼹???곴퐣 ??뚯몵沃샕嚥?
+    // Input_AttackSimultaneous ??る?? Mouse5(甕곗쥙堉???곫묾??④쑴肉?嚥???곴퐤??뺣뼄.
+    // ??뽰삂 ?⑤벀爰?癒?퐣???ル슣???猷욆린醫됰┛??疫뀀뜆???랁? ?袁⑸꺗 ???문 ?怨밴묶?癒?퐣筌??ル슣???猷욆린醫됰┛???怨뺣뼄.
     return ShouldUseLateralFadeSlashPattern() ? InputPattern_LS_LateralFadeSlash : InputPattern_LS_FadeSlash;
 }
 
@@ -3646,7 +3594,7 @@ bool AMHPlayerCharacter::IsLongSwordFollowupContext() const
 
 bool AMHPlayerCharacter::ShouldUseDirectionalLateralFadeSlash() const
 {
-    // 좌/우 입력이 실제로 들어왔을 때만 좌우이동베기 Variant를 허용한다.
+    // ??????낆젾????쇱젫嚥???쇰선?遺우뱽 ???춸 ?ル슣???猷욆린醫됰┛ Variant????됱뒠??뺣뼄.
     const EMHDirectionalVariant DirectionalVariant = ResolveDirectionalVariantFromInput(false);
 
     return DirectionalVariant == EMHDirectionalVariant::Left
@@ -3655,8 +3603,8 @@ bool AMHPlayerCharacter::ShouldUseDirectionalLateralFadeSlash() const
 
 bool AMHPlayerCharacter::ShouldUseLateralFadeSlashPattern() const
 {
-    // 시작 공격에서는 무조건 베어내리기(FadeSlash)만 허용하고,
-    // 후속 파생 문맥에서만 좌/우 입력 기반 LateralFadeSlash를 허용한다.
+    // ??뽰삂 ?⑤벀爰?癒?퐣???얜똻?쒎쳞?甕곗쥙堉???곫묾?FadeSlash)筌???됱뒠??랁?
+    // ?袁⑸꺗 ???문 ?얜챶??癒?퐣筌???????낆젾 疫꿸퀡而?LateralFadeSlash????됱뒠??뺣뼄.
     return IsLongSwordFollowupContext() && ShouldUseDirectionalLateralFadeSlash();
 }
 
@@ -3758,31 +3706,31 @@ bool AMHPlayerCharacter::TryHandleWeaponComboInput(const FGameplayTag& InPattern
         && WeaponSheathState == EMHWeaponSheathState::Sheathed
         && IsLongSwordDrawEntryPattern(InPatternTag);
 
-    // 발도 시작 공격으로 이미 콤보가 활성화된 상태라면,
-    // Unsheathing 중에도 후속 콤보 입력은 허용해야 함.
+    // 獄쏆뮆猷???뽰삂 ?⑤벀爰??곗쨮 ??? ?꾠끇?ュ첎? ??뽮쉐?遺얜쭆 ?怨밴묶??겹늺,
+    // Unsheathing 餓λ쵐肉???袁⑸꺗 ?꾠끇????낆젾?? ??됱뒠??곷튊 ??
     const bool bAllowFollowupDuringUnsheathing =
         bComboActive && WeaponSheathState == EMHWeaponSheathState::Unsheathing;
 
-    // 납도 중에는 여전히 입력 차단
+    // ??몃즲 餓λ쵐肉?????????낆젾 筌△뫀??
     if (WeaponSheathState == EMHWeaponSheathState::Sheathing)
     {
         return false;
     }
 
-    // 발도 중(Unsheathing)에는 "이미 진행 중인 콤보의 후속 입력"만 허용
+    // 獄쏆뮆猷?餓?Unsheathing)?癒?뮉 "??? 筌욊쑵六?餓λ쵐???꾠끇????袁⑸꺗 ??낆젾"筌???됱뒠
     if (WeaponSheathState == EMHWeaponSheathState::Unsheathing && !bAllowFollowupDuringUnsheathing)
     {
         return false;
     }
 
-    // 콤보 비활성 + 납도 상태면 발도 시작 공격만 허용
+    // ?꾠끇????쑵???+ ??몃즲 ?怨밴묶筌?獄쏆뮆猷???뽰삂 ?⑤벀爰쏙쭕???됱뒠
     if (!bComboActive && WeaponSheathState == EMHWeaponSheathState::Sheathed && !bDrawEntryFromSheathed)
     {
         return false;
     }
 
-    // 콤보 비활성 상태에서는 발도 완료(Unsheathed) 상태여야 시작 공격 가능
-    // 단, 이미 발도 시작 공격으로 들어와 Unsheathing 중 후속 입력을 넣는 경우는 허용
+    // ?꾠끇????쑵????怨밴묶?癒?퐣??獄쏆뮆猷??袁⑥┷(Unsheathed) ?怨밴묶??鍮???뽰삂 ?⑤벀爰?揶쎛??
+    // ?? ??? 獄쏆뮆猷???뽰삂 ?⑤벀爰??곗쨮 ??쇰선?? Unsheathing 餓??袁⑸꺗 ??낆젾???節뗫뮉 野껋럩?????됱뒠
     if (!bComboActive
         && !bDrawEntryFromSheathed
         && WeaponSheathState != EMHWeaponSheathState::Unsheathed
@@ -4275,7 +4223,7 @@ void AMHPlayerCharacter::UpdateLocomotionState()
 
     if (MoveComp && MoveComp->IsFalling())
     {
-        // 공중 상태는 추후 확장
+        // ?⑤벊夷??怨밴묶???곕????類ㅼ삢
         return;
     }
 
@@ -4290,7 +4238,7 @@ void AMHPlayerCharacter::UpdateLocomotionState()
 
 void AMHPlayerCharacter::ApplyDefaultPlayerAttributes()
 {
-    // 현재 프로젝트 기준 플레이어 기본 체력, 방어력, 스태미나는 하드코딩 값으로 고정한다.
+    // ?袁⑹삺 ?袁⑥쨮??븍뱜 疫꿸퀣? ???쟿??곷선 疫꿸퀡??筌ｋ??? 獄쎻뫗堉?? ??쎄묶沃섎챶援????롫굡?꾨뗀逾?揶쏅??앮에??⑥쥙???뺣뼄.
     constexpr float DefaultMaxHealth = 1000.0f;
     constexpr float DefaultCurrentHealth = 1000.0f;
     constexpr float DefaultDefense = 10.0f;
@@ -4537,7 +4485,7 @@ bool AMHPlayerCharacter::ApplyIncomingPlayerDamageSpec(
     
 }
 
-#pragma region Attribute Delegate _이건주
+#pragma region Attribute Delegate _??욧탷雅?
 
 void AMHPlayerCharacter::NormalizeSharpnessStateFromAttribute()
 {
@@ -4778,7 +4726,7 @@ void AMHPlayerCharacter::BindAttributeDelegates()
         UMHPlayerAttributeSet::GetMaxStaminaAttribute()
     ).AddUObject(this, &ThisClass::HandleMaxStaminaAttributeChanged);
     
-    //TODO: 예리도 기인 게이지  
+    //TODO: ??댿봺??疫꿸퀣??野껊슣?좑쭪?  
     
     // AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
     //     UMHHealthAttributeSet::GetMaxHealthAttribute()
@@ -4800,7 +4748,7 @@ void AMHPlayerCharacter::BroadcastInitialAttributeSnapshot()
     BroadcastSpiritLevelChanged();
     BroadcastSpiritLevelTimerChanged();
     OnSharpnessChanged.Broadcast(GetCurrentSharpnessValue(), GetMaxSharpnessValue());
-    //TODO: 이건주
+    //TODO: ??욧탷雅?
 }
 
 void AMHPlayerCharacter::HandleHealthAttributeChanged(const FOnAttributeChangeData& ChangeData)
@@ -4838,7 +4786,7 @@ void AMHPlayerCharacter::HandleShapnessAttributeChanged(const FOnAttributeChange
     }
 
     RefreshSharpnessState();
-    //TODO: Getter 함수 추가 _이건주
+    //TODO: Getter ??λ땾 ?곕떽? _??욧탷雅?
     // OnSharpnessChanged.Broadcast(ChangeData.NewValue, GetCurrentSharpnessGaugeValue());
 }
 
@@ -4852,7 +4800,7 @@ void AMHPlayerCharacter::HandleMaxShapnessAttributeChanged(const FOnAttributeCha
     }
 
     RefreshSharpnessState();
-    //TODO: Getter 함수 추가 _이건주
+    //TODO: Getter ??λ땾 ?곕떽? _??욧탷雅?
     // OnSharpnessChanged.Broadcast(ChangeData.NewValue, GetMaxSharpnessGaugeValue());
 }
 
@@ -4934,3 +4882,9 @@ void AMHPlayerCharacter::BroadcastSpiritLevelTimerChanged()
 }
 
 #pragma endregion
+
+
+
+
+
+
