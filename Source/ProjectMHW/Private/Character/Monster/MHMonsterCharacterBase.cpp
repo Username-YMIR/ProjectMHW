@@ -384,6 +384,7 @@ void AMHMonsterCharacterBase::FaceCombatTargetInterp(float DeltaSeconds, float T
 
 bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag)
 {
+    
     if (!bMonsterAttackWindowOpen)
     {
         UE_LOG(MHMonsterCharacterBase, Warning, TEXT("ConsumeMonsterAttackHitOnce | Window closed"));
