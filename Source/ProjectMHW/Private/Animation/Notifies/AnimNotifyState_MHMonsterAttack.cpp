@@ -47,14 +47,11 @@ void UAnimNotifyState_MHMonsterAttack::NotifyTick(USkeletalMeshComponent* MeshCo
 	if (Monster->CanMonsterAttackHitNow())
 	{
 		const bool bHit = Monster->ConsumeMonsterAttackHitOnce(FinalAttackTag);
-		UE_LOG(LogTemp, Warning, TEXT("MonsterAttackHitWindow Tick | ConsumeResult=%d"), bHit ? 1 : 0);
+		
 		Monster->ConsumeMonsterAttackHitOnce(FinalAttackTag);
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("MonsterAttackHitWindow Tick | Monster=%s Tag=%s CanHit=%d"),
-	*GetNameSafe(Monster),
-	*FinalAttackTag.ToString(),
-	Monster->CanMonsterAttackHitNow() ? 1 : 0);
+	
 }
 
 void UAnimNotifyState_MHMonsterAttack::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation)

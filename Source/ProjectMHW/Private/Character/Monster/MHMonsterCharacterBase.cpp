@@ -464,6 +464,49 @@ bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag
     {
     case EMonsterHitJudgeType::Distance:
         {
+            FVector AttackOrigin = GetActorLocation();
+
+            if (GetMesh())
+            {
+                FName DistanceSocket = NAME_None;
+
+                if (!FinalHitSocket.IsNone() && GetMesh()->DoesSocketExist(FinalHitSocket))
+                {
+                    DistanceSocket = FinalHitSocket;
+                }
+                else if (!FinalStartSocket.IsNone() && GetMesh()->DoesSocketExist(FinalStartSocket))
+                {
+                    DistanceSocket = FinalStartSocket;
+                }
+
+                if (!DistanceSocket.IsNone())
+                {
+                    AttackOrigin = GetMesh()->GetSocketLocation(DistanceSocket);
+                }
+            }
+
+            const float Dist = FVector::Dist2D(AttackOrigin, CombatTarget->GetActorLocation());
+            if (Dist > FinalAttackRange)
+            {
+                UE_LOG(MHMonsterCharacterBase, Warning,
+                    TEXT("ConsumeMonsterAttackHitOnce | Out of range | Dist=%.1f Range=%.1f Origin=%s"),
+                    Dist,
+                    FinalAttackRange,
+                    *AttackOrigin.ToString());
+                return false;
+            }
+
+            HitResult.Location = CombatTarget->GetActorLocation();
+            HitResult.ImpactPoint = CombatTarget->GetActorLocation();
+            HitResult.ImpactNormal = (CombatTarget->GetActorLocation() - AttackOrigin).GetSafeNormal();
+            HitResult.Normal = HitResult.ImpactNormal;
+            bHit = true;
+        }
+        break;
+        
+        
+        
+        /*{
             const float Dist = FVector::Dist(GetActorLocation(), CombatTarget->GetActorLocation());
             if (Dist > FinalAttackRange)
             {
@@ -480,7 +523,7 @@ bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag
             HitResult.Normal = HitResult.ImpactNormal;
             bHit = true;
         }
-        break;
+        break;*/
 
     case EMonsterHitJudgeType::SocketSphere:
         {
@@ -551,10 +594,10 @@ bool AMHMonsterCharacterBase::ConsumeMonsterAttackHitOnce(FGameplayTag AttackTag
     const FVector TargetLoc = CombatTarget ? CombatTarget->GetActorLocation() : FVector::ZeroVector;
 
     // 디버그 표시
-    DrawDebugSphere(GetWorld(), Start, FinalTraceRadius, 16, FColor::Red, false, 2.0f);
+    /*DrawDebugSphere(GetWorld(), Start, FinalTraceRadius, 16, FColor::Red, false, 2.0f);
     DrawDebugSphere(GetWorld(), End, FinalTraceRadius, 16, FColor::Blue, false, 2.0f);
     DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 2.0f, 0, 2.0f);
-    DrawDebugSphere(GetWorld(), TargetLoc, 30.f, 12, FColor::Yellow, false, 2.0f);
+    DrawDebugSphere(GetWorld(), TargetLoc, 30.f, 12, FColor::Yellow, false, 2.0f);*/
 
     UE_LOG(MHMonsterCharacterBase, Warning,
         TEXT("SocketSweep Debug | Start=%s End=%s Target=%s Radius=%.1f DistToStart=%.1f DistToEnd=%.1f"),
@@ -1683,7 +1726,9 @@ void AMHMonsterCharacterBase::SpawnTailSlamGroundImpactFX()
         Params
     );
 
+    /*
     DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Orange, false, 2.0f, 0, 2.0f);
+    */
 
     if (!bHit)
     {
@@ -1707,7 +1752,9 @@ void AMHMonsterCharacterBase::SpawnTailSlamGroundImpactFX()
         true
     );
 
+    /*
     DrawDebugSphere(GetWorld(), SpawnLoc, 25.f, 12, FColor::Red, false, 2.0f);
+    */
 
     UE_LOG(MHMonsterCharacterBase, Warning,
         TEXT("SpawnTailSlamGroundImpactFX | Spawned at %s Normal=%s"),
@@ -2212,7 +2259,8 @@ bool AMHMonsterCharacterBase::FindMonsterAbilityEntryByTag(FGameplayTag AbilityT
 #pragma endregion
 
 // 디버그용 함수 TODO: 추후 삭제 
-void AMHMonsterCharacterBase::DrawSightConeDebug(const FVector& SocketLocation, const FRotator& SocketRotation,
+#pragma region debugDrawLine
+/*void AMHMonsterCharacterBase::DrawSightConeDebug(const FVector& SocketLocation, const FRotator& SocketRotation,
     const FVector& TargetLocation, bool bCanSee) const
 {
     if (!GetWorld())
@@ -2287,7 +2335,9 @@ void AMHMonsterCharacterBase::DrawSightConeDebug(const FVector& SocketLocation, 
         FRotationMatrix(SocketRotation + FRotator(-SightVerticalHalfAngleDeg, 0.f, 0.f)).GetUnitAxis(EAxis::X);
     
     
-}
+}*/
+
+#pragma endregion
 
 void AMHMonsterCharacterBase::SetCombatTarget(AActor* NewTarget)
 {
@@ -2393,7 +2443,7 @@ bool AMHMonsterCharacterBase::CanSeeTargetFromHead(AActor* Target) const
             0,
             2.f
                 );*/
-    DrawSightConeDebug(SocketLocation, SocketRotation, TargetLocation, true);
+    /*DrawSightConeDebug(SocketLocation, SocketRotation, TargetLocation, true);*/
     if (const ACharacter* TargetCharacter = Cast<ACharacter>(Target))
     {
         if (const UCapsuleComponent* Capsule = TargetCharacter->GetCapsuleComponent())
