@@ -14,6 +14,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "GameFramework/PlayerController.h"
+#include "System/MHFrontendGameInstance.h"
 #include "Items/Instance/MHWeaponInstance.h"
 #include "Items/Instance/MHLongSwordInstance.h"
 #include "Items/Instance/MHGreatSwordInstance.h"
@@ -1706,7 +1707,8 @@ bool AMHPlayerCharacter::TryStartAutoSheatheAfterLongSwordMove(const FGameplayTa
 #pragma region WeaponRuntimeFunctions
 void AMHPlayerCharacter::SpawnAndEquipDefaultWeapon()
 {
-    if (!DefaultWeaponClass)
+    const TSubclassOf<AMHWeaponInstance> StartupWeaponClass = ResolveStartupWeaponClass();
+    if (!StartupWeaponClass)
     {
         return;
     }
@@ -1724,7 +1726,7 @@ void AMHPlayerCharacter::SpawnAndEquipDefaultWeapon()
     
     // ==========================
     // 무기 장착 로직 함수화 (무기 교체 기능 지원)_이건주
-    AMHWeaponInstance* SpawnedWeapon = World->SpawnActor<AMHWeaponInstance>(DefaultWeaponClass, SpawnParams);
+    AMHWeaponInstance* SpawnedWeapon = World->SpawnActor<AMHWeaponInstance>(StartupWeaponClass, SpawnParams);
     if (!SpawnedWeapon)
     {
         return;
@@ -1759,9 +1761,22 @@ void AMHPlayerCharacter::SpawnAndEquipDefaultWeapon()
     // AttachWeaponActorToBack();
     // AttachWeaponToBack();
     // RefreshWeaponAnimationLayerState();
-    //
-    // //무기 스탯 GE 적용 _ 이건주
-    // RefreshEquippedWeaponStatEffect();
+      //
+      // //무기 스탯 GE 적용 _ 이건주
+      // RefreshEquippedWeaponStatEffect();
+}
+
+TSubclassOf<AMHWeaponInstance> AMHPlayerCharacter::ResolveStartupWeaponClass() const
+{
+    if (const UMHFrontendGameInstance* FrontendGameInstance = GetGameInstance<UMHFrontendGameInstance>())
+    {
+        if (TSubclassOf<AMHWeaponInstance> PendingWeaponClass = FrontendGameInstance->GetPendingWeaponClass())
+        {
+            return PendingWeaponClass;
+        }
+    }
+
+    return DefaultWeaponClass;
 }
 
 bool AMHPlayerCharacter::EquipWeaponInstance(AMHWeaponInstance* InWeapon, bool bDestroyPreviousWeapon)
@@ -2697,8 +2712,15 @@ void AMHPlayerCharacter::IncreaseSpiritLevel(const int32 InAmount)
         return;
     }
 
+    const int32 MaxSpiritLevel = GetMaxSpiritLevelValue();
+    if (CurrentSpiritLevel >= MaxSpiritLevel)
+    {
+        RefreshSpiritLevelDecayState(true);
+        return;
+    }
+
     const int32 PreviousSpiritLevel = CurrentSpiritLevel;
-    CurrentSpiritLevel = FMath::Clamp(CurrentSpiritLevel + InAmount, 0, 3);
+    CurrentSpiritLevel = FMath::Clamp(CurrentSpiritLevel + InAmount, 0, MaxSpiritLevel);
 
     if (CurrentSpiritLevel != PreviousSpiritLevel)
     {
@@ -2731,7 +2753,7 @@ float AMHPlayerCharacter::GetSpiritLevelRemainingTime() const
 
 float AMHPlayerCharacter::GetSpiritLevelDuration() const
 {
-    return FMath::Max(0.0f, SpiritLevelDuration);
+    return FixedSpiritLevelDuration;
 }
 
 bool AMHPlayerCharacter::IsAttackAllowedForForesightCounter(const FGameplayTag& InAttackTag) const

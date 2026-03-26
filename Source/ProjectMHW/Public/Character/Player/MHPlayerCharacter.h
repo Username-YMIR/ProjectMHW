@@ -720,6 +720,7 @@ private:
 #pragma region WeaponRuntimeFunctions
     // 무기 메쉬 적용
     void SpawnAndEquipDefaultWeapon();
+    TSubclassOf<AMHWeaponInstance> ResolveStartupWeaponClass() const;
     
     //============================
     // 무기 장착/해제 함수 _ 이건주
@@ -1019,11 +1020,9 @@ protected:
 
 private:
     bool bSyncingSharpnessState = false;
+    static constexpr float FixedSpiritLevelDuration = 60.0f;
     FTimerHandle SpiritLevelDecayTimerHandle;
     float SpiritLevelRemainingTime = 0.0f;
-
-    UPROPERTY(EditDefaultsOnly, Category="Combat|LongSword", meta = (ClampMin = "0.1", AllowPrivateAccess = "true"))
-    float SpiritLevelDuration = 60.0f;
 
     UPROPERTY(EditDefaultsOnly, Category="Combat|LongSword", meta = (ClampMin = "0.01", AllowPrivateAccess = "true"))
     float SpiritLevelDecayTickInterval = 0.1f;
