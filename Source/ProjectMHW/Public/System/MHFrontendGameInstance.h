@@ -2,9 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
+#include "UObject/SoftObjectPtr.h"
 #include "MHFrontendGameInstance.generated.h"
 
 class AMHWeaponInstance;
+class UWorld;
 struct FStreamableHandle;
 
 UCLASS()
@@ -23,7 +25,7 @@ public:
 	TSubclassOf<AMHWeaponInstance> GetPendingWeaponClass() const;
 
 	UFUNCTION(BlueprintCallable, Category="MH|Frontend")
-	bool StartBattleTransition(FName InBattleLevelName);
+	bool StartBattleTransition(TSoftObjectPtr<UWorld> InBattleLevel);
 
 	UFUNCTION(BlueprintPure, Category="MH|Frontend")
 	float GetLoadingProgress() const;
@@ -50,7 +52,7 @@ private:
 	TSoftClassPtr<AMHWeaponInstance> PendingWeaponClass;
 
 	UPROPERTY(Transient)
-	FName PendingBattleLevelName;
+	TSoftObjectPtr<UWorld> PendingBattleLevel;
 
 	TSharedPtr<FStreamableHandle> PreloadHandle;
 

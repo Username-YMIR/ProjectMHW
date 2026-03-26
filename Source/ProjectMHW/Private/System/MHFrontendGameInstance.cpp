@@ -26,14 +26,14 @@ TSubclassOf<AMHWeaponInstance> UMHFrontendGameInstance::GetPendingWeaponClass() 
 	return LoadedClass;
 }
 
-bool UMHFrontendGameInstance::StartBattleTransition(const FName InBattleLevelName)
+bool UMHFrontendGameInstance::StartBattleTransition(const TSoftObjectPtr<UWorld> InBattleLevel)
 {
-	if (bBattleTransitionInProgress || InBattleLevelName.IsNone())
+	if (bBattleTransitionInProgress || InBattleLevel.IsNull())
 	{
 		return false;
 	}
 
-	PendingBattleLevelName = InBattleLevelName;
+	PendingBattleLevel = InBattleLevel;
 	bBattleTransitionInProgress = true;
 	bPreloadCompleted = false;
 	CachedLoadingProgress = 0.0f;
@@ -70,6 +70,11 @@ void UMHFrontendGameInstance::BeginPreload()
 		AssetsToLoad.AddUnique(PendingWeaponClass.ToSoftObjectPath());
 	}
 
+	if (!PendingBattleLevel.IsNull())
+	{
+		AssetsToLoad.AddUnique(PendingBattleLevel.ToSoftObjectPath());
+	}
+
 	if (AssetsToLoad.IsEmpty())
 	{
 		CachedLoadingProgress = 1.0f;
@@ -101,13 +106,13 @@ void UMHFrontendGameInstance::HandlePreloadCompleted()
 
 bool UMHFrontendGameInstance::OpenPendingBattleLevel()
 {
-	if (PendingBattleLevelName.IsNone())
+	if (PendingBattleLevel.IsNull())
 	{
 		ResetTransitionState();
 		return false;
 	}
 
-	UGameplayStatics::OpenLevel(this, PendingBattleLevelName);
+	UGameplayStatics::OpenLevelBySoftObjectPtr(this, PendingBattleLevel);
 	ResetTransitionState();
 	return true;
 }
@@ -115,7 +120,7 @@ bool UMHFrontendGameInstance::OpenPendingBattleLevel()
 void UMHFrontendGameInstance::ResetTransitionState()
 {
 	PreloadHandle.Reset();
-	PendingBattleLevelName = NAME_None;
+	PendingBattleLevel.Reset();
 	bBattleTransitionInProgress = false;
 	bPreloadCompleted = false;
 	CachedLoadingProgress = 0.0f;
