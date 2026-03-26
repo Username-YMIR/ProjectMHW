@@ -16,6 +16,7 @@ DEFINE_LOG_CATEGORY(LogMHGAGreatSwordAttack);
 UMHGA_GreatSwordAttack::UMHGA_GreatSwordAttack()
 {
     InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+    bRetriggerInstancedAbility = true;
 
     DamageEffectClass = UMHGameplayEffect_Damage::StaticClass();
     SourcePhysicalAttackAttribute = UMHCombatAttributeSet::GetAttackPowerAttribute();

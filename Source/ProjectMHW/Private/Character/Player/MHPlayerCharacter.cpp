@@ -1989,6 +1989,21 @@ bool AMHPlayerCharacter::FindAttackMetaRow(const FGameplayTag& InMoveTag, FMHAtt
     return UMHCombatDataLibrary::FindAttackMetaRowByTag(LongSwordAttackMetaTable, InMoveTag, OutAttackMetaRow);
 }
 
+bool AMHPlayerCharacter::FindEquippedWeaponAttackMetaRow(const FGameplayTag& InMoveTag, FMHAttackMetaRow& OutAttackMetaRow) const
+{
+    if (IsGreatSwordEquipped())
+    {
+        const AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+        const UMHGreatSwordActionComponent* ActionComponent = GreatSword ? GreatSword->GetActionComponent() : nullptr;
+        if (ActionComponent && ActionComponent->FindAttackMetaRow(InMoveTag, OutAttackMetaRow))
+        {
+            return true;
+        }
+    }
+
+    return FindAttackMetaRow(InMoveTag, OutAttackMetaRow);
+}
+
 bool AMHPlayerCharacter::CanStartLongSwordMove(const FGameplayTag& InMoveTag) const
 {
     if (!InMoveTag.IsValid())
@@ -2039,7 +2054,7 @@ bool AMHPlayerCharacter::DoesLongSwordMoveBuildDamageSpec(const FGameplayTag& In
     return InMoveTag.IsValid() && InMoveTag != MHLongSwordGameplayTags::Move_LS_SpecialSheathe;
 }
 
-void AMHPlayerCharacter::PlayLongSwordHitCameraShake(const FGameplayTag& InMoveTag) const
+void AMHPlayerCharacter::PlayWeaponHitCameraShake(const FGameplayTag& InMoveTag) const
 {
     if (!Controller)
     {
@@ -2056,7 +2071,7 @@ void AMHPlayerCharacter::PlayLongSwordHitCameraShake(const FGameplayTag& InMoveT
     TSubclassOf<UCameraShakeBase> ShakeClass = UMHHitEnemyCameraShake::StaticClass();
     float ShakeScale = 1.0f;
 
-    if (FindAttackMetaRow(InMoveTag, AttackMetaRow))
+    if (FindEquippedWeaponAttackMetaRow(InMoveTag, AttackMetaRow))
     {
         if (!AttackMetaRow.CameraShakeClass.IsNull())
         {
@@ -2411,7 +2426,31 @@ bool AMHPlayerCharacter::TryExecuteGreatSwordPendingMove()
         return TryPlayGreatSwordUtilityMontage(PendingMoveTag);
     }
 
-    return TryActivateGreatSwordPrimaryAbility();
+    if (IsEquippedWeaponPrimaryAbilityActive())
+    {
+        UE_LOG(
+            LogMHPlayerCharacter,
+            Verbose,
+            TEXT("%s : 활성 중인 대검 공격 어빌리티를 재트리거합니다. PendingMove=%s"),
+            *GetName(),
+            *PendingMoveTag.ToString()
+        );
+    }
+
+    const bool bActivated = TryActivateGreatSwordPrimaryAbility();
+    if (!bActivated)
+    {
+        UE_LOG(
+            LogMHPlayerCharacter,
+            Warning,
+            TEXT("%s : 대검 후속 공격 실행에 실패했습니다. PendingMove=%s AbilityActive=%d"),
+            *GetName(),
+            *PendingMoveTag.ToString(),
+            IsEquippedWeaponPrimaryAbilityActive() ? 1 : 0
+        );
+    }
+
+    return bActivated;
 }
 
 bool AMHPlayerCharacter::TryActivateGreatSwordPrimaryAbility()
@@ -4800,8 +4839,6 @@ void AMHPlayerCharacter::BroadcastSpiritLevelTimerChanged()
 }
 
 #pragma endregion
-
-
 
 
 

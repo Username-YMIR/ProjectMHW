@@ -236,7 +236,7 @@ public:
 
     bool DoesLongSwordMoveBuildDamageSpec(const FGameplayTag& InMoveTag) const;
 
-    void PlayLongSwordHitCameraShake(const FGameplayTag& InMoveTag) const;
+    void PlayWeaponHitCameraShake(const FGameplayTag& InMoveTag) const;
 #pragma endregion
 
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
@@ -693,6 +693,7 @@ protected:
     bool IsAttackAllowedForSpecialSheatheCounter(const FGameplayTag& InAttackTag) const;
     const FMHAttackDefinitionRow* FindAttackDefinitionRow(const FGameplayTag& InAttackTag) const;
     bool FindAttackMetaRow(const FGameplayTag& InMoveTag, FMHAttackMetaRow& OutAttackMetaRow) const;
+    bool FindEquippedWeaponAttackMetaRow(const FGameplayTag& InMoveTag, FMHAttackMetaRow& OutAttackMetaRow) const;
 
     void ApplyLongSwordMoveStartCost(const FGameplayTag& InMoveTag);
 
@@ -886,7 +887,6 @@ private:
     TSubclassOf<UGameplayAbility> PotionAbilityClass;
         
 };
-
 
 
 
