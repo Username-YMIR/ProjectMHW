@@ -7,16 +7,14 @@
 #include "Type/MHPlayerStructType.h"
 #include "Type/MHItemStructType.h"
 #include "Type/MHWeaponAnimStructType.h"
-#include "Weapons/Common/MHWeaponComboTypes.h" //손승우 추가
+#include "Weapons/Common/MHWeaponComboTypes.h"
 #include "MHPlayerCharacter.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMHPlayerCharacter, Log, All);
 
-// 어트리뷰트셋 값 변경 시 사용하는 델리게이트 _이건주
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMHOnVitalChanged, float, CurrentValue, float, MaxValue);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMHOnSpiritLevelChanged, int32, CurrentLevel, int32, MaxLevel);
 
-// 소비템 선택
 UENUM(BlueprintType)
 enum class EMHConsumableSelection : uint8
 {
@@ -38,7 +36,6 @@ enum class EMHLongSwordCounterWindowType : uint8
 
 enum class EMHHitResultType : uint8;
 
-enum class EMHHitResultType : uint8;
 
 class UMHHealthAttributeSet;
 class UMHCombatAttributeSet;
@@ -80,67 +77,52 @@ protected:
     
     
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-    // 종료 처리
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-    // 무브먼트 업데이트 처리
     UFUNCTION()
     void HandleMovementUpdated(float DeltaSeconds, FVector OldLocation, FVector OldVelocity);
 
-    // 이동 입력
     void Input_Move(const FInputActionValue& InputActionValue);
 
-    // 시점 입력
     void Input_Look(const FInputActionValue& InputActionValue);
 
-    // 스프린트 시작
     void Input_SprintStarted(const FInputActionValue& InputActionValue);
 
-    // 스프린트 종료
     void Input_SprintCompleted(const FInputActionValue& InputActionValue);
 
-    // 회피 입력
     void Input_Dodge(const FInputActionValue& InputActionValue);
 
-    // 기본 공격 입력
     void Input_AttackPrimary(const FInputActionValue& InputActionValue);
 
-    // 보조 공격 입력
     void Input_AttackSecondary(const FInputActionValue& InputActionValue);
 
-    // 무기 특수 입력
-    void Input_WeaponSpecial(const FInputActionValue& InputActionValue); //손승우 추가
+    // 현재 장착 무기에 맞는 무기 특수 입력을 처리한다.
+    void Input_WeaponSpecial(const FInputActionValue& InputActionValue);
 
     void Input_AttackPrimaryCompleted(const FInputActionValue& InputActionValue);
     void Input_AttackSecondaryCompleted(const FInputActionValue& InputActionValue);
     void Input_WeaponSpecialCompleted(const FInputActionValue& InputActionValue);
     void Input_DodgeCompleted(const FInputActionValue& InputActionValue);
 
-    // 동시 공격 입력
-    void Input_AttackSimultaneous(const FInputActionValue& InputActionValue); //손승우 추가
+    // 현재 장착 무기에 맞는 동시 공격 입력을 처리한다.
+    void Input_AttackSimultaneous(const FInputActionValue& InputActionValue);
 
-    // 조준/홀드 시작
-    void Input_AimHoldStarted(const FInputActionValue& InputActionValue); //손승우 추가
+    void Input_AimHoldStarted(const FInputActionValue& InputActionValue);
 
-    // 조준/홀드 종료
-    void Input_AimHoldCompleted(const FInputActionValue& InputActionValue); //손승우 추가
+    void Input_AimHoldCompleted(const FInputActionValue& InputActionValue);
 
-    // 키보드 4번 입력으로 플레이어에게 디버그 피격을 발생시켜 카운터 동작을 검증한다.
     void Input_DebugIncomingDamageKeyPressed();
 
 protected:
-    /** 플레이어는 공통 DamageSpec을 직접 적용하지 않고, 플레이어 전용 Damage GE로 재구성해 적용한다. */
     virtual bool ApplyIncomingDamageSpec(
         const FGameplayEffectSpecHandle& DamageSpecHandle
     ) override;
 
-    /** 전달받은 DamageSpec을 플레이어 전용 Damage GE Spec으로 변환해 적용한다. */
     bool ApplyIncomingPlayerDamageSpec(
         const FGameplayEffectSpec& IncomingSpec
     );
 
 public:
-    // 기본 공격
     UFUNCTION(BlueprintCallable, Category = "Player")
     virtual void UsePrimaryAction();
 
@@ -150,78 +132,61 @@ public:
     void ApplyDebugDamageFromSource(AActor* InSourceActor, float InPhysicalDamage, const FGameplayTag& InAttackTag);
 
 #pragma region WeaponAndLongSwordAPI
-    // 콤보 몽타주 종료 시 납도/발도 상태 확정
-    void HandleComboMontageStateTransition(bool bInterrupted); //손승우 추가
+    void HandleComboMontageStateTransition(bool bInterrupted);
 
-    // 노티파이: 무기 손 소켓으로 이동
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     void Notify_AttachWeaponToHand();
 
-    // 노티파이: 무기 등 소켓으로 이동
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     void Notify_AttachWeaponToBack();
 
-    // 노티파이: 지정한 무기 소켓으로 이동
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     void Notify_AttachWeaponToSocket(FName InSocketName);
 
-    // 노티파이: 콤보 입력 윈도우 시작
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_BeginComboChainWindow();
 
-    // 노티파이: 콤보 입력 윈도우 종료
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_EndComboChainWindow();
 
-    // 노티파이: 조기 전환 윈도우 시작
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_BeginEarlyTransitionWindow();
 
-    // 노티파이: 조기 전환 윈도우 종료
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_EndEarlyTransitionWindow();
 
-    // 노티파이: 입력 방향 기준 회전 조정 윈도우 시작
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_BeginDirectionalTurnWindow(float InMaxYawDeltaDegrees, float InRotationInterpSpeed);
 
-    // 노티파이: 입력 방향 기준 회전 조정 윈도우 종료
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_EndDirectionalTurnWindow();
-
-    // 노티파이: 대검 차징 단계 타이밍에 현재 차징 단계를 갱신한다.
+    // ===== 대검 몽타주 노티파이 =====
     UFUNCTION(BlueprintCallable, Category = "GreatSword")
     void Notify_GreatSwordChargeLevelReached(int32 InChargeLevel);
 
-    // 노티파이: 대검 최대 차징 시점에 자동 릴리즈를 요청한다.
     UFUNCTION(BlueprintCallable, Category = "GreatSword")
     void Notify_GreatSwordChargeAutoRelease();
 
-    // 노티파이: 대검 공격 후 4방향 구르기 윈도우를 연다.
     UFUNCTION(BlueprintCallable, Category = "GreatSword")
     void Notify_BeginGreatSwordAttackRollWindow();
 
-    // 노티파이: 대검 공격 후 4방향 구르기 윈도우를 닫는다.
     UFUNCTION(BlueprintCallable, Category = "GreatSword")
     void Notify_EndGreatSwordAttackRollWindow();
 
-    // 노티파이: 대검 조기 전환 윈도우를 연다.
     UFUNCTION(BlueprintCallable, Category = "GreatSword")
     void Notify_BeginGreatSwordEarlyTransitionWindow();
 
-    // 노티파이: 대검 조기 전환 윈도우를 닫는다.
     UFUNCTION(BlueprintCallable, Category = "GreatSword")
     void Notify_EndGreatSwordEarlyTransitionWindow();
 
-    // 노티파이: 대검 다음 단계 차징 후속 윈도우를 연다.
     UFUNCTION(BlueprintCallable, Category = "GreatSword")
     void Notify_BeginGreatSwordChargeFollowUpWindow(FGameplayTag InSourceMoveTag);
 
-    // 노티파이: 대검 다음 단계 차징 후속 윈도우를 닫는다.
     UFUNCTION(BlueprintCallable, Category = "GreatSword")
     void Notify_EndGreatSwordChargeFollowUpWindow();
-    
-    // 현재 장착 중인 무기 인스턴스 반환
+    // ===== 대검 몽타주 노티파이 끝 =====
+
+    // 현재 장착 중인 무기 인스턴스를 반환한다.
     AMHWeaponInstance* GetEquippedWeapon() const { return EquippedWeapon; }
 
     UFUNCTION(BlueprintCallable, Category = "Combo")
@@ -258,79 +223,58 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void ClearAllLongSwordCounterSuccessFlags();
 
-    // 태도 기술이 실제로 시작될 때 선소모 비용과 후속 권한 소모를 처리한다.
     void Notify_LongSwordMoveStarted(const FGameplayTag& InMoveTag);
 
-    // 태도 공격이 실제 유효 타격으로 확정된 순간 히트 보상을 처리한다.
     void Notify_LongSwordAttackHitConfirmed(const FGameplayTag& InMoveTag);
 
-    // 태도 카운터 성공 시점에 기술별 성공 보상을 처리한다.
     void Notify_LongSwordCounterCommitSuccess(EMHLongSwordCounterWindowType InCounterWindowType);
 
-    // 현재 기인 레벨과 공격 메타를 반영한 최종 배율을 계산한다.
     float ResolveLongSwordDamageMultiplier(const FGameplayTag& InMoveTag) const;
-    // 기술 시작 전에 현재 기인 게이지로 진입 가능한지 확인한다.
     bool CanStartLongSwordMove(const FGameplayTag& InMoveTag) const;
 
-    // 현재 태도 기술이 공격 메타를 반드시 가져야 하는지 확인한다.
     bool DoesLongSwordMoveRequireAttackMeta(const FGameplayTag& InMoveTag) const;
 
-    // 현재 태도 기술이 실제 DamageSpec을 만들어야 하는지 확인한다.
     bool DoesLongSwordMoveBuildDamageSpec(const FGameplayTag& InMoveTag) const;
 
-    // 태도 히트 성공 시 현재 공격 메타를 기준으로 카메라 쉐이크를 재생한다.
-    void PlayLongSwordHitCameraShake(const FGameplayTag& InMoveTag) const;
+    void PlayWeaponHitCameraShake(const FGameplayTag& InMoveTag) const;
 #pragma endregion
 
-    // UI/HUD에서 현재 체력 값을 조회할 때 사용한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     float GetCurrentHealthValue() const;
 
-    // UI/HUD에서 최대 체력 값을 조회할 때 사용한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     float GetMaxHealthValue() const;
 
-    // UI/HUD에서 체력 비율을 바로 사용할 수 있게 반환한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     float GetHealthRatio() const;
 
-    // UI/HUD에서 현재 스태미너 값을 조회할 때 사용한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     float GetCurrentStaminaValue() const;
 
-    // UI/HUD에서 최대 스태미너 값을 조회할 때 사용한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     float GetMaxStaminaValue() const;
 
-    // UI/HUD에서 스태미너 비율을 바로 사용할 수 있게 반환한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     float GetStaminaRatio() const;
 
-    // UI/HUD에서 현재 기인 게이지 값을 조회할 때 사용한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     float GetCurrentSpiritGaugeValue() const;
 
-    // UI/HUD에서 최대 기인 게이지 값을 조회할 때 사용한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     float GetMaxSpiritGaugeValue() const;
 
-    // UI/HUD에서 기인 게이지 비율을 바로 사용할 수 있게 반환한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     float GetSpiritGaugeRatio() const;
 
-    // UI/HUD에서 현재 기인 레벨을 조회할 때 사용한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     int32 GetCurrentSpiritLevelValue() const;
 
-    // UI/HUD에서 최대 기인 레벨을 조회할 때 사용한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     int32 GetMaxSpiritLevelValue() const;
 
-    // UI/HUD에서 한 번에 체력/스태미너 값을 가져올 때 사용한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     void GetPlayerVitalStatus(float& OutCurrentHealth, float& OutMaxHealth, float& OutCurrentStamina, float& OutMaxStamina) const;
 
-    // UI/HUD에서 한 번에 기인 게이지/레벨 값을 가져올 때 사용한다.
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
     void GetLongSwordSpiritStatus(float& OutCurrentSpiritGauge, float& OutMaxSpiritGauge, int32& OutCurrentSpiritLevel, int32& OutMaxSpiritLevel) const;
 
@@ -371,65 +315,62 @@ public:
     bool TryStartAutoSheatheAfterLongSwordMove(const FGameplayTag& CompletedMoveTag);
 
     /**
-     * 현재 MoveTag와 입력 방향을 기준으로 Variant 몽타주를 선택한다.
-     * - 기본적으로 ComboGraph에 지정된 몽타주를 우선 사용한다.
-     * - Fade / LateralFade처럼 방향 Variant가 필요한 경우에만 무기 AnimConfig의 전용 몽타주로 교체한다.
      */
     UAnimMontage* ResolveLongSwordMoveMontageOverride(const FGameplayTag& InMoveTag, UAnimMontage* InDefaultMontage) const;
 
 protected:
-// 동일 카테고리 오브젝트가 3개 이상이면 region으로 구분
 #pragma region Components
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<USpringArmComponent> CameraBoom; // 스프링암
+    TObjectPtr<USpringArmComponent> CameraBoom;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UCameraComponent> FollowCamera; // 카메라
+    TObjectPtr<UCameraComponent> FollowCamera;
 #pragma endregion
 
     // ===== Movement =====
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement", meta = (AllowPrivateAccess = "true"))
-    FMHPlayerMovementConfig MovementConfig; // 이동 설정
+    FMHPlayerMovementConfig MovementConfig;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement", meta = (AllowPrivateAccess = "true"))
-    EMHPlayerLocomotionState LocomotionState = EMHPlayerLocomotionState::Idle; // 로코모션 상태
+    EMHPlayerLocomotionState LocomotionState = EMHPlayerLocomotionState::Idle;
     // ===== End Movement =====
 
     // ===== Stamina =====
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stamina", meta = (AllowPrivateAccess = "true"))
-    FMHPlayerStaminaConfig StaminaConfig; // 스태미나 설정
+    FMHPlayerStaminaConfig StaminaConfig;
 
     // ===== End Stamina =====
 
     // ===== Inputs =====
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UDataAsset_InputConfig> InputConfigDataAsset; // 입력 설정
+    TObjectPtr<UDataAsset_InputConfig> InputConfigDataAsset;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UDataAsset_LSInputPatternSet> LongSwordInputPatternSet; // 롱소드 입력 패턴 DA
+    TObjectPtr<UDataAsset_LSInputPatternSet> LongSwordInputPatternSet;
+
     // ===== End Inputs =====
 
 #pragma region WeaponState
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
-    FGameplayTag CurrentWeaponTag; // 무기 타입 태그
+    FGameplayTag CurrentWeaponTag;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
-    FMHWeaponSocketConfig WeaponSocketConfig; // 무기 소켓 설정
+    FMHWeaponSocketConfig WeaponSocketConfig;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
-    EMHWeaponSheathState WeaponSheathState = EMHWeaponSheathState::Sheathed; // 무기 납도/발도 상태
+    EMHWeaponSheathState WeaponSheathState = EMHWeaponSheathState::Sheathed;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
-    EMHWeaponType CurrentWeaponType = EMHWeaponType::None; // 무기 타입
+    EMHWeaponType CurrentWeaponType = EMHWeaponType::None;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
-    TSubclassOf<AMHWeaponInstance> DefaultWeaponClass; // 기본 무기 BP
+    TSubclassOf<AMHWeaponInstance> DefaultWeaponClass;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<AMHWeaponInstance> EquippedWeapon; // 장착 무기
+    TObjectPtr<AMHWeaponInstance> EquippedWeapon;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
-    TSoftObjectPtr<UAnimMontage> SheathedRollMontage; // 납도 구르기 몽타주(루트모션)
+    TSoftObjectPtr<UAnimMontage> SheathedRollMontage;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|HitReact", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UAnimMontage> DamageHitReactMontage;
@@ -450,25 +391,21 @@ protected:
     int32 BurnRequiredRollCount = 3;
 #pragma endregion
     
-#pragma region Weapon Stat (GAS)_이건주
+#pragma region WeaponStatGas
     // === Weapon Stat (GAS) ===
 public:
     EMHHitResultType HandleWeaponAttackHit(AActor* Target, AMHWeaponInstance* Weapon);
 protected:
 
-    // 현재 장착 무기 스탯 GE 핸들
     UPROPERTY(Transient)
     FActiveGameplayEffectHandle EquippedWeaponStatEffectHandle;
 
-    // 공통 무기 스탯 GameplayEffect 클래스
     UPROPERTY(EditDefaultsOnly, Category="Weapon|Stat")
     TSubclassOf<UGameplayEffect> WeaponStatEffectClass;
     
-    // 현재 예리도 상태
     UPROPERTY(Transient)
     EMHSharpnessColor CurrentSharpnessColor;
 
-    // 현재 예리도 수치
     UPROPERTY(Transient)
     float CurrentSharpnessValue = 0.0f;
 
@@ -479,25 +416,17 @@ protected:
     // === Weapon Stat Functions ===
 protected:
 
-    // 현재 EquippedWeapon 기준으로 GE 적용
     void ApplyEquippedWeaponStatEffect();
 
-    // 기존 GE 제거
     void RemoveEquippedWeaponStatEffect();
 
-    // 교체/초기 장착 시 호출
     void RefreshEquippedWeaponStatEffect();
-    // 예리도 값
     void SetSharpnessAttributeValues(float InCurrentSharpness, float InMaxSharpness);
     void UpdateSharpnessModifierFromCurrentColor();
     
-    // 예리도 소모
     void ConsumeSharpness(float Amount);
-    // 예리도 단계 하락
 
-    // 현재 예리도 색상에 대응하는 전투 배율을 계산한다.
 
-    // 현재 예리도 상태를 전투 어트리뷰트에 동기화한다.
 
 #pragma endregion
 
@@ -549,7 +478,6 @@ protected:
 
 #pragma region GAS
     // GAS
-    // 플레이어 어트리뷰트 셋 _이건주
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="GAS")
     TObjectPtr<UMHHealthAttributeSet> HealthAttributeSet;
 
@@ -564,19 +492,18 @@ protected:
 #pragma endregion 
 
     
-// 동일 카테고리 오브젝트가 3개 이상이면 region으로 구분
 #pragma region Visual
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visual", meta = (AllowPrivateAccess = "true"))
-    TSoftObjectPtr<USkeletalMesh> DefaultSkeletalMesh; // 기본 스켈레톤 메쉬
+    TSoftObjectPtr<USkeletalMesh> DefaultSkeletalMesh;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visual", meta = (AllowPrivateAccess = "true"))
-    TSoftClassPtr<UAnimInstance> DefaultAnimClass; // 기본 AnimBP
+    TSoftClassPtr<UAnimInstance> DefaultAnimClass;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visual", meta = (AllowPrivateAccess = "true"))
-    FVector DefaultMeshRelativeLocation = FVector(0.f, 0.f, -7.f); // 메쉬 위치 보정
+    FVector DefaultMeshRelativeLocation = FVector(0.f, 0.f, -7.f);
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visual", meta = (AllowPrivateAccess = "true"))
-    FRotator DefaultMeshRelativeRotation = FRotator(0.f, -90.f, 0.f); // 메쉬 회전 보정
+    FRotator DefaultMeshRelativeRotation = FRotator(0.f, -90.f, 0.f);
 #pragma endregion
 
 private:
@@ -616,14 +543,11 @@ private:
     void HandleBurnRollSucceeded();
     void ClearBurningState();
 
-    // 스프린트 입력 유지 여부
     bool bSprintHeld = false;
 
-    // 현재 스프린트 상태 여부
     bool bIsSprinting = false;
 
-    // 조준 홀드 상태
-    bool bAimHeld = false; //손승우 추가
+    bool bAimHeld = false;
 
     bool bAttackPrimaryHeld = false;
     bool bAttackSecondaryHeld = false;
@@ -640,170 +564,119 @@ private:
     EMHLongSwordCounterWindowType ActiveLongSwordCounterWindowType = EMHLongSwordCounterWindowType::None;
     FGameplayTag DamageIgnoreUntilCurrentMoveTag;
 
-    /** 현재 프레임 이동 입력 값 */
     FVector2D CachedMoveInput2D = FVector2D::ZeroVector;
 
-    /** 마지막으로 유효했던 이동 입력 값 */
     FVector2D LastNonZeroMoveInput2D = FVector2D::ZeroVector;
 
-    /** 마지막으로 해석된 회피 컨텍스트 */
     EMHDodgeContext LastResolvedDodgeContext = EMHDodgeContext::Sheathed;
 
-    /** 마지막으로 해석된 회피 방향 Variant */
     EMHDirectionalVariant LastResolvedDodgeVariant = EMHDirectionalVariant::None;
 
 #pragma region DirectionalTurnWindow
-    // 회전 조정 노티파이 스테이트 활성 여부
     bool bDirectionalTurnWindowActive = false;
 
-    // 회전 조정 시작 시점 기준 최대 허용 yaw 편차
     float DirectionalTurnWindowMaxYawDeltaDegrees = 0.0f;
 
-    // 회전 조정 속도(도/초). 0 이하면 목표 각도로 즉시 반영
     float DirectionalTurnWindowRotationInterpSpeed = 0.0f;
 
-    // 회전 조정이 시작될 때의 기준 yaw
     float DirectionalTurnWindowBaseYaw = 0.0f;
 #pragma endregion
 
-    // 납도 상태 특수 진입 후 첫 몽타주 종료 대기 여부
-    bool bPendingUnsheatheFromComboEntry = false; //손승우 추가
+    // 납도 상태에서 시작한 대검 입력이 발도 진입으로 확정되면 설정한다.
+    bool bPendingUnsheatheFromComboEntry = false;
 
-    // 현재 재생 중인 대검 유틸리티 몽타주
+    // 몽타주로 구동되는 대검 유틸리티 기술의 현재 몽타주다.
     UAnimMontage* ActiveGreatSwordUtilityMontage = nullptr;
 
-    // 현재 재생 중인 대검 유틸리티 기술 태그
+    // 현재 재생 중인 대검 유틸리티 몽타주와 짝을 이루는 이동 태그다.
     FGameplayTag ActiveGreatSwordUtilityMoveTag;
 
-    // 비주얼 적용
     void ApplyPlayerVisuals();
 
-    // 이동 설정 적용
     void ApplyMovementProfile(EMHPlayerMoveProfile InProfile);
 
-    // 로코모션 상태 갱신
     void UpdateLocomotionState();
 
-    // 스태미나 갱신
     void UpdateStamina(float DeltaSeconds);
 
-    // 스프린트 유지/해제 평가
     void EvaluateSprintState();
 
-    // 스프린트 시작 가능 여부
     bool CanStartSprint() const;
 
-    // 스프린트 설정값을 ASC 스태미나 속성에 동기화한다.
     void SyncStaminaAttributesFromConfig();
 
-    // 현재 스태미나 값을 ASC 스태미나 속성에 반영한다.
     void SetCurrentStaminaAttributeValue(float InNewValue);
 
-    // 최대 스태미나 값을 ASC 스태미나 속성에 반영한다.
     void SetMaxStaminaAttributeValue(float InNewValue);
 
-    // 플레이어 기본 체력, 방어력, 스태미나 값을 ASC 속성에 하드코딩 적용한다.
     void ApplyDefaultPlayerAttributes();
 
-    // 현재 체력 값을 ASC 체력 속성에 반영한다.
     void SetCurrentHealthAttributeValue(float InNewValue);
 
-    // 최대 체력 값을 ASC 체력 속성에 반영한다.
     void SetMaxHealthAttributeValue(float InNewValue);
 
-    // 방어력 값을 ASC 전투 속성에 반영한다.
     void SetDefenseAttributeValue(float InNewValue);
 
     // ===== Terrain Hooks =====
     // ===== End Terrain Hooks =====
 
 #pragma region WeaponRuntimeFunctions
-    // 무기 메쉬 적용
     void SpawnAndEquipDefaultWeapon();
     TSubclassOf<AMHWeaponInstance> ResolveStartupWeaponClass() const;
     
     //============================
-    // 무기 장착/해제 함수 _ 이건주
     bool EquipWeaponInstance(AMHWeaponInstance* InWeapon, bool bDestroyPreviousWeapon = true);
     void UnequipCurrentWeapon(bool bDestroyWeapon = true);
     //============================
 
-    // 무기 액터를 등 소켓에 부착
     void AttachWeaponActorToBack();
 
-    // 무기 칼 메쉬 반환
     USkeletalMeshComponent* GetWeaponBladeMesh() const;
 
-    // 무기 애니 설정 반환
     const FMHWeaponAnimConfig* GetEquippedWeaponAnimConfig() const;
 
-    // 무기 납도 상태로 부착
     void AttachWeaponToBack();
 
-    // 무기 발도 상태로 부착
     void AttachWeaponToHand();
 
-    // 지정한 캐릭터 소켓으로 무기를 부착
     void AttachWeaponToSocket(const FName& InSocketName);
 
-    // 좌클릭 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForPrimaryInput() const;
 
-    // 우클릭 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForSecondaryInput() const;
 
-    // Mouse4(실제 기인 축) 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForWeaponSpecialInput() const;
 
-    // 스페이스 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForDodgeInput() const;
 
-    // 동시 입력 조합을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForCompositeInput() const;
 
-    // Mouse5(실제 베어내리기 계열 축) 단일 입력을 기준으로 태도 패턴을 해석한다.
     FGameplayTag ResolveLongSwordPatternForAttackSimultaneousInput() const;
 #pragma endregion
 
 
-// ===== GreatSwordInput =====
+#pragma region GreatSwordRuntimeFunctions
 protected:
-    // 현재 장착 무기가 대검인지 확인한다.
     bool IsGreatSwordEquipped() const;
 
-    // 좌클릭 입력 시작을 대검 액션으로 변환한다.
+    // 해석이 끝난 대검 입력 패턴을 공용 경로로 처리한다.
+    bool TryHandleGreatSwordPatternInput(const FGameplayTag& InPatternTag, bool bInPromoteSheathedToUnsheathing);
+
     bool TryHandleGreatSwordPrimaryInput();
-
-    // 좌클릭 입력 종료를 대검 차지 릴리즈로 변환한다.
     bool TryHandleGreatSwordPrimaryRelease();
-
-    // 우클릭 입력을 대검 액션으로 변환한다.
     bool TryHandleGreatSwordSecondaryInput();
-
-    // Mouse4 입력을 대검 액션으로 변환한다.
     bool TryHandleGreatSwordWeaponSpecialInput();
-
-    // Mouse4 입력 해제 시 대검 가드 종료를 처리한다.
     bool TryHandleGreatSwordWeaponSpecialRelease();
-
-    // Mouse5 입력을 대검 액션으로 변환한다.
     bool TryHandleGreatSwordSimultaneousInput();
 
-    // 현재 대기 중인 대검 기술을 유틸리티/공격 실행으로 넘긴다.
+    // 대기 중인 대검 기술을 실행하고 실패 시 저장해 둔 상태를 복구한다.
     bool TryExecuteGreatSwordPendingMove();
 
-    // 현재 대기 중인 대검 기술을 실제 어빌리티 실행으로 넘긴다.
     bool TryActivateGreatSwordPrimaryAbility();
-
-    // 대검 차징/가드 유틸리티 몽타주를 직접 재생한다.
     bool TryPlayGreatSwordUtilityMontage(const FGameplayTag& InMoveTag);
-
-    // 대검 유틸리티 몽타주 종료 시 런타임 상태를 정리한다.
     void HandleGreatSwordUtilityMontageEnded(UAnimMontage* Montage, bool bInterrupted);
-
-    // 대검 공격 후 4방향 구르기 문맥인지 확인한다.
     bool IsGreatSwordAttackChainDodgeContext() const;
-// ===== End GreatSwordInput =====
+#pragma endregion
 
 #pragma region LongSwordRuntimeFunctions
     bool IsLongSwordEquipped() const;
@@ -821,20 +694,17 @@ protected:
     bool IsAttackAllowedForSpecialSheatheCounter(const FGameplayTag& InAttackTag) const;
     const FMHAttackDefinitionRow* FindAttackDefinitionRow(const FGameplayTag& InAttackTag) const;
     bool FindAttackMetaRow(const FGameplayTag& InMoveTag, FMHAttackMetaRow& OutAttackMetaRow) const;
+    bool FindEquippedWeaponAttackMetaRow(const FGameplayTag& InMoveTag, FMHAttackMetaRow& OutAttackMetaRow) const;
 
-    // 태도 기술 시작 시 선소모 게이지와 후속 권한 소모를 적용한다.
     void ApplyLongSwordMoveStartCost(const FGameplayTag& InMoveTag);
 
-    // 태도 공격 적중 시 기인 게이지 획득과 단계 보상을 적용한다.
     void ApplyLongSwordMoveHitReward(const FGameplayTag& InMoveTag);
 
-    // 태도 카운터 성공 시 기술별 성공 보상을 적용한다.
     void ApplyLongSwordCounterSuccessReward(const FGameplayTag& InMoveTag, EMHLongSwordCounterWindowType InCounterWindowType);
 
     float GetCurrentSpiritDamageMultiplier() const;
     
     
-    // 기인 게이지 브로드캐스트 포함
     void SetSpiritGaugeValues(const float InSpiritValue, const float InMaxSpiritValue);
     void SetCurrentSpiritGauge(const float InSpiritValue);
     void SetMaxSpiritGuage(const float InMaxSpiritValue);
@@ -845,13 +715,10 @@ protected:
     void DecreaseSpiritLevel(int32 InAmount = 1);
     FMHHitAcknowledge BuildLongSwordInvulnerableHitAcknowledge() const;
 
-    // 발도 상태에서 첫 시작 공격을 선택하는 문맥인지 확인한다.
     bool IsLongSwordStartAttackContext() const;
 
-    // 현재 콤보가 진행 중인 파생 문맥인지 확인한다.
     bool IsLongSwordFollowupContext() const;
 
-    // 베어내리기 계열에서 좌우 이동베기 Variant를 사용할 수 있는지 확인한다.
     bool ShouldUseDirectionalLateralFadeSlash() const;
     bool ShouldUseLateralFadeSlashPattern() const;
     
@@ -861,7 +728,6 @@ public:
 #pragma endregion
 
 
-    //롤 입력 차단을 위한
     bool bRollMontagePlaying = false;
 public:
     FGameplayTag GetCurrentWeaponTypeGameplayTag() const;
@@ -870,31 +736,22 @@ public:
 
 protected:
 
-    /** 최근 이동 입력을 우선 사용하고, 없다면 마지막 유효 입력을 fallback으로 사용한다. */
     FVector2D GetPreferredMoveInput2D() const;
 
-    /** 입력 방향을 전/후/좌/우 Variant로 양자화한다. */
     EMHDirectionalVariant ResolveDirectionalVariantFromInput(bool bPreserveActorFacing) const;
 
-    /** 납도 롤 / 발도 중립 롤에서 방향 입력 쪽으로 캐릭터를 회전시킨다. */
     bool TryRotateActorTowardsMoveInput();
 
-    /** 노티파이 스테이트로 열어둔 회전 조정 구간에서 입력 방향 기준 회전을 갱신한다. */
     void UpdateDirectionalTurnWindow(float DeltaSeconds);
 
-    /** 입력 방향과 회전 제한값을 이용해 실제 회전을 적용한다. */
     bool TryApplyDirectionalTurnWindowRotation(float DeltaSeconds);
 
-    /** 공격 후 연계 회피 컨텍스트인지 판정한다. */
     bool IsLongSwordAttackChainDodgeContext() const;
 
-    /** 현재 상태에 맞는 납도 롤 몽타주 반환 */
     UAnimMontage* ResolveSheathedRollMontage() const;
 
-    /** 현재 상태에 맞는 발도 롤 몽타주 반환 */
     UAnimMontage* ResolveUnsheathedRollMontage() const;
 
-    /** 루트모션 롤 몽타주를 공통 방식으로 재생한다. */
     bool TryPlayRollMontage(UAnimMontage* InMontage);
 
     bool IsLongSwordDrawEntryPattern(const FGameplayTag& InPatternTag) const;
@@ -902,29 +759,21 @@ protected:
     bool TryHandleWeaponComboInput(const FGameplayTag& InPatternTag);
     bool TryRequestLongSwordEarlyTransition();
 
-    // 납도 시작 가능 여부
     bool CanStartSheathe() const;
 
-    // 납도 몽타주 재생
     void StartSheathe();
 
-    // 납도 몽타주 종료 처리
     void HandleSheatheMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
-    // 구르기 몽타주 종료 처리
     void HandleRollMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 #pragma region WeaponAnimationLayerFunctions
-    // 현재 장착 무기의 애님 레이어 갱신
     void RefreshWeaponAnimationLayerState();
 
-    // 현재 장착 무기의 애님 레이어 연결
     void LinkCurrentWeaponAnimLayer();
 
-    // 현재 장착 무기의 애님 레이어 해제
     void UnlinkCurrentWeaponAnimLayer();
 
-    // 현재 장착 무기의 링크 대상 레이어 클래스 반환
     TSoftClassPtr<UAnimInstance> GetCurrentWeaponLinkedAnimLayerClass() const;
 #pragma endregion
 
@@ -933,7 +782,7 @@ protected:
     
     
     
-#pragma region Attribute Delegate _이건주
+#pragma region AttributeDelegate
 public:
     UPROPERTY(BlueprintAssignable, Category="UI|Attributes")
     FMHOnVitalChanged OnHealthChanged;
@@ -974,12 +823,10 @@ protected:
     void BroadcastSpiritLevelChanged();
     void BroadcastSpiritLevelTimerChanged();
 
-    // 중복 바인딩 가드 플래그
     bool bAttributeDelegatesBound = false;
 #pragma endregion
 
 public:
-    // delegate 추가
     UPROPERTY(BlueprintAssignable, Category="UI|Attributes")
     FMHOnVitalChanged OnHealableHealthChanged;
     UPROPERTY(BlueprintAssignable, Category="UI|Items")
@@ -1039,3 +886,7 @@ private:
     TSubclassOf<UGameplayAbility> PotionAbilityClass;
         
 };
+
+
+
+

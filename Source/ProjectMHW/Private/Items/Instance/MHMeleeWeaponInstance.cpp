@@ -203,7 +203,7 @@ void AMHMeleeWeaponInstance::PlayAcceptedHitCameraShake()
 		return;
 	}
 
-	PlayerOwner->PlayLongSwordHitCameraShake(CurrentAttackTag);
+	PlayerOwner->PlayWeaponHitCameraShake(CurrentAttackTag);
 }
 
 FVector AMHMeleeWeaponInstance::ResolveImpactPoint(

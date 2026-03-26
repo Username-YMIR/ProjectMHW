@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -7,35 +5,53 @@
 #include "Items/Data/MHGreatSwordItemData.h"
 #include "MHGreatSwordInstance.generated.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogMHGreatSwordInstance, Log, All);
+
 class UMHGreatSwordActionComponent;
+class UMHGreatSwordChargeStateComponent;
+class UMHGreatSwordComboGraph;
 
 UCLASS()
 class PROJECTMHW_API AMHGreatSwordInstance : public AMHMeleeWeaponInstance
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	// Sets default values for this actor's properties
-	AMHGreatSwordInstance();
+    AMHGreatSwordInstance();
 
+// ===== Lifecycle =====
 protected:
-	virtual void ApplyItemData() override;
-	virtual void BeginPlay() override;
+    virtual void ApplyItemData() override;
+    virtual void BeginPlay() override;
 
-#pragma region Components
-	// 대검 입력 상태와 차징 상태를 관리하는 컴포넌트
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|GreatSword", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UMHGreatSwordActionComponent> ActionComponent;
+// ===== GreatSwordObjects =====
+#pragma region GreatSwordObjects
+protected:
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|GreatSword", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UMHGreatSwordActionComponent> ActionComponent;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|GreatSword", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UMHGreatSwordChargeStateComponent> ChargeStateComponent;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|GreatSword", meta = (AllowPrivateAccess = "true"))
+    TSoftObjectPtr<UMHGreatSwordComboGraph> ComboGraphAsset;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UMHGreatSwordComboGraph> RuntimeComboGraph;
 #pragma endregion
 
+// ===== Accessors =====
 public:
-	UMHGreatSwordActionComponent* GetActionComponent() const { return ActionComponent; }
+    UMHGreatSwordActionComponent* GetActionComponent() const { return ActionComponent; }
+    UMHGreatSwordChargeStateComponent* GetChargeStateComponent() const { return ChargeStateComponent; }
+    UMHGreatSwordComboGraph* GetComboGraph() const;
 
+// ===== Internal =====
 private:
-	FORCEINLINE const UMHGreatSwordItemData* GetGreatSwordData() const
-	{
-		const UMHGreatSwordItemData* Data = Cast<UMHGreatSwordItemData>(CachedItemData);
-		ensure(Data);
-		return Data;
-	}
+    FORCEINLINE const UMHGreatSwordItemData* GetGreatSwordData() const
+    {
+        const UMHGreatSwordItemData* Data = Cast<UMHGreatSwordItemData>(CachedItemData);
+        ensure(Data);
+        return Data;
+    }
 };
