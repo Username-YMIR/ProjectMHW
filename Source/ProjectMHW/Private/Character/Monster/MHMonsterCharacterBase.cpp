@@ -1242,6 +1242,13 @@ void AMHMonsterCharacterBase::HandleDeath()
         MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     }
 
+    if (!bMonsterDeathBroadcasted)
+    {
+        bMonsterDeathBroadcasted = true;
+        OnMonsterDied.Broadcast(this);
+
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("HandleDeath | OnMonsterDied broadcast"));
+    }
 }
 
 void AMHMonsterCharacterBase::PlayHitImpactFXByAttackTag(
