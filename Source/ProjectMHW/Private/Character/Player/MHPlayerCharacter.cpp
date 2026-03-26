@@ -432,13 +432,15 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
         }
 
         const bool bSheathed = WeaponSheathState == EMHWeaponSheathState::Sheathed;
+        const EMHGreatSwordActionState GreatSwordActionState = ActionComponent->GetActionState();
         EMHDirectionalVariant DodgeVariant = EMHDirectionalVariant::Forward;
+        bool bShouldRotateTowardsMoveInput = false;
 
         if (bSheathed)
         {
             LastResolvedDodgeContext = EMHDodgeContext::Sheathed;
             LastResolvedDodgeVariant = EMHDirectionalVariant::Forward;
-            TryRotateActorTowardsMoveInput();
+            bShouldRotateTowardsMoveInput = true;
         }
         else if (ActionComponent->IsAttackRollWindowOpen())
         {
@@ -446,11 +448,18 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
             DodgeVariant = ResolveDirectionalVariantFromInput(true);
             LastResolvedDodgeVariant = DodgeVariant;
         }
-        else
+        else if (GreatSwordActionState == EMHGreatSwordActionState::Neutral || GreatSwordActionState == EMHGreatSwordActionState::Guarding)
         {
             LastResolvedDodgeContext = EMHDodgeContext::UnsheathedNeutral;
             LastResolvedDodgeVariant = EMHDirectionalVariant::Forward;
-            TryRotateActorTowardsMoveInput();
+            bShouldRotateTowardsMoveInput = true;
+        }
+        else
+        {
+            // 공격 중 롤 윈도우가 열리기 전 입력은 선회만 일으키지 않도록 막는다.
+            LastResolvedDodgeContext = EMHDodgeContext::AttackChain;
+            DodgeVariant = ResolveDirectionalVariantFromInput(true);
+            LastResolvedDodgeVariant = DodgeVariant;
         }
 
         // 이번 프레임에 회피 실행이 실패하면 이 스냅샷으로 상태를 되돌린다.
@@ -459,11 +468,14 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
 
         const EMHWeaponSheathState PreviousSheathState = WeaponSheathState;
         const bool bPreviousPendingUnsheathe = bPendingUnsheatheFromComboEntry;
+        const FRotator PreviousActorRotation = GetActorRotation();
 
         if (!ActionComponent->HandleDodgePressed(bSheathed, DodgeVariant))
         {
             return;
         }
+
+        const bool bAppliedPreDodgeRotation = bShouldRotateTowardsMoveInput && TryRotateActorTowardsMoveInput();
 
         if (bSheathed)
         {
@@ -476,6 +488,10 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
             WeaponSheathState = PreviousSheathState;
             bPendingUnsheatheFromComboEntry = bPreviousPendingUnsheathe;
             ActionComponent->RestoreRuntimeSnapshot(ActionSnapshot);
+            if (bAppliedPreDodgeRotation)
+            {
+                SetActorRotation(PreviousActorRotation);
+            }
 
             UE_LOG(
                 LogMHPlayerCharacter,
@@ -4839,7 +4855,6 @@ void AMHPlayerCharacter::BroadcastSpiritLevelTimerChanged()
 }
 
 #pragma endregion
-
 
 
 
