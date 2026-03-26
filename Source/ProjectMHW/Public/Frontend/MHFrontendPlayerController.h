@@ -1,11 +1,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "UObject/SoftObjectPtr.h"
 #include "GameFramework/PlayerController.h"
 #include "MHFrontendPlayerController.generated.h"
 
 class UMHLoadingWidget;
 class UMHMainMenuWidget;
+class UWorld;
 
 UCLASS()
 class PROJECTMHW_API AMHFrontendPlayerController : public APlayerController
@@ -37,7 +39,7 @@ protected:
 	TSubclassOf<UMHLoadingWidget> LoadingWidgetClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="MH|Frontend")
-	FName BattleLevelName = NAME_None;
+	TSoftObjectPtr<UWorld> BattleLevel;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMHMainMenuWidget> MainMenuWidget = nullptr;

@@ -44,11 +44,11 @@ void AMHFrontendPlayerController::HandleStartBattleRequested(UClass* SelectedWea
 
 	ShowLoadingScreen();
 
-	if (!FrontendGameInstance->StartBattleTransition(BattleLevelName))
+	if (!FrontendGameInstance->StartBattleTransition(BattleLevel))
 	{
 		if (LoadingWidget)
 		{
-			LoadingWidget->SetStatusText(FText::FromString(TEXT("Battle level is not configured.")));
+			LoadingWidget->SetStatusText(FText::FromString(TEXT("Battle level asset is not configured.")));
 			LoadingWidget->SetProgress(0.0f);
 		}
 	}
