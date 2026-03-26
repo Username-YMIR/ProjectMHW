@@ -88,6 +88,17 @@ void AMHMonsterCharacterBase::BeginPlay()
     
 }
 
+void AMHMonsterCharacterBase::Landed(const FHitResult& Hit)
+{
+    Super::Landed(Hit);
+
+    if (bChargeP2InAir && bChargeP2LandingPrepared)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("Landed | resolving ChargeP2 impact"));
+        ExecuteChargeP2ImpactSnap();
+    }
+}
+
 bool AMHMonsterCharacterBase::TryActivateMonsterAbilityByTag(FGameplayTag AbilityTag)
 {
     
@@ -829,6 +840,7 @@ void AMHMonsterCharacterBase::ExecuteChargeP2Jump()
     }
 
     FaceCombatTargetInstant();
+    bChargeP2InAir = false;
 
     FVector FlatDelta = CachedChargeP2LandingPoint - GetActorLocation();
     FlatDelta.Z = 0.f;
@@ -847,9 +859,9 @@ void AMHMonsterCharacterBase::ExecuteChargeP2Jump()
         ChargeP2MaxXYLaunchSpeed
     );
 
-    //const FVector LaunchVelocity = Dir2D * XYSpeed + FVector(0.f, 0.f, ChargeP2JumpZVelocity);
-    const FVector LaunchVelocity = FVector(0.f, 0.f, ChargeP2JumpZVelocity);
+    const FVector LaunchVelocity = Dir2D * XYSpeed + FVector(0.f, 0.f, ChargeP2JumpZVelocity);
 
+    bChargeP2InAir = true;
     LaunchCharacter(LaunchVelocity, true, true);
 
     UE_LOG(MHMonsterCharacterBase, Warning,
@@ -871,6 +883,88 @@ void AMHMonsterCharacterBase::ExecuteChargeP2ImpactSnap()
         GetCharacterMovement()->StopMovementImmediately();
     }
 
+    StartChargeP2ImpactBlend();
+
+}
+
+void AMHMonsterCharacterBase::ClearChargeP2Landing()
+{
+    GetWorldTimerManager().ClearTimer(ChargeP2ImpactBlendTimer);
+    bChargeP2LandingPrepared = false;
+    bChargeP2InAir = false;
+    bChargeP2ImpactBlending = false;
+    ChargeP2ImpactBlendElapsed = 0.f;
+    ChargeP2ImpactBlendStartLocation = FVector::ZeroVector;
+    CachedChargeP2LandingPoint = FVector::ZeroVector;
+
+}
+
+void AMHMonsterCharacterBase::StartChargeP2ImpactBlend()
+{
+    GetWorldTimerManager().ClearTimer(ChargeP2ImpactBlendTimer);
+
+    ChargeP2ImpactBlendStartLocation = GetActorLocation();
+    ChargeP2ImpactBlendElapsed = 0.f;
+    bChargeP2ImpactBlending = true;
+
+    const float DistToImpact = FVector::Dist2D(ChargeP2ImpactBlendStartLocation, CachedChargeP2LandingPoint);
+    if (DistToImpact <= 5.f || ChargeP2ImpactBlendDuration <= KINDA_SMALL_NUMBER)
+    {
+        FinishChargeP2ImpactBlend();
+        return;
+    }
+
+    UE_LOG(MHMonsterCharacterBase, Warning,
+        TEXT("StartChargeP2ImpactBlend | Start=(%.1f, %.1f, %.1f) Target=(%.1f, %.1f, %.1f) Duration=%.2f"),
+        ChargeP2ImpactBlendStartLocation.X,
+        ChargeP2ImpactBlendStartLocation.Y,
+        ChargeP2ImpactBlendStartLocation.Z,
+        CachedChargeP2LandingPoint.X,
+        CachedChargeP2LandingPoint.Y,
+        CachedChargeP2LandingPoint.Z,
+        ChargeP2ImpactBlendDuration);
+
+    GetWorldTimerManager().SetTimer(
+        ChargeP2ImpactBlendTimer,
+        this,
+        &AMHMonsterCharacterBase::UpdateChargeP2ImpactBlend,
+        0.016f,
+        true
+    );
+}
+
+void AMHMonsterCharacterBase::UpdateChargeP2ImpactBlend()
+{
+    if (!bChargeP2ImpactBlending)
+    {
+        GetWorldTimerManager().ClearTimer(ChargeP2ImpactBlendTimer);
+        return;
+    }
+
+    ChargeP2ImpactBlendElapsed += 0.016f;
+    const float Alpha = FMath::Clamp(ChargeP2ImpactBlendElapsed / FMath::Max(ChargeP2ImpactBlendDuration, 0.01f), 0.f, 1.f);
+    const FVector NewLocation = FMath::Lerp(ChargeP2ImpactBlendStartLocation, CachedChargeP2LandingPoint, Alpha);
+
+    SetActorLocation(
+        NewLocation,
+        false,
+        nullptr,
+        ETeleportType::TeleportPhysics
+    );
+
+    FaceCombatTargetInstant();
+
+    if (Alpha >= 1.f)
+    {
+        FinishChargeP2ImpactBlend();
+    }
+}
+
+void AMHMonsterCharacterBase::FinishChargeP2ImpactBlend()
+{
+    GetWorldTimerManager().ClearTimer(ChargeP2ImpactBlendTimer);
+    bChargeP2ImpactBlending = false;
+
     SetActorLocation(
         CachedChargeP2LandingPoint,
         false,
@@ -879,22 +973,15 @@ void AMHMonsterCharacterBase::ExecuteChargeP2ImpactSnap()
     );
 
     FaceCombatTargetInstant();
+    bChargeP2InAir = false;
 
     UE_LOG(MHMonsterCharacterBase, Warning,
-        TEXT("ExecuteChargeP2ImpactSnap | SnapTo=(%.1f, %.1f, %.1f)"),
+        TEXT("FinishChargeP2ImpactBlend | Target=(%.1f, %.1f, %.1f)"),
         CachedChargeP2LandingPoint.X,
         CachedChargeP2LandingPoint.Y,
         CachedChargeP2LandingPoint.Z);
 
     ClearChargeP2Landing();
-    
-}
-
-void AMHMonsterCharacterBase::ClearChargeP2Landing()
-{
-    bChargeP2LandingPrepared = false;
-    CachedChargeP2LandingPoint = FVector::ZeroVector;
-    
 }
 
 FMHHitAcknowledge AMHMonsterCharacterBase::ReceiveDamageSpec_Implementation(
@@ -1485,9 +1572,18 @@ void AMHMonsterCharacterBase::FinishPhase2Transition()
     {
         MonsterAI->SetPhaseTransition(false);
         MonsterAI->SetPhase2(true);
+        MonsterAI->SetInCombat(true);
+        MonsterAI->SetIsRoaring(false);
+        MonsterAI->SetCombatTarget(CombatTarget);
+    }
+
+    if (CombatTarget)
+    {
+        SetCombatTarget(CombatTarget);
     }
 
     SetMonsterAttacking(false);
+    EnterCombatPhase();
     
 }
 

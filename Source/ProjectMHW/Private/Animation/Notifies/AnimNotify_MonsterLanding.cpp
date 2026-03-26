@@ -14,6 +14,11 @@ void UAnimNotify_MonsterLanding::Notify(USkeletalMeshComponent* MeshComp, UAnimS
 
 	if (AMHMonsterCharacterBase* Monster = Cast<AMHMonsterCharacterBase>(MeshComp->GetOwner()))
 	{
+		if (Monster->IsChargeP2InAir())
+		{
+			return;
+		}
+
 		Monster->ExecuteChargeP2ImpactSnap();
 	}
 	

@@ -36,6 +36,7 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+    virtual void Landed(const FHitResult& Hit) override;
 
 public:
     UFUNCTION(BlueprintPure , Category="Monster|Combat")
@@ -127,7 +128,7 @@ public:
     float ChargeP2JumpZVelocity = 1000.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
-    float ChargeP2AirTime = 0.1f;
+    float ChargeP2AirTime = 0.6f;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
     float ChargeP2MinXYLaunchSpeed = 100.f;
@@ -141,6 +142,24 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
     bool bChargeP2LandingPrepared = false;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    bool bChargeP2InAir = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    float ChargeP2ImpactBlendDuration = 0.1f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    bool bChargeP2ImpactBlending = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    FVector ChargeP2ImpactBlendStartLocation = FVector::ZeroVector;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|ChargeP2")
+    float ChargeP2ImpactBlendElapsed = 0.f;
+
+    UFUNCTION(BlueprintPure, Category="Monster|ChargeP2")
+    bool IsChargeP2InAir() const { return bChargeP2InAir; }
+
     UFUNCTION(BlueprintCallable, Category="Monster|ChargeP2")
     void PrepareChargeP2Landing();
 
@@ -152,6 +171,13 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Monster|ChargeP2")
     void ClearChargeP2Landing();
+
+protected:
+    void StartChargeP2ImpactBlend();
+    void UpdateChargeP2ImpactBlend();
+    void FinishChargeP2ImpactBlend();
+
+    FTimerHandle ChargeP2ImpactBlendTimer;
     
     
 #pragma endregion

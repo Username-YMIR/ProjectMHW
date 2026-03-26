@@ -32,6 +32,9 @@ protected:
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly , Category="Attack")
 	TObjectPtr<UAnimMontage> AttackMontage = nullptr;
+
+	UPROPERTY(Transient)
+	FGameplayTag ActiveAttackTag;
 	
 	UPROPERTY(Transient)
 	TObjectPtr<UAbilityTask_PlayMontageAndWait> MontageTask;
@@ -43,8 +46,13 @@ protected:
 	void OnMontageInterrupted();
 
 	void ClearTask();
+	bool IsChargeP2AttackTag(const FGameplayTag& AttackTag) const;
+	void BeginWaitingForChargeP2Landing();
+	void PollChargeP2Landing();
 	
 	FGameplayTag ResolveAttackTag(const FGameplayAbilitySpecHandle Handle,
 	const FGameplayAbilityActorInfo* ActorInfo) const;
+
+	FTimerHandle ChargeP2LandingWaitTimer;
 	
 };

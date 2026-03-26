@@ -7,6 +7,7 @@
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "AbilitySystemComponent.h"
 #include "Character/Monster/MHMonsterCharacterBase.h"
+#include "TimerManager.h"
 
 DEFINE_LOG_CATEGORY(GAMonsterAttack)
 
@@ -53,6 +54,7 @@ void UGA_MHMonsterAttackBasic::ActivateAbility(const FGameplayAbilitySpecHandle 
     }
 
     const FGameplayTag ResolvedAttackTag = ResolveAttackTag(Handle, ActorInfo);
+    ActiveAttackTag = ResolvedAttackTag;
 
 	const FGameplayTag ChargeP2Tag =
 	FGameplayTag::RequestGameplayTag(FName("Ability.Monster.Attack.Charge.P2"));
@@ -125,7 +127,19 @@ void UGA_MHMonsterAttackBasic::ActivateAbility(const FGameplayAbilitySpecHandle 
     MontageTask->OnInterrupted.AddDynamic(this, &UGA_MHMonsterAttackBasic::OnMontageInterrupted);
     MontageTask->OnCancelled.AddDynamic(this, &UGA_MHMonsterAttackBasic::OnMontageInterrupted);
     MontageTask->ReadyForActivation();
-
+	
+	// todo 디버그용
+	if (Monster->GetMesh())
+	{
+		if (UAnimInstance* AnimInst = Monster->GetMesh()->GetAnimInstance())
+		{
+			UE_LOG(GAMonsterAttack, Warning,
+				TEXT("AnimInst=%s CurrentActiveMontage=%s IsPlayingSelected=%d"),
+				*GetNameSafe(AnimInst),
+				*GetNameSafe(AnimInst->GetCurrentActiveMontage()),
+				AnimInst->Montage_IsPlaying(MontageToPlay) ? 1 : 0);
+		}
+	}
 	
 }
 
@@ -133,6 +147,11 @@ void UGA_MHMonsterAttackBasic::EndAbility(const FGameplayAbilitySpecHandle Handl
 	const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,
 	bool bReplicateEndAbility, bool bWasCancelled)
 {
+	UE_LOG(GAMonsterAttack, Warning,
+		TEXT("MHGA_MonsterAttackBasic::EndAbility | Tag=%s Cancelled=%d Avatar=%s"),
+		*ActiveAttackTag.ToString(),
+		bWasCancelled ? 1 : 0,
+		ActorInfo && ActorInfo->AvatarActor.IsValid() ? *GetNameSafe(ActorInfo->AvatarActor.Get()) : TEXT("None"));
 	
 	if (ActorInfo && ActorInfo->AvatarActor.IsValid())
 	{
@@ -146,6 +165,11 @@ void UGA_MHMonsterAttackBasic::EndAbility(const FGameplayAbilitySpecHandle Handl
 	}
 	
 	ClearTask();
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ChargeP2LandingWaitTimer);
+	}
+	ActiveAttackTag = FGameplayTag();
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 	
 	
@@ -154,13 +178,37 @@ void UGA_MHMonsterAttackBasic::EndAbility(const FGameplayAbilitySpecHandle Handl
 
 void UGA_MHMonsterAttackBasic::OnMontageCompleted()
 {
+	UE_LOG(GAMonsterAttack, Warning, TEXT("MHGA_MonsterAttackBasic | Montage Completed"));
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 	
+	UE_LOG(GAMonsterAttack, Warning,
+		TEXT("MHGA_MonsterAttackBasic::OnMontageCompleted | Tag=%s"),
+		*ActiveAttackTag.ToString());
+
+	if (CurrentActorInfo && CurrentActorInfo->AvatarActor.IsValid())
+	{
+		if (AMHMonsterCharacterBase* Monster = Cast<AMHMonsterCharacterBase>(CurrentActorInfo->AvatarActor.Get()))
+		{
+			if (IsChargeP2AttackTag(ActiveAttackTag) && Monster->IsChargeP2InAir())
+			{
+				UE_LOG(GAMonsterAttack, Warning,
+					TEXT("MHGA_MonsterAttackBasic | Charge.P2 montage completed in air, waiting for landing"));
+				BeginWaitingForChargeP2Landing();
+				return;
+			}
+		}
+	}
+
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 
 }
 
 void UGA_MHMonsterAttackBasic::OnMontageInterrupted()
 {
+	UE_LOG(GAMonsterAttack, Warning,
+		TEXT("MHGA_MonsterAttackBasic::OnMontageInterrupted | Tag=%s"),
+		*ActiveAttackTag.ToString());
+
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 	
@@ -174,6 +222,48 @@ void UGA_MHMonsterAttackBasic::ClearTask()
 		MontageTask = nullptr;
 	}
 	
+}
+
+bool UGA_MHMonsterAttackBasic::IsChargeP2AttackTag(const FGameplayTag& AttackTag) const
+{
+	return AttackTag == MHGameplayTags::Ability_Monster_Attack_Charge_P2;
+}
+
+void UGA_MHMonsterAttackBasic::BeginWaitingForChargeP2Landing()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(
+			ChargeP2LandingWaitTimer,
+			this,
+			&UGA_MHMonsterAttackBasic::PollChargeP2Landing,
+			0.02f,
+			true
+		);
+	}
+}
+
+void UGA_MHMonsterAttackBasic::PollChargeP2Landing()
+{
+	if (!CurrentActorInfo || !CurrentActorInfo->AvatarActor.IsValid())
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+		return;
+	}
+
+	const AMHMonsterCharacterBase* Monster = Cast<AMHMonsterCharacterBase>(CurrentActorInfo->AvatarActor.Get());
+	if (!Monster)
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+		return;
+	}
+
+	if (Monster->IsChargeP2InAir())
+	{
+		return;
+	}
+
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
 
 FGameplayTag UGA_MHMonsterAttackBasic::ResolveAttackTag(const FGameplayAbilitySpecHandle Handle,
