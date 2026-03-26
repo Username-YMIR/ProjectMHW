@@ -23,6 +23,8 @@ class UMHCombatAttributeSet;
 class AMHDamageTextWidgetActor;
 class UNiagaraSystem;
 class AMHMonsterCharacterBase;
+class UDataTable;
+struct FMHAttackMetaRow;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMHOnMonsterDied, AMHMonsterCharacterBase*, Monster);
 
@@ -224,9 +226,18 @@ protected:
         const FHitResult& HitResult
     );
 
+    bool FindHitReactionAttackMetaRow(
+        FGameplayTag AttackTag,
+        FMHAttackMetaRow& OutAttackMetaRow,
+        const UDataTable*& OutAttackMetaTable
+    ) const;
+
 protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Combat|Data")
-    TObjectPtr<UDataTable> AttackMetaTable = nullptr;
+    TObjectPtr<UDataTable> LongSwordAttackMetaTable = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Combat|Data")
+    TObjectPtr<UDataTable> GreatSwordAttackMetaTable = nullptr;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="UI|DamageText")
     TSubclassOf<AMHDamageTextWidgetActor> DamageTextWidgetActorClass;

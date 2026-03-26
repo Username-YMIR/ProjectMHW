@@ -466,6 +466,15 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
     float SpiritLevelMultiplierLv3 = 1.20f;
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
+    float IaiSlashSpiritRegenDuration = 15.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
+    float IaiSlashSpiritRegenPerSecond = 10.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
+    float SpecialSheatheInputGraceWindow = 0.25f;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true"))
     EMHLongSwordHelmbreakerPhase CurrentLongSwordHelmbreakerPhase = EMHLongSwordHelmbreakerPhase::None;
 #pragma endregion
@@ -475,6 +484,9 @@ protected:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Sharpness", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UAnimMontage> SharpnessBounceMontage = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|GreatSword", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
+    float GreatSwordGuardSharpnessCost = 10.0f;
 
 #pragma region Debug
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug|Damage", meta = (AllowPrivateAccess = "true"))
@@ -540,11 +552,14 @@ private:
     TObjectPtr<UNiagaraComponent> BurningLoopNiagaraComponent;
 
     FTimerHandle BurnDamageTimerHandle;
+    FTimerHandle LongSwordIaiSlashSpiritRegenTimerHandle;
 
     bool IsDamageHitReactActive() const;
     bool ResolveDamageHitReactFacingYaw(AActor* SourceActor, const FHitResult& HitResult, FRotator& OutFacingRotation) const;
     bool IsGreatSwordRollUtilityMoveActive() const;
+    bool IsGreatSwordGuardImpactActive() const;
     bool IsDamageImmuneDuringDodgeRoll() const;
+    bool TryHandleGreatSwordGuardSuccess(AActor* SourceActor, const FGameplayTag& AttackTag, const FHitResult& HitResult);
     bool TryPlayDamageHitReactMontage(AActor* SourceActor, const FHitResult& HitResult);
     bool TryPlayDeathMontage();
     void HandleDamageHitReactMontageEnded(UAnimMontage* Montage, bool bInterrupted);
@@ -561,6 +576,7 @@ private:
     void ClearBurningState();
 
     bool bSprintHeld = false;
+    bool bSprintSheatheRequested = false;
 
     bool bIsSprinting = false;
 
@@ -578,6 +594,9 @@ private:
     bool bLongSwordForesightFreeSpiritRoundslashReady = false;
     bool bIgnoreDamageUntilCurrentActionEnd = false;
     bool bLongSwordHelmbreakerDamageImmune = false;
+    float LongSwordIaiSlashSpiritRegenRemainingTime = 0.0f;
+    float LastLongSwordWeaponSpecialInputTime = -1.0f;
+    float LastLongSwordDodgeInputTime = -1.0f;
 
     EMHLongSwordCounterWindowType ActiveLongSwordCounterWindowType = EMHLongSwordCounterWindowType::None;
     FGameplayTag DamageIgnoreUntilCurrentMoveTag;
@@ -621,6 +640,8 @@ private:
     void EvaluateSprintState();
 
     bool CanStartSprint() const;
+    bool CanSpendStamina(float Amount) const;
+    void SpendStamina(float Amount, const TCHAR* InReason);
 
     void SyncStaminaAttributesFromConfig();
 
@@ -722,6 +743,12 @@ protected:
     void ApplyLongSwordMoveHitReward(const FGameplayTag& InMoveTag);
 
     void ApplyLongSwordCounterSuccessReward(const FGameplayTag& InMoveTag, EMHLongSwordCounterWindowType InCounterWindowType);
+    void StartLongSwordIaiSlashSpiritRegen();
+    void StopLongSwordIaiSlashSpiritRegen();
+    void HandleLongSwordIaiSlashSpiritRegenTick();
+    bool CanUseLongSwordSpecialSheatheInput() const;
+    bool IsLongSwordInputWithinGraceWindow(float InLastInputTime) const;
+    void ConsumeLongSwordSpecialSheatheInputWindow();
 
     float GetCurrentSpiritDamageMultiplier() const;
     
@@ -768,6 +795,9 @@ protected:
     bool TryApplyDirectionalTurnWindowRotation(float DeltaSeconds);
 
     bool IsLongSwordAttackChainDodgeContext() const;
+
+    bool IsMovingForSheathe() const;
+    UAnimMontage* ResolveSheatheMontage() const;
 
     UAnimMontage* ResolveSheathedRollMontage() const;
 

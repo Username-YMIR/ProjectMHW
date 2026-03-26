@@ -1256,14 +1256,16 @@ void AMHMonsterCharacterBase::PlayHitImpactFXByAttackTag(
 	const FHitResult& HitResult
 )
 {
-	if (!IsValid(AttackMetaTable))
+    const bool bHasAnyAttackMetaTable = IsValid(LongSwordAttackMetaTable) || IsValid(GreatSwordAttackMetaTable);
+	if (!bHasAnyAttackMetaTable)
 	{
-		UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayHitImpactFXByAttackTag : AttackMetaTable is invalid"));
+		UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayHitImpactFXByAttackTag : AttackMetaTables are invalid"));
 		return;
 	}
 
-	FMHAttackMetaRow AttackMetaRow;
-	if (!UMHCombatDataLibrary::FindAttackMetaRowByTag(AttackMetaTable, AttackTag, AttackMetaRow))
+    const UDataTable* ResolvedAttackMetaTable = nullptr;
+    FMHAttackMetaRow AttackMetaRow;
+	if (!FindHitReactionAttackMetaRow(AttackTag, AttackMetaRow, ResolvedAttackMetaTable))
 	{
 		UE_LOG(MHMonsterCharacterBase, Verbose, TEXT("PlayHitImpactFXByAttackTag : AttackMetaRow not found -> %s"), *AttackTag.ToString());
 		return;
@@ -1292,8 +1294,8 @@ void AMHMonsterCharacterBase::PlayHitImpactFXByAttackTag(
 		SpawnLocation,
 		SpawnRotation
 	);
-    
-    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("SpawnSystemAtLocation"));
+
+    UE_LOG(MHMonsterCharacterBase, Verbose, TEXT("PlayHitImpactFXByAttackTag : Spawned from %s"), *GetNameSafe(ResolvedAttackMetaTable));
 }
 
 void AMHMonsterCharacterBase::PlayHitSoundByAttackTag(
@@ -1301,14 +1303,16 @@ void AMHMonsterCharacterBase::PlayHitSoundByAttackTag(
 	const FHitResult& HitResult
 )
 {
-	if (!IsValid(AttackMetaTable))
+    const bool bHasAnyAttackMetaTable = IsValid(LongSwordAttackMetaTable) || IsValid(GreatSwordAttackMetaTable);
+	if (!bHasAnyAttackMetaTable)
 	{
-		UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayHitSoundByAttackTag : AttackMetaTable is invalid"));
+		UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlayHitSoundByAttackTag : AttackMetaTables are invalid"));
 		return;
 	}
 
-	FMHAttackMetaRow AttackMetaRow;
-	if (!UMHCombatDataLibrary::FindAttackMetaRowByTag(AttackMetaTable, AttackTag, AttackMetaRow))
+    const UDataTable* ResolvedAttackMetaTable = nullptr;
+    FMHAttackMetaRow AttackMetaRow;
+	if (!FindHitReactionAttackMetaRow(AttackTag, AttackMetaRow, ResolvedAttackMetaTable))
 	{
 		UE_LOG(MHMonsterCharacterBase, Verbose, TEXT("PlayHitSoundByAttackTag : AttackMetaRow not found -> %s"), *AttackTag.ToString());
 		return;
@@ -1331,9 +1335,45 @@ void AMHMonsterCharacterBase::PlayHitSoundByAttackTag(
 		HitSound,
 		HitResult.ImpactPoint
 	);
-    
-    UE_LOG(MHMonsterCharacterBase, Warning, TEXT("PlaySoundAtLocation"));
 
+    UE_LOG(MHMonsterCharacterBase, Verbose, TEXT("PlayHitSoundByAttackTag : Played from %s"), *GetNameSafe(ResolvedAttackMetaTable));
+
+}
+
+bool AMHMonsterCharacterBase::FindHitReactionAttackMetaRow(
+    FGameplayTag AttackTag,
+    FMHAttackMetaRow& OutAttackMetaRow,
+    const UDataTable*& OutAttackMetaTable
+) const
+{
+    OutAttackMetaTable = nullptr;
+
+    if (!AttackTag.IsValid())
+    {
+        return false;
+    }
+
+    const UDataTable* AttackMetaTables[] =
+    {
+        LongSwordAttackMetaTable,
+        GreatSwordAttackMetaTable
+    };
+
+    for (const UDataTable* AttackMetaTable : AttackMetaTables)
+    {
+        if (!IsValid(AttackMetaTable))
+        {
+            continue;
+        }
+
+        if (UMHCombatDataLibrary::FindAttackMetaRowByTag(AttackMetaTable, AttackTag, OutAttackMetaRow))
+        {
+            OutAttackMetaTable = AttackMetaTable;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void AMHMonsterCharacterBase::CheckGroggyTransition()

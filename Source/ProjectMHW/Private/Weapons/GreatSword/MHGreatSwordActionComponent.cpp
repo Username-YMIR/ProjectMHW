@@ -485,6 +485,15 @@ void UMHGreatSwordActionComponent::NotifyUtilityMoveStarted(const FGameplayTag& 
         return;
     }
 
+    if (InMoveTag == MHGreatSwordGameplayTags::Move_GS_GuardImpact)
+    {
+        LastCommittedMoveTag = FGameplayTag();
+        bGuardHeld = false;
+        ClearPostTackleChargeContext();
+        ActionState = EMHGreatSwordActionState::Acting;
+        return;
+    }
+
     if (InMoveTag == MHGreatSwordGameplayTags::Move_GS_DrawDefaultCharge
         || InMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlashCharging
         || InMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlashCharging
@@ -530,6 +539,12 @@ void UMHGreatSwordActionComponent::NotifyUtilityMoveEnded(const FGameplayTag& In
         {
             ActionState = EMHGreatSwordActionState::Neutral;
         }
+        return;
+    }
+
+    if (InMoveTag == MHGreatSwordGameplayTags::Move_GS_GuardImpact)
+    {
+        ActionState = EMHGreatSwordActionState::Neutral;
         return;
     }
 
@@ -686,6 +701,7 @@ bool UMHGreatSwordActionComponent::IsUtilityMoveTag(const FGameplayTag& InMoveTa
         || InMoveTag == MHGreatSwordGameplayTags::Move_GS_DrawDefaultCharge
         || InMoveTag == MHGreatSwordGameplayTags::Move_GS_DrawGuard
         || InMoveTag == MHGreatSwordGameplayTags::Move_GS_Guard
+        || InMoveTag == MHGreatSwordGameplayTags::Move_GS_GuardImpact
         || InMoveTag == MHGreatSwordGameplayTags::Move_GS_Sheathe
         || InMoveTag == MHGreatSwordGameplayTags::Move_GS_ChargeSlashCharging
         || InMoveTag == MHGreatSwordGameplayTags::Move_GS_StrongChargeSlashCharging

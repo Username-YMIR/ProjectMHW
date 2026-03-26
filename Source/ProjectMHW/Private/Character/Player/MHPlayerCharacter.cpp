@@ -93,12 +93,27 @@ namespace
         return Result;
     }
 
+    static FMHHitAcknowledge BuildGreatSwordGuardAcknowledge()
+    {
+        FMHHitAcknowledge Result;
+        Result.bAcceptedHit = true;
+        Result.bConsumeHitOnce = true;
+        Result.bShouldStopAttackWindow = false;
+        Result.ResultType = EMHHitResultType::Guarded;
+        return Result;
+    }
+
     static bool IsGreatSwordRollMoveTag(const FGameplayTag& InMoveTag)
     {
         return InMoveTag == MHGreatSwordGameplayTags::Move_GS_RollFront
             || InMoveTag == MHGreatSwordGameplayTags::Move_GS_RollBack
             || InMoveTag == MHGreatSwordGameplayTags::Move_GS_RollLeft
             || InMoveTag == MHGreatSwordGameplayTags::Move_GS_RollRight;
+    }
+
+    static bool IsGreatSwordGuardImpactMoveTag(const FGameplayTag& InMoveTag)
+    {
+        return InMoveTag == MHGreatSwordGameplayTags::Move_GS_GuardImpact;
     }
 
     static const TCHAR* ResolveSharpnessColorText(const EMHSharpnessColor InColor)
@@ -121,6 +136,8 @@ namespace
             return TEXT("Unknown");
         }
     }
+
+    constexpr float LongSwordIaiSlashSpiritRegenTickInterval = 1.0f;
 
     // 납도 상태와 전이 윈도우를 반영해 대검 기본 입력 패턴을 결정한다.
     static FGameplayTag ResolveGreatSwordPrimaryPatternTag(const UMHGreatSwordActionComponent* InActionComponent, const bool bInForwardInput, const bool bInSheathed)
@@ -338,6 +355,11 @@ void AMHPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
     ClearBurningState();
 
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(LongSwordIaiSlashSpiritRegenTimerHandle);
+    }
+
     UnequipCurrentWeapon(false);
     
     // if (EquippedWeapon && AbilitySystemComponent)
@@ -353,6 +375,12 @@ void AMHPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void AMHPlayerCharacter::HandleMovementUpdated(float DeltaSeconds, FVector OldLocation, FVector OldVelocity)
 {
     UpdateStamina(DeltaSeconds);
+
+    if (bSprintSheatheRequested && bSprintHeld && CanStartSheathe())
+    {
+        StartSheathe();
+    }
+
     EvaluateSprintState();
     UpdateLocomotionState();
 }
@@ -421,24 +449,27 @@ void AMHPlayerCharacter::Input_SprintStarted(const FInputActionValue& InputActio
         return;
     }
 
+    bSprintHeld = true;
+    bSprintSheatheRequested = WeaponSheathState == EMHWeaponSheathState::Unsheathed;
+
     if (CanStartSheathe())
     {
         StartSheathe();
         return;
     }
 
-    bSprintHeld = true;
     EvaluateSprintState();
 }
 
 void AMHPlayerCharacter::Input_SprintCompleted(const FInputActionValue& InputActionValue)
 {
+    bSprintHeld = false;
+    bSprintSheatheRequested = false;
+
     if (bActionInputLocked)
     {
         return;
     }
-
-    bSprintHeld = false;
     EvaluateSprintState();
 }
 
@@ -450,6 +481,14 @@ void AMHPlayerCharacter::Input_Dodge(const FInputActionValue& InputActionValue)
     }
 
     bDodgeHeld = true;
+    if (IsLongSwordEquipped())
+    {
+        if (const UWorld* World = GetWorld())
+        {
+            LastLongSwordDodgeInputTime = World->GetTimeSeconds();
+        }
+    }
+
     CancelSharpenAbilityIfActive();
 
     if (IsGreatSwordEquipped())
@@ -750,6 +789,14 @@ void AMHPlayerCharacter::Input_WeaponSpecial(const FInputActionValue& InputActio
     }
 
     bWeaponSpecialHeld = true;
+    if (IsLongSwordEquipped())
+    {
+        if (const UWorld* World = GetWorld())
+        {
+            LastLongSwordWeaponSpecialInputTime = World->GetTimeSeconds();
+        }
+    }
+
     CancelSharpenAbilityIfActive();
 
     if (IsGreatSwordEquipped())
@@ -846,12 +893,14 @@ void AMHPlayerCharacter::HandleComboMontageStateTransition(bool bInterrupted)
     if (bInterrupted)
     {
         WeaponSheathState = EMHWeaponSheathState::Sheathed;
+        bSprintSheatheRequested = false;
         AttachWeaponToBack();
         RefreshWeaponAnimationLayerState();
         return;
     }
 
     WeaponSheathState = EMHWeaponSheathState::Unsheathed;
+    bSprintSheatheRequested = false;
     AttachWeaponToHand();
     RefreshWeaponAnimationLayerState();
 }
@@ -1458,6 +1507,7 @@ void AMHPlayerCharacter::RefreshActionInputLockState()
     if (bActionInputLocked)
     {
         bSprintHeld = false;
+        bSprintSheatheRequested = false;
         bIsSprinting = false;
         bAimHeld = false;
         bAttackPrimaryHeld = false;
@@ -1493,9 +1543,58 @@ bool AMHPlayerCharacter::IsGreatSwordRollUtilityMoveActive() const
     return ActiveGreatSwordUtilityMontage != nullptr && IsGreatSwordRollMoveTag(ActiveGreatSwordUtilityMoveTag);
 }
 
+bool AMHPlayerCharacter::IsGreatSwordGuardImpactActive() const
+{
+    return ActiveGreatSwordUtilityMontage != nullptr && IsGreatSwordGuardImpactMoveTag(ActiveGreatSwordUtilityMoveTag);
+}
+
 bool AMHPlayerCharacter::IsDamageImmuneDuringDodgeRoll() const
 {
     return bRollMontagePlaying || IsGreatSwordRollUtilityMoveActive();
+}
+
+bool AMHPlayerCharacter::TryHandleGreatSwordGuardSuccess(
+    AActor* SourceActor,
+    const FGameplayTag& AttackTag,
+    const FHitResult& HitResult)
+{
+    if (!IsGreatSwordEquipped())
+    {
+        return false;
+    }
+
+    AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon);
+    UMHGreatSwordActionComponent* ActionComponent = GreatSword ? GreatSword->GetActionComponent() : nullptr;
+    if (!ActionComponent || !ActionComponent->IsGuarding())
+    {
+        return false;
+    }
+
+    FRotator GuardFacingRotation;
+    if (ResolveDamageHitReactFacingYaw(SourceActor, HitResult, GuardFacingRotation))
+    {
+        SetActorRotation(GuardFacingRotation);
+    }
+
+    if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+    {
+        MoveComp->StopMovementImmediately();
+    }
+
+    const bool bPlayedGuardImpactMontage = TryPlayGreatSwordUtilityMontage(MHGreatSwordGameplayTags::Move_GS_GuardImpact);
+    ConsumeSharpness(GreatSwordGuardSharpnessCost);
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Log,
+        TEXT("%s : GreatSword guard success. AttackTag=%s GuardImpactMontage=%d SharpnessCost=%.1f"),
+        *GetName(),
+        *AttackTag.ToString(),
+        bPlayedGuardImpactMontage ? 1 : 0,
+        GreatSwordGuardSharpnessCost
+    );
+
+    return true;
 }
 
 void AMHPlayerCharacter::InterruptWeaponAttackStateForExternalAction(const TCHAR* InReason)
@@ -1778,6 +1877,17 @@ FMHHitAcknowledge AMHPlayerCharacter::ReceiveDamageSpec_Implementation(
     {
         UE_LOG(LogMHPlayerCharacter, Verbose, TEXT("%s : Ignore incoming damage during dodge roll."), *GetName());
         return BuildPlayerInvulnerableAcknowledge();
+    }
+
+    if (IsGreatSwordGuardImpactActive())
+    {
+        UE_LOG(LogMHPlayerCharacter, Verbose, TEXT("%s : Ignore incoming damage during GreatSword guard impact."), *GetName());
+        return BuildPlayerInvulnerableAcknowledge();
+    }
+
+    if (TryHandleGreatSwordGuardSuccess(SourceActor, AttackTag, HitResult))
+    {
+        return BuildGreatSwordGuardAcknowledge();
     }
 
     if (IsDamageHitReactActive())
@@ -2080,7 +2190,7 @@ UMHGA_LongSwordCombo* AMHPlayerCharacter::FindActiveLongSwordComboAbility() cons
 
 bool AMHPlayerCharacter::HasMovementInputForCombat() const
 {
-    return !GetPreferredMoveInput2D().IsNearlyZero() || GetLastMovementInputVector().Size2D() > KINDA_SMALL_NUMBER;
+    return !CachedMoveInput2D.IsNearlyZero();
 }
 
 bool AMHPlayerCharacter::IsStandingStillForCombat() const
@@ -2451,13 +2561,18 @@ void AMHPlayerCharacter::ApplyLongSwordMoveHitReward(const FGameplayTag& InMoveT
     {
         IncreaseSpiritLevel();
     }
+    else if (InMoveTag == MHLongSwordGameplayTags::Move_LS_IaiSpiritSlash)
+    {
+        IncreaseSpiritLevel();
+    }
     else if (InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritThrust)
     {
         bLongSwordSpiritThrustHelmbreakerReady = true;
     }
-    else if (InMoveTag == MHLongSwordGameplayTags::Move_LS_IaiSpiritSlash && !bLongSwordSpecialSheatheSpiritCounterSuccess)
+
+    if (InMoveTag == MHLongSwordGameplayTags::Move_LS_IaiSlash)
     {
-        DecreaseSpiritLevel();
+        StartLongSwordIaiSlashSpiritRegen();
     }
 
     UE_LOG(
@@ -2506,6 +2621,94 @@ void AMHPlayerCharacter::ApplyLongSwordCounterSuccessReward(const FGameplayTag& 
         static_cast<int32>(InCounterWindowType),
         bLongSwordForesightFreeSpiritRoundslashReady ? 1 : 0
     );
+}
+
+void AMHPlayerCharacter::StartLongSwordIaiSlashSpiritRegen()
+{
+    UWorld* World = GetWorld();
+    if (!World || IaiSlashSpiritRegenDuration <= 0.0f || IaiSlashSpiritRegenPerSecond <= 0.0f)
+    {
+        return;
+    }
+
+    LongSwordIaiSlashSpiritRegenRemainingTime = IaiSlashSpiritRegenDuration;
+    World->GetTimerManager().SetTimer(
+        LongSwordIaiSlashSpiritRegenTimerHandle,
+        this,
+        &ThisClass::HandleLongSwordIaiSlashSpiritRegenTick,
+        LongSwordIaiSlashSpiritRegenTickInterval,
+        true
+    );
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Verbose,
+        TEXT("%s : Iai Slash spirit regen started. Duration=%.2f Rate=%.2f"),
+        *GetName(),
+        IaiSlashSpiritRegenDuration,
+        IaiSlashSpiritRegenPerSecond
+    );
+}
+
+void AMHPlayerCharacter::StopLongSwordIaiSlashSpiritRegen()
+{
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(LongSwordIaiSlashSpiritRegenTimerHandle);
+    }
+
+    LongSwordIaiSlashSpiritRegenRemainingTime = 0.0f;
+}
+
+void AMHPlayerCharacter::HandleLongSwordIaiSlashSpiritRegenTick()
+{
+    if (!IsLongSwordEquipped() || bDeathStateActive || LongSwordIaiSlashSpiritRegenRemainingTime <= 0.0f)
+    {
+        StopLongSwordIaiSlashSpiritRegen();
+        return;
+    }
+
+    const float AppliedDuration = FMath::Min(LongSwordIaiSlashSpiritRegenRemainingTime, LongSwordIaiSlashSpiritRegenTickInterval);
+    AddSpiritGauge(IaiSlashSpiritRegenPerSecond * AppliedDuration);
+
+    LongSwordIaiSlashSpiritRegenRemainingTime = FMath::Max(
+        0.0f,
+        LongSwordIaiSlashSpiritRegenRemainingTime - AppliedDuration
+    );
+
+    if (LongSwordIaiSlashSpiritRegenRemainingTime <= 0.0f)
+    {
+        StopLongSwordIaiSlashSpiritRegen();
+    }
+}
+
+bool AMHPlayerCharacter::CanUseLongSwordSpecialSheatheInput() const
+{
+    const bool bHasWeaponSpecialInput = bWeaponSpecialHeld || IsLongSwordInputWithinGraceWindow(LastLongSwordWeaponSpecialInputTime);
+    const bool bHasDodgeInput = bDodgeHeld || IsLongSwordInputWithinGraceWindow(LastLongSwordDodgeInputTime);
+    return bHasWeaponSpecialInput && bHasDodgeInput;
+}
+
+bool AMHPlayerCharacter::IsLongSwordInputWithinGraceWindow(const float InLastInputTime) const
+{
+    if (InLastInputTime < 0.0f || SpecialSheatheInputGraceWindow <= 0.0f)
+    {
+        return false;
+    }
+
+    const UWorld* World = GetWorld();
+    if (!World)
+    {
+        return false;
+    }
+
+    return (World->GetTimeSeconds() - InLastInputTime) <= SpecialSheatheInputGraceWindow;
+}
+
+void AMHPlayerCharacter::ConsumeLongSwordSpecialSheatheInputWindow()
+{
+    LastLongSwordWeaponSpecialInputTime = -1.0f;
+    LastLongSwordDodgeInputTime = -1.0f;
 }
 
 float AMHPlayerCharacter::GetCurrentSpiritDamageMultiplier() const
@@ -2768,10 +2971,29 @@ bool AMHPlayerCharacter::TryPlayGreatSwordUtilityMontage(const FGameplayTag& InM
         return false;
     }
 
+    if (IsGreatSwordRollMoveTag(InMoveTag) && !CanSpendStamina(StaminaConfig.RollCost))
+    {
+        UE_LOG(
+            LogMHPlayerCharacter,
+            Verbose,
+            TEXT("%s : GreatSword roll blocked by low stamina. Current=%.1f Required=%.1f Move=%s"),
+            *GetName(),
+            GetCurrentStaminaValue(),
+            StaminaConfig.RollCost,
+            *InMoveTag.ToString()
+        );
+        return false;
+    }
+
     const float PlayedLength = AnimInstance->Montage_Play(Montage);
     if (PlayedLength <= 0.0f)
     {
         return false;
+    }
+
+    if (IsGreatSwordRollMoveTag(InMoveTag))
+    {
+        SpendStamina(StaminaConfig.RollCost, TEXT("GreatSwordRoll"));
     }
 
     ActiveGreatSwordUtilityMontage = Montage;
@@ -3176,6 +3398,19 @@ bool AMHPlayerCharacter::TryPlayRollMontage(UAnimMontage* InMontage)
         return false;
     }
 
+    if (!CanSpendStamina(StaminaConfig.RollCost))
+    {
+        UE_LOG(
+            LogMHPlayerCharacter,
+            Verbose,
+            TEXT("%s : Roll blocked by low stamina. Current=%.1f Required=%.1f"),
+            *GetName(),
+            GetCurrentStaminaValue(),
+            StaminaConfig.RollCost
+        );
+        return false;
+    }
+
     LocomotionState = EMHPlayerLocomotionState::Roll;
 
     const float PlayedLength = AnimInstance->Montage_Play(InMontage);
@@ -3186,6 +3421,7 @@ bool AMHPlayerCharacter::TryPlayRollMontage(UAnimMontage* InMontage)
     }
 
     InterruptWeaponAttackStateForExternalAction(TEXT("RollStart"));
+    SpendStamina(StaminaConfig.RollCost, TEXT("Roll"));
 
     bRollMontagePlaying = true;
     HandleBurnRollSucceeded();
@@ -3709,7 +3945,7 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForWeaponSpecialInput() 
         return InputPattern_LS_ForesightSlash;
     }
 
-    if (bDodgeHeld)
+    if (CanUseLongSwordSpecialSheatheInput())
     {
         return InputPattern_LS_SpecialSheathe;
     }
@@ -3737,7 +3973,7 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForDodgeInput() const
         return FGameplayTag::EmptyTag;
     }
 
-    if (bWeaponSpecialHeld)
+    if (CanUseLongSwordSpecialSheatheInput())
     {
         return InputPattern_LS_SpecialSheathe;
     }
@@ -3773,7 +4009,7 @@ FGameplayTag AMHPlayerCharacter::ResolveLongSwordPatternForCompositeInput() cons
         return FGameplayTag::EmptyTag;
     }
 
-    if (bWeaponSpecialHeld && bDodgeHeld)
+    if (CanUseLongSwordSpecialSheatheInput())
     {
         return InputPattern_LS_SpecialSheathe;
     }
@@ -3862,9 +4098,30 @@ bool AMHPlayerCharacter::IsLongSwordFollowupContext() const
     return ComboComp->IsComboActive() && ComboComp->GetCurrentMoveTag().IsValid();
 }
 
+bool AMHPlayerCharacter::IsMovingForSheathe() const
+{
+    return !CachedMoveInput2D.IsNearlyZero() || GetVelocity().Size2D() > 3.0f;
+}
+
+UAnimMontage* AMHPlayerCharacter::ResolveSheatheMontage() const
+{
+    const FMHWeaponAnimConfig* AnimConfig = GetEquippedWeaponAnimConfig();
+    if (!AnimConfig)
+    {
+        return nullptr;
+    }
+
+    if (IsMovingForSheathe() && !AnimConfig->MovingSheatheMontage.IsNull())
+    {
+        return AnimConfig->MovingSheatheMontage.LoadSynchronous();
+    }
+
+    return AnimConfig->SheatheMontage.LoadSynchronous();
+}
+
 bool AMHPlayerCharacter::ShouldUseDirectionalLateralFadeSlash() const
 {
-    const EMHDirectionalVariant DirectionalVariant = ResolveDirectionalVariantFromInput(false);
+    const EMHDirectionalVariant DirectionalVariant = ResolveDirectionalVariantFromInput(true);
 
     return DirectionalVariant == EMHDirectionalVariant::Left
         || DirectionalVariant == EMHDirectionalVariant::Right;
@@ -3950,7 +4207,13 @@ bool AMHPlayerCharacter::TryResolveAndHandleLongSwordPattern(const FGameplayTag&
         return false;
     }
 
-    return TryHandleWeaponComboInput(PatternTag);
+    const bool bHandled = TryHandleWeaponComboInput(PatternTag);
+    if (bHandled && PatternTag == MHInputPatternGameplayTags::InputPattern_LS_SpecialSheathe)
+    {
+        ConsumeLongSwordSpecialSheatheInputWindow();
+    }
+
+    return bHandled;
 }
 
 bool AMHPlayerCharacter::TryHandleWeaponComboInput(const FGameplayTag& InPatternTag)
@@ -4271,12 +4534,6 @@ bool AMHPlayerCharacter::CanStartSheathe() const
         return false;
     }
 
-    const float Speed2D = GetVelocity().Size2D();
-    if (Speed2D > 3.0f)
-    {
-        return false;
-    }
-
     if (const UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
     {
         if (AnimInstance->IsAnyMontagePlaying())
@@ -4296,8 +4553,25 @@ bool AMHPlayerCharacter::CanStartSheathe() const
         }
     }
 
+    if (IsEquippedWeaponPrimaryAbilityActive())
+    {
+        return false;
+    }
+
+    if (const AMHGreatSwordInstance* GreatSword = Cast<AMHGreatSwordInstance>(EquippedWeapon))
+    {
+        if (const UMHGreatSwordActionComponent* ActionComponent = GreatSword->GetActionComponent())
+        {
+            if (ActionComponent->GetActionState() != EMHGreatSwordActionState::Neutral)
+            {
+                return false;
+            }
+        }
+    }
+
     const FMHWeaponAnimConfig* AnimConfig = GetEquippedWeaponAnimConfig();
-    return AnimConfig && !AnimConfig->SheatheMontage.IsNull();
+    return AnimConfig
+        && (!AnimConfig->SheatheMontage.IsNull() || !AnimConfig->MovingSheatheMontage.IsNull());
 }
 
 void AMHPlayerCharacter::StartSheathe()
@@ -4308,8 +4582,7 @@ void AMHPlayerCharacter::StartSheathe()
         return;
     }
 
-    const FMHWeaponAnimConfig* AnimConfig = GetEquippedWeaponAnimConfig();
-    UAnimMontage* Montage = AnimConfig ? AnimConfig->SheatheMontage.LoadSynchronous() : nullptr;
+    UAnimMontage* Montage = ResolveSheatheMontage();
     if (!Montage)
     {
         return;
@@ -4332,6 +4605,7 @@ void AMHPlayerCharacter::StartSheathe()
 void AMHPlayerCharacter::CompleteSheatheImmediately()
 {
     WeaponSheathState = EMHWeaponSheathState::Sheathed;
+    bSprintSheatheRequested = false;
     AttachWeaponToBack();
     RefreshWeaponAnimationLayerState();
 }
@@ -4346,12 +4620,14 @@ void AMHPlayerCharacter::HandleSheatheMontageEnded(UAnimMontage* Montage, bool b
     if (bInterrupted)
     {
         WeaponSheathState = EMHWeaponSheathState::Unsheathed;
+        bSprintSheatheRequested = false;
         AttachWeaponToHand();
         RefreshWeaponAnimationLayerState();
         return;
     }
 
     WeaponSheathState = EMHWeaponSheathState::Sheathed;
+    bSprintSheatheRequested = false;
     AttachWeaponToBack();
     RefreshWeaponAnimationLayerState();
 }
@@ -4670,7 +4946,39 @@ void AMHPlayerCharacter::EvaluateSprintState()
 
 bool AMHPlayerCharacter::CanStartSprint() const
 {
-    return GetCurrentStaminaValue() > StaminaConfig.LowStaminaThreshold;
+    return WeaponSheathState == EMHWeaponSheathState::Sheathed
+        && GetCurrentStaminaValue() > StaminaConfig.LowStaminaThreshold;
+}
+
+bool AMHPlayerCharacter::CanSpendStamina(const float Amount) const
+{
+    if (Amount <= 0.0f)
+    {
+        return true;
+    }
+
+    return GetCurrentStaminaValue() >= Amount;
+}
+
+void AMHPlayerCharacter::SpendStamina(const float Amount, const TCHAR* InReason)
+{
+    if (Amount <= 0.0f)
+    {
+        return;
+    }
+
+    const float NewStaminaValue = FMath::Max(0.0f, GetCurrentStaminaValue() - Amount);
+    SetCurrentStaminaAttributeValue(NewStaminaValue);
+
+    UE_LOG(
+        LogMHPlayerCharacter,
+        Verbose,
+        TEXT("%s : Spend stamina. Reason=%s Amount=%.1f Remaining=%.1f"),
+        *GetName(),
+        InReason ? InReason : TEXT("Unknown"),
+        Amount,
+        NewStaminaValue
+    );
 }
 
 
