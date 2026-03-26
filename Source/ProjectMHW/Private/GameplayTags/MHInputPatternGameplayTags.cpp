@@ -1,4 +1,4 @@
-﻿#include "GameplayTags/MHInputPatternGameplayTags.h"
+#include "GameplayTags/MHInputPatternGameplayTags.h"
 
 namespace MHInputPatternGameplayTags
 {

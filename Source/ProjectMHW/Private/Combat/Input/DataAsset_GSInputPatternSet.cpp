@@ -1,4 +1,4 @@
-﻿#include "Combat/Input/DataAsset_GSInputPatternSet.h"
+#include "Combat/Input/DataAsset_GSInputPatternSet.h"
 
 DEFINE_LOG_CATEGORY(LogDataAsset_GSInputPatternSet);
 

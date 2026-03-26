@@ -1,4 +1,4 @@
-﻿#include "Items/Instance/MHGreatSwordInstance.h"
+#include "Items/Instance/MHGreatSwordInstance.h"
 
 #include "Weapons/GreatSword/MHGreatSwordActionComponent.h"
 #include "Weapons/GreatSword/MHGreatSwordChargeStateComponent.h"

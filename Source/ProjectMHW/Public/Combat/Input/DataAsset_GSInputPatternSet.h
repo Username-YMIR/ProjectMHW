@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
@@ -24,8 +24,8 @@ public:
 
     const FMHInputPatternDefinition* FindPatternDefinition(const FGameplayTag& PatternTag) const;
     void ReplacePatternDefinitions(const TArray<FMHInputPatternDefinition>& InPatternDefinitions);
-
-private:
+    
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input Pattern")
     TArray<FMHInputPatternDefinition> PatternDefinitions;
+
 };

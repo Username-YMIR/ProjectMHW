@@ -1,4 +1,4 @@
-﻿#include "Weapons/GreatSword/MHGreatSwordChargeStateComponent.h"
+#include "Weapons/GreatSword/MHGreatSwordChargeStateComponent.h"
 
 #include "GameplayTags/MHGreatSwordGameplayTags.h"
 
