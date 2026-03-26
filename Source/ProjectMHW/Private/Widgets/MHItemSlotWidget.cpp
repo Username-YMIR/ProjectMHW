@@ -3,6 +3,7 @@
 
 #include "Widgets/MHItemSlotWidget.h"
 
+#include "Components/Button.h"
 #include "Components/Image.h"
 
 UMHItemSlotWidget::UMHItemSlotWidget(const FObjectInitializer& ObjectInitializer)
@@ -21,8 +22,23 @@ void UMHItemSlotWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
+	if (SlotButton)
+	{
+		SlotButton->OnClicked.AddDynamic(this, &ThisClass::HandleSlotButtonClicked);
+	}
+
 	RefreshVisuals();
 	SetSelected(false);
+}
+
+void UMHItemSlotWidget::NativeDestruct()
+{
+	if (SlotButton)
+	{
+		SlotButton->OnClicked.RemoveDynamic(this, &ThisClass::HandleSlotButtonClicked);
+	}
+
+	Super::NativeDestruct();
 }
 
 void UMHItemSlotWidget::SynchronizeProperties()
@@ -46,6 +62,11 @@ void UMHItemSlotWidget::SetItemIconBrush(const FSlateBrush& InBrush)
 {
 	ItemIconBrush = InBrush;
 	RefreshVisuals();
+}
+
+void UMHItemSlotWidget::HandleSlotButtonClicked()
+{
+	OnItemSlotClicked.Broadcast(this);
 }
 
 void UMHItemSlotWidget::RefreshVisuals()

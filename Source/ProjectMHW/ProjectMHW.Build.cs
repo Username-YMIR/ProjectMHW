@@ -26,6 +26,7 @@ public class ProjectMHW : ModuleRules
 			"Niagara",
 			"AIModule",
 			"NavigationSystem",
+			"Paper2D",
 			"GameplayCameras", "EngineCameras",
 		});
 

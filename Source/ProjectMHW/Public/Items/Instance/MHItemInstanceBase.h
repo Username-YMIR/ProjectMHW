@@ -19,10 +19,21 @@ public:
 	// Sets default values for this actor's properties
 	AMHItemInstanceBase();
 
-	
 	FORCEINLINE const UMHItemDataBase* GetItemData() const
 	{
 		return CachedItemData;
+	}
+
+	UFUNCTION(BlueprintPure, Category="Item")
+	FName GetItemDataKey() const
+	{
+		return ItemDataKey;
+	}
+
+	UFUNCTION(BlueprintPure, Category="Item")
+	UItemDataRegistry* GetItemRegistry() const
+	{
+		return ItemRegistry;
 	}
 protected:
 	virtual void BeginPlay() override;

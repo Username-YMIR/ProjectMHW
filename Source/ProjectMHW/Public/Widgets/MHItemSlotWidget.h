@@ -7,7 +7,10 @@
 #include "Widgets/MHUserWidgetBase.h"
 #include "MHItemSlotWidget.generated.h"
 
+class UButton;
 class UImage;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMHOnItemSlotClicked, UMHItemSlotWidget*, ClickedSlot);
 
 /**
  * 아이템 선택 HUD에서 사용하는 공용 슬롯 위젯
@@ -23,10 +26,14 @@ public:
 protected:
 	virtual void NativePreConstruct() override;
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 	virtual void SynchronizeProperties() override;
 
 	void RefreshVisuals();
 	void UpdateItemIconVisibility();
+
+	UFUNCTION()
+	void HandleSlotButtonClicked();
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "MH|ItemSlot")
@@ -35,7 +42,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "MH|ItemSlot")
 	void SetItemIconBrush(const FSlateBrush& InBrush);
 
+	UPROPERTY(BlueprintAssignable, Category = "MH|ItemSlot")
+	FMHOnItemSlotClicked OnItemSlotClicked;
+
 protected:
+	UPROPERTY(meta = (BindWidgetOptional), BlueprintReadOnly, Category = "MH|ItemSlot")
+	TObjectPtr<UButton> SlotButton = nullptr;
+
 	UPROPERTY(meta = (BindWidget), BlueprintReadOnly, Category = "MH|ItemSlot")
 	TObjectPtr<UImage> SlotImage = nullptr;
 
@@ -44,7 +57,7 @@ protected:
 
 	UPROPERTY(meta = (BindWidget), BlueprintReadOnly, Category = "MH|ItemSlot")
 	TObjectPtr<UImage> SelectionOutlineImage = nullptr;
-
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MH|ItemSlot|Style", meta = (ExposeOnSpawn = "true"))
 	FSlateBrush ItemIconBrush;
 };

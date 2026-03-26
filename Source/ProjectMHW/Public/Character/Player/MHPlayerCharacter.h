@@ -720,6 +720,7 @@ private:
 #pragma region WeaponRuntimeFunctions
     // 무기 메쉬 적용
     void SpawnAndEquipDefaultWeapon();
+    TSubclassOf<AMHWeaponInstance> ResolveStartupWeaponClass() const;
     
     //============================
     // 무기 장착/해제 함수 _ 이건주

@@ -24,6 +24,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item")
 	TSoftObjectPtr<UTexture2D> Icon;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item")
+	TSoftObjectPtr<class UPaperSprite> IconSprite;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item", meta=(MultiLine="true"))
 	FText Description;
 
