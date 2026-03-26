@@ -54,6 +54,8 @@ class UGameplayAbility;
 class UDataTable;
 class AMHWeaponInstance;
 class AMHGreatSwordInstance;
+class AMHMonsterCharacterBase;
+class UMHGA_LongSwordCombo;
 class UMHGreatSwordActionComponent;
 class UMHGA_Potion;
 class UNiagaraComponent;
@@ -72,6 +74,7 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+    virtual void Landed(const FHitResult& Hit) override;
 
     void InitializeCapsuleSettings();
     
@@ -237,6 +240,11 @@ public:
     bool DoesLongSwordMoveBuildDamageSpec(const FGameplayTag& InMoveTag) const;
 
     void PlayWeaponHitCameraShake(const FGameplayTag& InMoveTag) const;
+    void SetLongSwordHelmbreakerPhase(EMHLongSwordHelmbreakerPhase InPhase);
+    void ClearLongSwordHelmbreakerPhase();
+    void SetLongSwordHelmbreakerProtection(bool bEnable);
+    bool IsLongSwordHelmbreakerActive() const { return CurrentLongSwordHelmbreakerPhase != EMHLongSwordHelmbreakerPhase::None; }
+    EMHLongSwordHelmbreakerPhase GetLongSwordHelmbreakerPhase() const { return CurrentLongSwordHelmbreakerPhase; }
 #pragma endregion
 
     UFUNCTION(BlueprintPure, Category = "UI|PlayerStatus")
@@ -283,6 +291,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Combo")
     void Notify_EndLongSwordCounterWindow(EMHLongSwordCounterWindowType InCounterWindowType);
+
+    UFUNCTION(BlueprintCallable, Category = "Combo")
+    void Notify_EndLongSwordHelmbreakerLanding();
 
     virtual FMHHitAcknowledge ReceiveDamageSpec_Implementation(
         AActor* SourceActor,
@@ -454,6 +465,9 @@ protected:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|LongSword", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
     float SpiritLevelMultiplierLv3 = 1.20f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|LongSword", meta = (AllowPrivateAccess = "true"))
+    EMHLongSwordHelmbreakerPhase CurrentLongSwordHelmbreakerPhase = EMHLongSwordHelmbreakerPhase::None;
 #pragma endregion
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true"))
@@ -529,6 +543,8 @@ private:
 
     bool IsDamageHitReactActive() const;
     bool ResolveDamageHitReactFacingYaw(AActor* SourceActor, const FHitResult& HitResult, FRotator& OutFacingRotation) const;
+    bool IsGreatSwordRollUtilityMoveActive() const;
+    bool IsDamageImmuneDuringDodgeRoll() const;
     bool TryPlayDamageHitReactMontage(AActor* SourceActor, const FHitResult& HitResult);
     bool TryPlayDeathMontage();
     void HandleDamageHitReactMontageEnded(UAnimMontage* Montage, bool bInterrupted);
@@ -537,6 +553,7 @@ private:
     void RefreshActionInputLockState();
     void SetDamageHitReactInputLock(bool bEnable);
     void SetSharpnessBounceInputLock(bool bEnable);
+    void InterruptWeaponAttackStateForExternalAction(const TCHAR* InReason);
     void CancelActivePotionUseOnDamageTaken();
     void TryIgniteBurning();
     void HandleBurnDamageTick();
@@ -560,9 +577,11 @@ private:
     bool bLongSwordSpiritThrustHelmbreakerReady = false;
     bool bLongSwordForesightFreeSpiritRoundslashReady = false;
     bool bIgnoreDamageUntilCurrentActionEnd = false;
+    bool bLongSwordHelmbreakerDamageImmune = false;
 
     EMHLongSwordCounterWindowType ActiveLongSwordCounterWindowType = EMHLongSwordCounterWindowType::None;
     FGameplayTag DamageIgnoreUntilCurrentMoveTag;
+    TArray<TWeakObjectPtr<AMHMonsterCharacterBase>> LongSwordHelmbreakerIgnoredMonsters;
 
     FVector2D CachedMoveInput2D = FVector2D::ZeroVector;
 
@@ -682,6 +701,7 @@ protected:
     bool IsLongSwordEquipped() const;
     bool HasMovementInputForCombat() const;
     bool IsStandingStillForCombat() const;
+    UMHGA_LongSwordCombo* FindActiveLongSwordComboAbility() const;
     bool IsInLongSwordSpecialSheatheState() const;
     bool CanResolveLongSwordFollowupDuringUnsheathing() const;
 
@@ -692,6 +712,7 @@ protected:
     bool CanTriggerLongSwordSpecialSheatheSpiritCounter() const;
     bool IsAttackAllowedForForesightCounter(const FGameplayTag& InAttackTag) const;
     bool IsAttackAllowedForSpecialSheatheCounter(const FGameplayTag& InAttackTag) const;
+    void SetLongSwordHelmbreakerMonsterIgnore(class AMHMonsterCharacterBase* InMonster, bool bIgnore);
     const FMHAttackDefinitionRow* FindAttackDefinitionRow(const FGameplayTag& InAttackTag) const;
     bool FindAttackMetaRow(const FGameplayTag& InMoveTag, FMHAttackMetaRow& OutAttackMetaRow) const;
     bool FindEquippedWeaponAttackMetaRow(const FGameplayTag& InMoveTag, FMHAttackMetaRow& OutAttackMetaRow) const;
@@ -762,6 +783,8 @@ protected:
     bool CanStartSheathe() const;
 
     void StartSheathe();
+
+    void CompleteSheatheImmediately();
 
     void HandleSheatheMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
