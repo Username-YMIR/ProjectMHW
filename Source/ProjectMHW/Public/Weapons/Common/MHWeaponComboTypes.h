@@ -21,3 +21,13 @@ enum class EMHLongSwordForesightPhase : uint8
     Primary UMETA(DisplayName = "Primary"),
     Secondary UMETA(DisplayName = "Secondary"),
 };
+
+UENUM(BlueprintType)
+enum class EMHLongSwordHelmbreakerPhase : uint8
+{
+    None UMETA(DisplayName = "None"),
+    RisingHit UMETA(DisplayName = "RisingHit"),
+    ApexControl UMETA(DisplayName = "ApexControl"),
+    Descent UMETA(DisplayName = "Descent"),
+    Landing UMETA(DisplayName = "Landing"),
+};

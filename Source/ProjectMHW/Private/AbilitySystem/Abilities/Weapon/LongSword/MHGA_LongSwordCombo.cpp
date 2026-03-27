@@ -7,6 +7,7 @@
 #include "Animation/AnimMontage.h"
 #include "Character/Player/MHPlayerCharacter.h"
 #include "Engine/World.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameplayTags/MHLongSwordGameplayTags.h"
 #include "Items/Instance/MHLongSwordInstance.h"
 #include "TimerManager.h"
@@ -93,14 +94,36 @@ void UMHGA_LongSwordCombo::EndAbility(const FGameplayAbilitySpecHandle Handle, c
     const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
     ClearTransitionPollingTimer();
+    ClearHelmbreakerPhaseTimer();
     ClearTask();
+    RestoreHelmbreakerGravityScale();
     
     //공격 초기 데이터로 리셋_이건주
     ResetMeleeWeaponAttack();
 
+    if (bHelmbreakerSequenceActive && CachedComboComponent)
+    {
+        CachedComboComponent->ResetCombo();
+    }
+
+    if (CachedPlayer)
+    {
+        if (bHelmbreakerSequenceActive)
+        {
+            CachedPlayer->ClearAllLongSwordCounterSuccessFlags();
+            CachedPlayer->SetLongSwordHelmbreakerProtection(false);
+        }
+        CachedPlayer->ClearLongSwordHelmbreakerPhase();
+    }
+
     ActiveMontage = nullptr;
     bHasActiveNode = false;
     bIgnoreMontageCallbacks = false;
+    bHelmbreakerSequenceActive = false;
+    ActiveHelmbreakerPhase = EMHLongSwordHelmbreakerPhase::None;
+    PreviousHelmbreakerVerticalVelocity = 0.0f;
+    CachedHelmbreakerDefaultGravityScale = 1.0f;
+    bHasCachedHelmbreakerDefaultGravityScale = false;
 
     CachedComboComponent = nullptr;
     CachedPlayer = nullptr;
@@ -118,6 +141,33 @@ void UMHGA_LongSwordCombo::RequestExternalEndAbility(bool bInWasCancelled)
     }
 
     EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, bInWasCancelled);
+}
+
+void UMHGA_LongSwordCombo::NotifyLongSwordHelmbreakerLanded()
+{
+    if (!bHelmbreakerSequenceActive)
+    {
+        return;
+    }
+
+    if (ActiveHelmbreakerPhase != EMHLongSwordHelmbreakerPhase::ApexControl
+        && ActiveHelmbreakerPhase != EMHLongSwordHelmbreakerPhase::Descent)
+    {
+        return;
+    }
+
+    BeginHelmbreakerLandingPhase();
+}
+
+void UMHGA_LongSwordCombo::NotifyLongSwordHelmbreakerLandingFinished()
+{
+    if (!bHelmbreakerSequenceActive || ActiveHelmbreakerPhase != EMHLongSwordHelmbreakerPhase::Landing)
+    {
+        return;
+    }
+
+    FinalizeHelmbreakerSequence(false);
+    EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
 
 /** 현재 콤보 노드 기준 DamageSpec을 생성해서 무기 인스턴스에 전달 _이건주*/
@@ -359,6 +409,11 @@ bool UMHGA_LongSwordCombo::PlayResolvedNode(const FMHLongSwordComboNode& InNode,
     // 태도 자원 선소모와 후속 권한 소모는 기술 시작 시점에 확정한다.
     CachedPlayer->Notify_LongSwordMoveStarted(InNode.MoveTag);
 
+    if (IsHelmbreakerMoveTag(InNode.MoveTag))
+    {
+        BeginHelmbreakerSequence();
+    }
+
     MontageTask->ReadyForActivation();
 
     ClearTransitionPollingTimer();
@@ -518,6 +573,247 @@ bool UMHGA_LongSwordCombo::IsDrawEntryMoveTag(const FGameplayTag& InMoveTag) con
         || InMoveTag == Move_LS_DrawSpiritSlash1;
 }
 
+bool UMHGA_LongSwordCombo::IsHelmbreakerMoveTag(const FGameplayTag& InMoveTag) const
+{
+    return InMoveTag == MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker;
+}
+
+void UMHGA_LongSwordCombo::BeginHelmbreakerSequence()
+{
+    if (!CachedPlayer)
+    {
+        return;
+    }
+
+    bHelmbreakerSequenceActive = true;
+    ActiveHelmbreakerPhase = EMHLongSwordHelmbreakerPhase::RisingHit;
+    PreviousHelmbreakerVerticalVelocity = 0.0f;
+    CachedPlayer->SetLongSwordHelmbreakerPhase(ActiveHelmbreakerPhase);
+    CachedPlayer->SetLongSwordHelmbreakerProtection(true);
+
+    UE_LOG(LogMHGALSCombo, Verbose, TEXT("투구깨기 상승 히트 페이즈를 시작합니다."));
+}
+
+bool UMHGA_LongSwordCombo::TryBeginHelmbreakerApexPhase()
+{
+    if (!CachedPlayer)
+    {
+        return false;
+    }
+
+    UCharacterMovementComponent* MoveComp = CachedPlayer->GetCharacterMovement();
+    if (!MoveComp)
+    {
+        return false;
+    }
+
+    ClearHelmbreakerPhaseTimer();
+    ActiveMontage = nullptr;
+
+    ActiveHelmbreakerPhase = EMHLongSwordHelmbreakerPhase::ApexControl;
+    CachedPlayer->SetLongSwordHelmbreakerPhase(ActiveHelmbreakerPhase);
+
+    if (MoveComp->MovementMode != MOVE_Falling)
+    {
+        MoveComp->SetMovementMode(MOVE_Falling);
+    }
+
+    const FVector PreviousVelocity = MoveComp->Velocity;
+    CacheHelmbreakerGravityScale();
+    ApplyHelmbreakerGravityScale(HelmbreakerApexGravityScale);
+
+    if (bResetHelmbreakerVelocityOnApexStart)
+    {
+        MoveComp->StopMovementImmediately();
+    }
+
+    const float DesiredUpwardVelocity = HelmbreakerApexMinimumUpwardVelocity;
+    CachedPlayer->LaunchCharacter(FVector(0.0f, 0.0f, DesiredUpwardVelocity), false, true);
+    PreviousHelmbreakerVerticalVelocity = DesiredUpwardVelocity;
+
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().SetTimer(
+            HelmbreakerPhaseTimerHandle,
+            this,
+            &UMHGA_LongSwordCombo::PollHelmbreakerApexPhase,
+            HelmbreakerApexPollInterval,
+            true);
+    }
+
+    UE_LOG(
+        LogMHGALSCombo,
+        Verbose,
+        TEXT("투구깨기 정점 전 공중 제어 페이즈를 시작합니다. 이전속도=(%.2f, %.2f, %.2f) 상승속도=%.2f 상승중력배율=%.2f 잔여속도제거=%d"),
+        PreviousVelocity.X,
+        PreviousVelocity.Y,
+        PreviousVelocity.Z,
+        DesiredUpwardVelocity,
+        HelmbreakerApexGravityScale,
+        bResetHelmbreakerVelocityOnApexStart ? 1 : 0
+    );
+    return true;
+}
+
+void UMHGA_LongSwordCombo::PollHelmbreakerApexPhase()
+{
+    if (!bHelmbreakerSequenceActive || ActiveHelmbreakerPhase != EMHLongSwordHelmbreakerPhase::ApexControl || !CachedPlayer)
+    {
+        return;
+    }
+
+    const float CurrentVerticalVelocity = CachedPlayer->GetVelocity().Z;
+    if (PreviousHelmbreakerVerticalVelocity > 0.0f && CurrentVerticalVelocity <= 0.0f)
+    {
+        BeginHelmbreakerDescentPhase();
+        return;
+    }
+
+    PreviousHelmbreakerVerticalVelocity = CurrentVerticalVelocity;
+}
+
+void UMHGA_LongSwordCombo::BeginHelmbreakerDescentPhase()
+{
+    if (!CachedPlayer)
+    {
+        return;
+    }
+
+    ClearHelmbreakerPhaseTimer();
+
+    ActiveHelmbreakerPhase = EMHLongSwordHelmbreakerPhase::Descent;
+    CachedPlayer->SetLongSwordHelmbreakerPhase(ActiveHelmbreakerPhase);
+
+    if (UCharacterMovementComponent* MoveComp = CachedPlayer->GetCharacterMovement())
+    {
+        if (MoveComp->MovementMode != MOVE_Falling)
+        {
+            MoveComp->SetMovementMode(MOVE_Falling);
+        }
+
+        ApplyHelmbreakerGravityScale(HelmbreakerDescentGravityScale);
+    }
+
+    UE_LOG(LogMHGALSCombo, Verbose, TEXT("투구깨기 내려치기/낙하 페이즈로 전환합니다. 하강중력배율=%.2f"), HelmbreakerDescentGravityScale);
+}
+
+void UMHGA_LongSwordCombo::BeginHelmbreakerLandingPhase()
+{
+    if (!CachedPlayer)
+    {
+        return;
+    }
+
+    ClearHelmbreakerPhaseTimer();
+    ResetMeleeWeaponAttack();
+    RestoreHelmbreakerGravityScale();
+
+    ActiveHelmbreakerPhase = EMHLongSwordHelmbreakerPhase::Landing;
+    CachedPlayer->SetLongSwordHelmbreakerPhase(ActiveHelmbreakerPhase);
+
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().SetTimer(
+            HelmbreakerPhaseTimerHandle,
+            this,
+            &UMHGA_LongSwordCombo::HandleHelmbreakerLandingFallback,
+            HelmbreakerLandingFallbackDelay,
+            false);
+    }
+
+    UE_LOG(LogMHGALSCombo, Verbose, TEXT("투구깨기 착지 페이즈를 시작합니다."));
+}
+
+void UMHGA_LongSwordCombo::FinalizeHelmbreakerSequence(const bool bInterrupted)
+{
+    ClearHelmbreakerPhaseTimer();
+    RestoreHelmbreakerGravityScale();
+
+    if (CachedComboComponent)
+    {
+        CachedComboComponent->ResetCombo();
+    }
+
+    if (CachedPlayer)
+    {
+        CachedPlayer->SetLongSwordHelmbreakerProtection(false);
+        CachedPlayer->ClearLongSwordHelmbreakerPhase();
+        CachedPlayer->ClearAllLongSwordCounterSuccessFlags();
+    }
+
+    ResetMeleeWeaponAttack();
+
+    ActiveMontage = nullptr;
+    bHelmbreakerSequenceActive = false;
+    ActiveHelmbreakerPhase = EMHLongSwordHelmbreakerPhase::None;
+    PreviousHelmbreakerVerticalVelocity = 0.0f;
+    CachedHelmbreakerDefaultGravityScale = 1.0f;
+    bHasCachedHelmbreakerDefaultGravityScale = false;
+
+    UE_LOG(LogMHGALSCombo, Verbose, TEXT("투구깨기 시퀀스를 종료합니다. Interrupted=%d"), bInterrupted ? 1 : 0);
+}
+
+void UMHGA_LongSwordCombo::ClearHelmbreakerPhaseTimer()
+{
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(HelmbreakerPhaseTimerHandle);
+    }
+}
+
+void UMHGA_LongSwordCombo::HandleHelmbreakerLandingFallback()
+{
+    if (!bHelmbreakerSequenceActive || ActiveHelmbreakerPhase != EMHLongSwordHelmbreakerPhase::Landing)
+    {
+        return;
+    }
+
+    UE_LOG(LogMHGALSCombo, Verbose, TEXT("투구깨기 착지 종료 notify가 없어 fallback으로 마무리합니다."));
+    FinalizeHelmbreakerSequence(false);
+    EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+}
+
+void UMHGA_LongSwordCombo::CacheHelmbreakerGravityScale()
+{
+    if (bHasCachedHelmbreakerDefaultGravityScale || !CachedPlayer)
+    {
+        return;
+    }
+
+    if (const UCharacterMovementComponent* MoveComp = CachedPlayer->GetCharacterMovement())
+    {
+        CachedHelmbreakerDefaultGravityScale = MoveComp->GravityScale;
+        bHasCachedHelmbreakerDefaultGravityScale = true;
+    }
+}
+
+void UMHGA_LongSwordCombo::ApplyHelmbreakerGravityScale(const float InGravityScale)
+{
+    if (!CachedPlayer)
+    {
+        return;
+    }
+
+    if (UCharacterMovementComponent* MoveComp = CachedPlayer->GetCharacterMovement())
+    {
+        CacheHelmbreakerGravityScale();
+        MoveComp->GravityScale = InGravityScale;
+    }
+}
+
+void UMHGA_LongSwordCombo::RestoreHelmbreakerGravityScale()
+{
+    if (!bHasCachedHelmbreakerDefaultGravityScale || !CachedPlayer)
+    {
+        return;
+    }
+
+    if (UCharacterMovementComponent* MoveComp = CachedPlayer->GetCharacterMovement())
+    {
+        MoveComp->GravityScale = CachedHelmbreakerDefaultGravityScale;
+    }
+}
+
 void UMHGA_LongSwordCombo::OnMontageCompleted()
 {
     if (!CachedPlayer || !CachedWeapon || !CachedComboComponent)
@@ -529,6 +825,22 @@ void UMHGA_LongSwordCombo::OnMontageCompleted()
     ClearTransitionPollingTimer();
 
     const FGameplayTag CompletedMoveTag = CachedComboComponent->GetCurrentMoveTag();
+
+    if (bHelmbreakerSequenceActive
+        && IsHelmbreakerMoveTag(CompletedMoveTag)
+        && ActiveHelmbreakerPhase == EMHLongSwordHelmbreakerPhase::RisingHit)
+    {
+        CachedPlayer->HandleComboMontageStateTransition(false);
+
+        if (!TryBeginHelmbreakerApexPhase())
+        {
+            UE_LOG(LogMHGALSCombo, Warning, TEXT("투구깨기 공중 제어 페이즈 시작에 실패했습니다."));
+            FinalizeHelmbreakerSequence(true);
+            EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+        }
+        return;
+    }
+
     CachedPlayer->HandleComboMontageStateTransition(false);
 
     if (CachedComboComponent->HasAcceptedBufferedInputPattern())
@@ -556,6 +868,18 @@ void UMHGA_LongSwordCombo::OnMontageInterrupted()
     }
 
     ClearTransitionPollingTimer();
+
+    if (bHelmbreakerSequenceActive)
+    {
+        if (CachedPlayer)
+        {
+            CachedPlayer->HandleComboMontageStateTransition(true);
+        }
+
+        FinalizeHelmbreakerSequence(true);
+        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+        return;
+    }
 
     if (CachedPlayer)
     {

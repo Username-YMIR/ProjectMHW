@@ -101,6 +101,9 @@ struct PROJECTMHW_API FMHWeaponAnimConfig
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
     TSoftObjectPtr<UAnimMontage> SheatheMontage;
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
+    TSoftObjectPtr<UAnimMontage> MovingSheatheMontage;
+
     /** 레거시 호환용 발도 상태 롤 몽타주 */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
     TSoftObjectPtr<UAnimMontage> UnsheathedRollMontage;

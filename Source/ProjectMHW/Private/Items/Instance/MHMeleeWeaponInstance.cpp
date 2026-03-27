@@ -2,34 +2,33 @@
 
 #include "Items/Instance/MHMeleeWeaponInstance.h"
 
-#include "Components/BoxComponent.h"
 #include "Character/Player/MHPlayerCharacter.h"
-#include "Interfaces/MHDamageableInterface.h"
+#include "Components/BoxComponent.h"
+#include "GameplayTags/MHLongSwordGameplayTags.h"
 #include "Interfaces/MHDamageSpecReceiverInterface.h"
+#include "TimerManager.h"
 
-// 이 클래스 전용 로그 카테고리 선언
+namespace
+{
+	constexpr float HelmbreakerDelayedHitInitialDelay = 1.5f;
+	constexpr float HelmbreakerDelayedHitInterval = 0.08f;
+	constexpr int32 HelmbreakerDelayedHitCount = 5;
+}
+
 DEFINE_LOG_CATEGORY(LogMHMeleeWeaponInstance);
 
 AMHMeleeWeaponInstance::AMHMeleeWeaponInstance()
 {
-	// 액터 틱은 사용하지 않으므로 비활성화
+	// 틱이 필요 없으므로 기본 비활성화한다.
 	PrimaryActorTick.bCanEverTick = false;
 	PrimaryActorTick.bStartWithTickEnabled = false;
 
-	// 무기 타격 판정용 박스 콜리전 생성
+	// 무기 타격용 박스 콜리전을 생성한다.
 	HitBox = CreateDefaultSubobject<UBoxComponent>(TEXT("HitBox"));
-
-	// 무기 메시를 기준으로 콜리전 부착
 	HitBox->SetupAttachment(WeaponMesh);
-
-	// 기본 상태는 비활성화
 	HitBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HitBox->SetGenerateOverlapEvents(false);
-
-	// 기본 박스 크기 설정
 	HitBox->SetBoxExtent(FVector(20.0f));
-
-	// 기본 응답 설정
 	HitBox->SetCollisionResponseToAllChannels(ECR_Ignore);
 	HitBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 }
@@ -38,11 +37,16 @@ void AMHMeleeWeaponInstance::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// HitBox가 정상적으로 생성되었으면 오버랩 시작 이벤트 바인딩
 	if (ensure(HitBox))
 	{
 		HitBox->OnComponentBeginOverlap.AddDynamic(this, &AMHMeleeWeaponInstance::OnWeaponBeginOverlap);
 	}
+}
+
+void AMHMeleeWeaponInstance::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	ClearHelmbreakerDelayedHitContexts();
+	Super::EndPlay(EndPlayReason);
 }
 
 void AMHMeleeWeaponInstance::BeginAttackWindow()
@@ -86,7 +90,7 @@ void AMHMeleeWeaponInstance::SetAttackCollisionEnabled(bool bEnabled)
 
 void AMHMeleeWeaponInstance::ClearHitActors()
 {
-	// 한 번의 공격 판정 동안 중복 타격을 막기 위해 기록한 액터 목록 초기화
+	// 동일 윈도우 내 중복 타격을 막기 위해 대상 목록을 초기화한다.
 	HitActors.Reset();
 }
 
@@ -110,13 +114,15 @@ void AMHMeleeWeaponInstance::ClearCurrentAttackData()
 
 void AMHMeleeWeaponInstance::ResetPerAttackRuntimeState()
 {
-	// 새 기술의 DamageSpec이 들어오면 이전 타격의 확정 상태를 초기화한다.
+	// 새 공격 데이터가 들어오면 1회성 히트 보상 상태를 초기화한다.
 	bResolvedConfirmedHitForCurrentAttack = false;
+	++CurrentAttackSequenceId;
 
 	UE_LOG(
 		LogMHMeleeWeaponInstance,
 		Verbose,
-		TEXT("새 공격 데이터로 교체됨. AttackTag=%s"),
+		TEXT("새 공격 데이터로 교체. AttackSequence=%d AttackTag=%s"),
+		CurrentAttackSequenceId,
 		*CurrentAttackTag.ToString()
 	);
 }
@@ -136,7 +142,7 @@ void AMHMeleeWeaponInstance::ProcessExistingOverlapsAtAttackWindowBegin()
 	UE_LOG(
 		LogMHMeleeWeaponInstance,
 		Verbose,
-		TEXT("공격 윈도우 시작 시 기존 겹침 재검사. Count=%d AttackTag=%s"),
+		TEXT("공격 윈도우 시작 시 기존 겹침 검사. Count=%d AttackTag=%s"),
 		OverlappingActors.Num(),
 		*CurrentAttackTag.ToString()
 	);
@@ -165,6 +171,23 @@ bool AMHMeleeWeaponInstance::TryDeliverDamageSpecToTarget(
 	FMHHitAcknowledge& OutHitAcknowledge
 )
 {
+	return TryDeliverDamageSpecToTargetWithAttackData(
+		TargetActor,
+		HitResult,
+		CurrentAttackTag,
+		CurrentDamageSpecHandle,
+		OutHitAcknowledge
+	);
+}
+
+bool AMHMeleeWeaponInstance::TryDeliverDamageSpecToTargetWithAttackData(
+	AActor* TargetActor,
+	const FHitResult& HitResult,
+	const FGameplayTag& InAttackTag,
+	const FGameplayEffectSpecHandle& InDamageSpecHandle,
+	FMHHitAcknowledge& OutHitAcknowledge
+)
+{
 	OutHitAcknowledge = FMHHitAcknowledge();
 
 	if (!IsValid(TargetActor))
@@ -173,6 +196,11 @@ bool AMHMeleeWeaponInstance::TryDeliverDamageSpecToTarget(
 	}
 
 	if (!TargetActor->GetClass()->ImplementsInterface(UMHDamageSpecReceiverInterface::StaticClass()))
+	{
+		return false;
+	}
+
+	if (!InDamageSpecHandle.IsValid() || !InDamageSpecHandle.Data.IsValid() || !InAttackTag.IsValid())
 	{
 		return false;
 	}
@@ -187,15 +215,15 @@ bool AMHMeleeWeaponInstance::TryDeliverDamageSpecToTarget(
 		TargetActor,
 		OwnerActor,
 		this,
-		CurrentAttackTag,
-		CurrentDamageSpecHandle,
+		InAttackTag,
+		InDamageSpecHandle,
 		HitResult
 	);
 
 	return true;
 }
 
-void AMHMeleeWeaponInstance::PlayAcceptedHitCameraShake()
+void AMHMeleeWeaponInstance::PlayAcceptedHitCameraShake(const FGameplayTag& InAttackTag)
 {
 	AMHPlayerCharacter* PlayerOwner = Cast<AMHPlayerCharacter>(GetOwner());
 	if (!IsValid(PlayerOwner))
@@ -203,7 +231,7 @@ void AMHMeleeWeaponInstance::PlayAcceptedHitCameraShake()
 		return;
 	}
 
-	PlayerOwner->PlayWeaponHitCameraShake(CurrentAttackTag);
+	PlayerOwner->PlayWeaponHitCameraShake(InAttackTag);
 }
 
 FVector AMHMeleeWeaponInstance::ResolveImpactPoint(
@@ -213,33 +241,29 @@ FVector AMHMeleeWeaponInstance::ResolveImpactPoint(
 	const FHitResult& SweepResult
 ) const
 {
-	// 1. Sweep로 들어온 유효한 ImpactPoint가 있으면 그대로 사용
+	// 스윕 결과가 유효하면 해당 타격 지점을 그대로 사용한다.
 	if (bFromSweep && !SweepResult.ImpactPoint.IsNearlyZero())
 	{
 		return SweepResult.ImpactPoint;
 	}
 
-	// 2. 상대 콜리전에서 무기 박스 기준 최근접점 계산
+	// 상대 콜리전의 최근접 지점을 우선 사용한다.
 	if (IsValid(OtherComp) && IsValid(HitBox))
 	{
 		FVector ClosestPoint = FVector::ZeroVector;
 		const FVector QueryPoint = HitBox->GetComponentLocation();
 		const float Distance = OtherComp->GetClosestPointOnCollision(QueryPoint, ClosestPoint);
-
-		// 0 이상이면 유효한 최근접점 반환
 		if (Distance >= 0.0f)
 		{
 			return ClosestPoint;
 		}
 	}
 
-	// 3. 컴포넌트 중심 fallback
 	if (IsValid(OtherComp))
 	{
 		return OtherComp->GetComponentLocation();
 	}
 
-	// 4. 액터 중심 fallback
 	if (IsValid(OtherActor))
 	{
 		return OtherActor->GetActorLocation();
@@ -256,14 +280,12 @@ FHitResult AMHMeleeWeaponInstance::BuildResolvedHitResult(
 ) const
 {
 	FHitResult ResolvedHitResult = SweepResult;
-
 	const FVector ResolvedImpactPoint = ResolveImpactPoint(OtherComp, OtherActor, bFromSweep, SweepResult);
 
 	ResolvedHitResult.Location = ResolvedImpactPoint;
 	ResolvedHitResult.ImpactPoint = ResolvedImpactPoint;
 	ResolvedHitResult.Component = OtherComp;
 
-	// Sweep 노멀이 유효하지 않으면 방향 보정
 	if (ResolvedHitResult.ImpactNormal.IsNearlyZero() && IsValid(OtherActor) && IsValid(HitBox))
 	{
 		const FVector Direction = (OtherActor->GetActorLocation() - HitBox->GetComponentLocation()).GetSafeNormal();
@@ -278,6 +300,243 @@ FHitResult AMHMeleeWeaponInstance::BuildResolvedHitResult(
 	return ResolvedHitResult;
 }
 
+bool AMHMeleeWeaponInstance::ShouldUseHelmbreakerDelayedMultiHit() const
+{
+	return CurrentAttackTag == MHLongSwordGameplayTags::Move_LS_SpiritHelmbreaker;
+}
+
+FMHHelmbreakerDelayedHitContext* AMHMeleeWeaponInstance::FindHelmbreakerDelayedHitContext(AActor* InTargetActor)
+{
+	if (!IsValid(InTargetActor))
+	{
+		return nullptr;
+	}
+
+	for (FMHHelmbreakerDelayedHitContext& Context : HelmbreakerDelayedHitContexts)
+	{
+		if (Context.TargetActor.Get() == InTargetActor)
+		{
+			return &Context;
+		}
+	}
+
+	return nullptr;
+}
+
+bool AMHMeleeWeaponInstance::ScheduleHelmbreakerDelayedMultiHit(AActor* InTargetActor)
+{
+	if (!ShouldUseHelmbreakerDelayedMultiHit() || !IsValid(InTargetActor))
+	{
+		return false;
+	}
+
+	if (!HasValidCurrentDamageSpec() || !CurrentAttackTag.IsValid())
+	{
+		return false;
+	}
+
+	if (FindHelmbreakerDelayedHitContext(InTargetActor) != nullptr)
+	{
+		return true;
+	}
+
+	UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		return false;
+	}
+
+	FMHHelmbreakerDelayedHitContext& NewContext = HelmbreakerDelayedHitContexts.AddDefaulted_GetRef();
+	NewContext.TargetActor = InTargetActor;
+	NewContext.DamageSpecHandle = CurrentDamageSpecHandle;
+	NewContext.AttackTag = CurrentAttackTag;
+	NewContext.RemainingHitCount = HelmbreakerDelayedHitCount;
+	NewContext.AttackSequenceId = CurrentAttackSequenceId;
+
+	FTimerDelegate DelayedHitDelegate;
+	DelayedHitDelegate.BindUObject(
+		this,
+		&AMHMeleeWeaponInstance::ExecuteHelmbreakerDelayedMultiHit,
+		TWeakObjectPtr<AActor>(InTargetActor)
+	);
+
+	World->GetTimerManager().SetTimer(
+		NewContext.TimerHandle,
+		DelayedHitDelegate,
+		HelmbreakerDelayedHitInterval,
+		true,
+		HelmbreakerDelayedHitInitialDelay
+	);
+
+	UE_LOG(
+		LogMHMeleeWeaponInstance,
+		Log,
+		TEXT("투구깨기 지연 다단히트 예약. Target=%s Delay=%.2f Interval=%.2f Count=%d AttackSequence=%d"),
+		*GetNameSafe(InTargetActor),
+		HelmbreakerDelayedHitInitialDelay,
+		HelmbreakerDelayedHitInterval,
+		HelmbreakerDelayedHitCount,
+		CurrentAttackSequenceId
+	);
+
+	return true;
+}
+
+void AMHMeleeWeaponInstance::ExecuteHelmbreakerDelayedMultiHit(TWeakObjectPtr<AActor> InTargetActor)
+{
+	AActor* TargetActor = InTargetActor.Get();
+	if (!IsValid(TargetActor))
+	{
+		// 이미 사라진 대상에 대한 예약만 정리한다.
+		RemoveHelmbreakerDelayedHitContext(nullptr);
+		return;
+	}
+
+	FMHHelmbreakerDelayedHitContext* DelayedHitContext = FindHelmbreakerDelayedHitContext(TargetActor);
+	if (DelayedHitContext == nullptr)
+	{
+		return;
+	}
+
+	AMHPlayerCharacter* PlayerOwner = Cast<AMHPlayerCharacter>(GetOwner());
+	if (!IsValid(PlayerOwner))
+	{
+		RemoveHelmbreakerDelayedHitContext(TargetActor);
+		return;
+	}
+
+	if (!DelayedHitContext->DamageSpecHandle.IsValid()
+		|| !DelayedHitContext->DamageSpecHandle.Data.IsValid()
+		|| !DelayedHitContext->AttackTag.IsValid())
+	{
+		RemoveHelmbreakerDelayedHitContext(TargetActor);
+		return;
+	}
+
+	// 실제 타격이 들어가는 시점에만 샤프니스와 바운스를 처리한다.
+	const EMHHitResultType LocalHitResult = PlayerOwner->HandleWeaponAttackHit(TargetActor, this);
+	if (LocalHitResult == EMHHitResultType::Bounced)
+	{
+		PlayerOwner->HandleSharpnessBounce();
+		RemoveHelmbreakerDelayedHitContext(TargetActor);
+		return;
+	}
+
+	UPrimitiveComponent* TargetPrimitive = Cast<UPrimitiveComponent>(TargetActor->GetRootComponent());
+	FHitResult EmptySweepResult;
+	const FHitResult ResolvedHitResult = BuildResolvedHitResult(
+		TargetPrimitive,
+		TargetActor,
+		false,
+		EmptySweepResult
+	);
+
+	FMHHitAcknowledge HitAcknowledge;
+	if (!TryDeliverDamageSpecToTargetWithAttackData(
+		TargetActor,
+		ResolvedHitResult,
+		DelayedHitContext->AttackTag,
+		DelayedHitContext->DamageSpecHandle,
+		HitAcknowledge))
+	{
+		RemoveHelmbreakerDelayedHitContext(TargetActor);
+		return;
+	}
+
+	ResolveConfirmedHitForAttack(
+		PlayerOwner,
+		DelayedHitContext->AttackTag,
+		DelayedHitContext->AttackSequenceId,
+		HitAcknowledge
+	);
+
+	UE_LOG(
+		LogMHMeleeWeaponInstance,
+		Log,
+		TEXT("투구깨기 지연 타격 실행. Target=%s RemainingBefore=%d Accepted=%d ResultType=%d"),
+		*GetNameSafe(TargetActor),
+		DelayedHitContext->RemainingHitCount,
+		HitAcknowledge.bAcceptedHit ? 1 : 0,
+		static_cast<int32>(HitAcknowledge.ResultType)
+	);
+
+	DelayedHitContext->RemainingHitCount--;
+	if (DelayedHitContext->RemainingHitCount <= 0)
+	{
+		RemoveHelmbreakerDelayedHitContext(TargetActor);
+	}
+}
+
+void AMHMeleeWeaponInstance::RemoveHelmbreakerDelayedHitContext(AActor* InTargetActor)
+{
+	for (int32 ContextIndex = HelmbreakerDelayedHitContexts.Num() - 1; ContextIndex >= 0; --ContextIndex)
+	{
+		FMHHelmbreakerDelayedHitContext& Context = HelmbreakerDelayedHitContexts[ContextIndex];
+		if (InTargetActor != nullptr)
+		{
+			if (Context.TargetActor.Get() != InTargetActor)
+			{
+				continue;
+			}
+		}
+		else if (Context.TargetActor.IsValid())
+		{
+			continue;
+		}
+
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(Context.TimerHandle);
+		}
+
+		HelmbreakerDelayedHitContexts.RemoveAtSwap(ContextIndex);
+	}
+}
+
+void AMHMeleeWeaponInstance::ClearHelmbreakerDelayedHitContexts()
+{
+	if (UWorld* World = GetWorld())
+	{
+		for (FMHHelmbreakerDelayedHitContext& Context : HelmbreakerDelayedHitContexts)
+		{
+			World->GetTimerManager().ClearTimer(Context.TimerHandle);
+		}
+	}
+
+	HelmbreakerDelayedHitContexts.Reset();
+}
+
+void AMHMeleeWeaponInstance::ResolveConfirmedHitForAttack(
+	AMHPlayerCharacter* PlayerOwner,
+	const FGameplayTag& InAttackTag,
+	int32 InAttackSequenceId,
+	const FMHHitAcknowledge& HitAcknowledge
+)
+{
+	if (!HitAcknowledge.bAcceptedHit || HitAcknowledge.ResultType != EMHHitResultType::NormalHit)
+	{
+		return;
+	}
+
+	if (ResolvedConfirmedHitAttackSequenceIds.Contains(InAttackSequenceId))
+	{
+		return;
+	}
+
+	if (IsValid(PlayerOwner))
+	{
+		PlayerOwner->Notify_LongSwordAttackHitConfirmed(InAttackTag);
+	}
+
+	PlayAcceptedHitCameraShake(InAttackTag);
+	ResolvedConfirmedHitAttackSequenceIds.Add(InAttackSequenceId);
+
+	if (InAttackSequenceId == CurrentAttackSequenceId)
+	{
+		bResolvedConfirmedHitForCurrentAttack = true;
+	}
+}
+
 void AMHMeleeWeaponInstance::OnWeaponBeginOverlap(
 	UPrimitiveComponent* OverlappedComponent,
 	AActor* OtherActor,
@@ -287,44 +546,41 @@ void AMHMeleeWeaponInstance::OnWeaponBeginOverlap(
 	const FHitResult& SweepResult
 )
 {
-	// 상대 액터가 유효하지 않으면 처리 중단
+	(void)OverlappedComponent;
+	(void)OtherBodyIndex;
+
 	if (!IsValid(OtherActor))
 	{
-		UE_LOG(LogMHMeleeWeaponInstance, Warning, TEXT("Overlapped Actor is not valid."));
+		UE_LOG(LogMHMeleeWeaponInstance, Warning, TEXT("오버랩 대상 액터가 유효하지 않습니다."));
 		return;
 	}
 
-	// 무기의 소유자(공격 주체) 가져오기
 	AActor* OwnerActor = GetOwner();
 	if (!IsValid(OwnerActor))
 	{
-		UE_LOG(LogMHMeleeWeaponInstance, Warning, TEXT("Owner is not valid."));
+		UE_LOG(LogMHMeleeWeaponInstance, Warning, TEXT("무기 소유자가 유효하지 않습니다."));
 		return;
 	}
 
-	// 자기 자신과의 충돌은 무시
 	if (OtherActor == OwnerActor)
 	{
 		return;
 	}
 
-	// 이미 이번 공격 판정에서 타격한 대상이면 중복 처리 방지
 	if (HitActors.Contains(OtherActor))
 	{
 		return;
 	}
 
-	// 현재 공격용 DamageSpec이 없으면 처리 중단
 	if (!HasValidCurrentDamageSpec())
 	{
-		UE_LOG(LogMHMeleeWeaponInstance, Warning, TEXT("CurrentDamageSpecHandle is invalid."));
+		UE_LOG(LogMHMeleeWeaponInstance, Warning, TEXT("CurrentDamageSpecHandle이 유효하지 않습니다."));
 		return;
 	}
 
-	// 현재 공격 태그가 없으면 처리 중단
 	if (!CurrentAttackTag.IsValid())
 	{
-		UE_LOG(LogMHMeleeWeaponInstance, Warning, TEXT("CurrentAttackTag is invalid."));
+		UE_LOG(LogMHMeleeWeaponInstance, Warning, TEXT("CurrentAttackTag가 유효하지 않습니다."));
 		return;
 	}
 
@@ -333,16 +589,27 @@ void AMHMeleeWeaponInstance::OnWeaponBeginOverlap(
 	UE_LOG(
 		LogMHMeleeWeaponInstance,
 		Log,
-		TEXT("TargetActor=%s bFromSweep=%d ImpactPoint=(%.2f, %.2f, %.2f)"),
+		TEXT("오버랩 감지. TargetActor=%s bFromSweep=%d ImpactPoint=(%.2f, %.2f, %.2f) AttackTag=%s"),
 		*GetNameSafe(OtherActor),
 		bFromSweep ? 1 : 0,
 		ResolvedHitResult.ImpactPoint.X,
 		ResolvedHitResult.ImpactPoint.Y,
-		ResolvedHitResult.ImpactPoint.Z
+		ResolvedHitResult.ImpactPoint.Z,
+		*CurrentAttackTag.ToString()
 	);
 
-	FMHHitAcknowledge HitAcknowledge;
 	AMHPlayerCharacter* PlayerOwner = Cast<AMHPlayerCharacter>(OwnerActor);
+
+	// 투구깨기는 첫 오버랩 시 즉시 데미지를 주지 않고 지연 다단히트만 예약한다.
+	if (ShouldUseHelmbreakerDelayedMultiHit()
+		&& OtherActor->GetClass()->ImplementsInterface(UMHDamageSpecReceiverInterface::StaticClass())
+		&& ScheduleHelmbreakerDelayedMultiHit(OtherActor))
+	{
+		HitActors.Add(OtherActor);
+		return;
+	}
+
+	FMHHitAcknowledge HitAcknowledge;
 
 	if (OtherActor->GetClass()->ImplementsInterface(UMHDamageSpecReceiverInterface::StaticClass()) && PlayerOwner)
 	{
@@ -366,33 +633,24 @@ void AMHMeleeWeaponInstance::OnWeaponBeginOverlap(
 		UE_LOG(
 			LogMHMeleeWeaponInstance,
 			Verbose,
-			TEXT("Target does not implement damage receiver interface. Target=%s"),
+			TEXT("대상이 DamageSpec 수신 인터페이스를 구현하지 않았습니다. Target=%s"),
 			*GetNameSafe(OtherActor)
 		);
 		return;
 	}
 
-	// 실제 유효 타격이 처음 성립한 순간에만 소유자 자원을 반영한다.
-	if (!bResolvedConfirmedHitForCurrentAttack
-		&& HitAcknowledge.bAcceptedHit
-		&& HitAcknowledge.ResultType == EMHHitResultType::NormalHit)
-	{
-		if (PlayerOwner)
-		{
-			PlayerOwner->Notify_LongSwordAttackHitConfirmed(CurrentAttackTag);
-		}
+	ResolveConfirmedHitForAttack(
+		PlayerOwner,
+		CurrentAttackTag,
+		CurrentAttackSequenceId,
+		HitAcknowledge
+	);
 
-		PlayAcceptedHitCameraShake();
-		bResolvedConfirmedHitForCurrentAttack = true;
-	}
-
-	// 피격자가 이번 판정을 1회 소비 대상으로 인정하면 목록에 등록
 	if (HitAcknowledge.bConsumeHitOnce)
 	{
 		HitActors.Add(OtherActor);
 	}
 
-	// 특정 결과에서 공격 윈도우를 조기 종료해야 하면 콜리전 비활성화
 	if (HitAcknowledge.bShouldStopAttackWindow)
 	{
 		SetAttackCollisionEnabled(false);
@@ -401,7 +659,7 @@ void AMHMeleeWeaponInstance::OnWeaponBeginOverlap(
 	UE_LOG(
 		LogMHMeleeWeaponInstance,
 		Log,
-		TEXT("DamageSpec delivered. Source=%s Target=%s AttackTag=%s Accepted=%d ConsumeOnce=%d StopWindow=%d"),
+		TEXT("DamageSpec 전달 완료. Source=%s Target=%s AttackTag=%s Accepted=%d ConsumeOnce=%d StopWindow=%d"),
 		*GetNameSafe(OwnerActor),
 		*GetNameSafe(OtherActor),
 		*CurrentAttackTag.ToString(),

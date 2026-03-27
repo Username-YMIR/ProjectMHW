@@ -22,7 +22,11 @@ class UMHHealthAttributeSet;
 class UMHCombatAttributeSet;
 class AMHDamageTextWidgetActor;
 class UNiagaraSystem;
+class AMHMonsterCharacterBase;
+class UDataTable;
+struct FMHAttackMetaRow;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMHOnMonsterDied, AMHMonsterCharacterBase*, Monster);
 
 DECLARE_LOG_CATEGORY_EXTERN(MHMonsterCharacterBase, Log, All);
 
@@ -33,6 +37,12 @@ class PROJECTMHW_API AMHMonsterCharacterBase : public AMHCharacterBase
 
 public:
     AMHMonsterCharacterBase();
+
+    UPROPERTY(BlueprintAssignable, Category="Monster|Death")
+    FMHOnMonsterDied OnMonsterDied;
+
+    UFUNCTION(BlueprintPure, Category="Monster|Death")
+    bool HasMonsterDied() const { return IsMonsterDead(); }
 
 protected:
     virtual void BeginPlay() override;
@@ -216,9 +226,18 @@ protected:
         const FHitResult& HitResult
     );
 
+    bool FindHitReactionAttackMetaRow(
+        FGameplayTag AttackTag,
+        FMHAttackMetaRow& OutAttackMetaRow,
+        const UDataTable*& OutAttackMetaTable
+    ) const;
+
 protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Combat|Data")
-    TObjectPtr<UDataTable> AttackMetaTable = nullptr;
+    TObjectPtr<UDataTable> LongSwordAttackMetaTable = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Combat|Data")
+    TObjectPtr<UDataTable> GreatSwordAttackMetaTable = nullptr;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="UI|DamageText")
     TSubclassOf<AMHDamageTextWidgetActor> DamageTextWidgetActorClass;
@@ -363,6 +382,9 @@ protected:
     
     UPROPERTY(EditDefaultsOnly, Category="Monster|Dead")
     TObjectPtr<UAnimMontage> DeathMontage = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Monster|Death")
+    bool bMonsterDeathBroadcasted = false;
     
     
 

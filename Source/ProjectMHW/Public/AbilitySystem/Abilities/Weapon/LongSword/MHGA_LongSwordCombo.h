@@ -24,6 +24,8 @@ public:
     UMHGA_LongSwordCombo();
     bool TryEvaluateEarlyTransitionNow();
     void RequestExternalEndAbility(bool bInWasCancelled = true);
+    void NotifyLongSwordHelmbreakerLanded();
+    void NotifyLongSwordHelmbreakerLandingFinished();
 
 protected:
     virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
@@ -101,6 +103,18 @@ private:
 
     /** 현재 MoveTag가 드로우 엔트리 기술인지 확인한다. */
     bool IsDrawEntryMoveTag(const FGameplayTag& InMoveTag) const;
+    bool IsHelmbreakerMoveTag(const FGameplayTag& InMoveTag) const;
+    void BeginHelmbreakerSequence();
+    bool TryBeginHelmbreakerApexPhase();
+    void PollHelmbreakerApexPhase();
+    void BeginHelmbreakerDescentPhase();
+    void BeginHelmbreakerLandingPhase();
+    void FinalizeHelmbreakerSequence(bool bInterrupted);
+    void ClearHelmbreakerPhaseTimer();
+    void HandleHelmbreakerLandingFallback();
+    void CacheHelmbreakerGravityScale();
+    void ApplyHelmbreakerGravityScale(float InGravityScale);
+    void RestoreHelmbreakerGravityScale();
 
     UFUNCTION()
     void OnMontageCompleted();
@@ -145,4 +159,42 @@ private:
     bool bIgnoreMontageCallbacks = false;
 
     FTimerHandle TransitionPollingTimerHandle;
+    FTimerHandle HelmbreakerPhaseTimerHandle;
+
+    // 2단계 추가 상승 시작 시 사용할 고정 상승 속도다.
+    UPROPERTY(EditDefaultsOnly, Category = "Ability|LongSword|Helmbreaker", meta = (ClampMin = "0.0"))
+    float HelmbreakerApexMinimumUpwardVelocity = 600.0f;
+
+    // 2단계 상승 구간에서 사용할 중력 배율이다.
+    UPROPERTY(EditDefaultsOnly, Category = "Ability|LongSword|Helmbreaker", meta = (ClampMin = "0.0"))
+    float HelmbreakerApexGravityScale = 0.40f;
+
+    // 3단계 하강 구간에서 사용할 중력 배율이다.
+    UPROPERTY(EditDefaultsOnly, Category = "Ability|LongSword|Helmbreaker", meta = (ClampMin = "0.0"))
+    float HelmbreakerDescentGravityScale = 1.75f;
+
+    // 1단계 루트모션에서 남은 속도를 지우고 2단계 추가 상승을 시작할지 결정한다.
+    UPROPERTY(EditDefaultsOnly, Category = "Ability|LongSword|Helmbreaker")
+    bool bResetHelmbreakerVelocityOnApexStart = true;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Ability|LongSword|Helmbreaker", meta = (ClampMin = "0.001"))
+    float HelmbreakerApexPollInterval = 0.01f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Ability|LongSword|Helmbreaker", meta = (ClampMin = "0.0"))
+    float HelmbreakerLandingFallbackDelay = 0.35f;
+
+    UPROPERTY(Transient)
+    bool bHelmbreakerSequenceActive = false;
+
+    UPROPERTY(Transient)
+    EMHLongSwordHelmbreakerPhase ActiveHelmbreakerPhase = EMHLongSwordHelmbreakerPhase::None;
+
+    UPROPERTY(Transient)
+    float PreviousHelmbreakerVerticalVelocity = 0.0f;
+
+    UPROPERTY(Transient)
+    float CachedHelmbreakerDefaultGravityScale = 1.0f;
+
+    UPROPERTY(Transient)
+    bool bHasCachedHelmbreakerDefaultGravityScale = false;
 };

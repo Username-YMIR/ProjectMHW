@@ -10,6 +10,7 @@ namespace MHGreatSwordGameplayTags
     UE_DEFINE_GAMEPLAY_TAG(Move_GS_WideSlash, "Move.GS.WideSlash");
     UE_DEFINE_GAMEPLAY_TAG(Move_GS_RisingSlash, "Move.GS.RisingSlash");
     UE_DEFINE_GAMEPLAY_TAG(Move_GS_Guard, "Move.GS.Guard");
+    UE_DEFINE_GAMEPLAY_TAG(Move_GS_GuardImpact, "Move.GS.GuardImpact");
     UE_DEFINE_GAMEPLAY_TAG(Move_GS_Sheathe, "Move.GS.Sheathe");
 
     UE_DEFINE_GAMEPLAY_TAG(Move_GS_ChargeSlashCharging, "Move.GS.ChargeSlashCharging");
