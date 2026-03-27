@@ -284,16 +284,16 @@ bool AMHMonsterCharacterBase::IsMonsterAttacking() const
 
 void AMHMonsterCharacterBase::SetMonsterAttacking(bool bNewAttacking)
 {
-    if (bMonsterAttacking == bNewAttacking)
-    {
-        return;
-    }
-
+    const bool bChanged = (bMonsterAttacking != bNewAttacking);
     bMonsterAttacking = bNewAttacking;
 
-    UE_LOG(MHMonsterCharacterBase, Warning,
-        TEXT("SetMonsterAttacking | %s"),
-        bMonsterAttacking ? TEXT("true") : TEXT("false"));
+    if (bChanged)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("SetMonsterAttacking | %s"),
+            bMonsterAttacking ? TEXT("true") : TEXT("false"));
+    }
+
     // 블랙보드 
     if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
     {
@@ -1463,6 +1463,15 @@ void AMHMonsterCharacterBase::FinishGroggy()
     {
         MonsterAI->SetGroggy(false);
         UE_LOG(MHMonsterCharacterBase, Warning,TEXT("Finish Groggy | groggy finish end"))
+    }
+
+    if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+    {
+        if (MoveComp->MovementMode == MOVE_None)
+        {
+            MoveComp->SetMovementMode(MOVE_Walking);
+            UE_LOG(MHMonsterCharacterBase, Warning, TEXT("FinishGroggy | Restore MOVE_Walking"));
+        }
     }
 
     const float CurrentHealth = HealthAttributeSets->GetHealth();
@@ -2684,23 +2693,51 @@ void AMHMonsterCharacterBase::OnRoarFinished()
 
 void AMHMonsterCharacterBase::EnterCombatPhase()
 {
-    
     SetMonsterMoveSpeed(CombatWalkSpeed);
-    if (bInCombat)
+
+    if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
     {
-        return;
+        if (MoveComp->MovementMode == MOVE_None)
+        {
+            MoveComp->SetMovementMode(MOVE_Walking);
+            UE_LOG(MHMonsterCharacterBase, Warning, TEXT("EnterCombatPhase | Restore MOVE_Walking"));
+        }
     }
-    //BT 용 BOOL  값
+
+    // roar/phase transition/ability 종료 이후에도 BT 쪽 전투 상태가 틀어지지 않도록
+    // Combat 진입 시점마다 핵심 블랙보드 값을 다시 밀어넣는다.
     if (AMHMonsterAIController* MonsterAI = GetMonsterAIController())
     {
-        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("EnterCombatPhase | SetInCombat(true)"));
+        UE_LOG(MHMonsterCharacterBase, Warning,
+            TEXT("EnterCombatPhase | Sync BB | Target=%s Attacking=%d PhaseTransition=%d AlreadyInCombat=%d"),
+            *GetNameSafe(CombatTarget),
+            bMonsterAttacking ? 1 : 0,
+            bPhaseTransitionPlaying ? 1 : 0,
+            bInCombat ? 1 : 0);
+
+        MonsterAI->SetCombatTarget(CombatTarget);
         MonsterAI->SetInCombat(true);
+        MonsterAI->SetIsRoaring(false);
+        MonsterAI->SetAttacking(bMonsterAttacking);
+
+        if (!bPhaseTransitionPlaying)
+        {
+            MonsterAI->SetPhaseTransition(false);
+        }
     }
     else
     {
         UE_LOG(MHMonsterCharacterBase, Error, TEXT("EnterCombatPhase | MonsterAI is null"));
     }
-    
+
+    StopSightDetection();
+
+    if (bInCombat)
+    {
+        UE_LOG(MHMonsterCharacterBase, Warning, TEXT("EnterCombatPhase | already in combat, BB resynced"));
+        return;
+    }
+
     bInCombat = true;
 
     if (AbilitySystemComponent)
@@ -2710,7 +2747,6 @@ void AMHMonsterCharacterBase::EnterCombatPhase()
         AbilitySystemComponent->AddLooseGameplayTag(MHGameplayTags::State_Monster_Combat);
     }
 
-    StopSightDetection();
     EnterCombat();
 
     UE_LOG(MHMonsterCharacterBase, Warning, TEXT("EnterCombatPhase | combat started"));
